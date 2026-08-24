@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DOMUS+ | Maqueta funcional</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#1A2333;
+    --navy-soft:#2A3548;
+    --blue:#3B82F6;
+    --blue-deep:#2563EB;
+    --blue-light:#9CC9FF;
+    --green:#10B981;
+    --green-deep:#059669;
+    --amber:#F59E0B;
+    --bg:#F7F9FC;
+    --glass:rgba(255,255,255,.94);
+    --glass-strong:#FFFFFF;
+    --glass-border:#E3E8EF;
+    --text-muted:#4A5364;
+    --line:#E3E8EF;
+    --shadow:0 10px 28px rgba(26,35,51,.10);
+    --error:#DC2626;
+    --error-bg:#FEF2F2;
+    --focus-ring:0 0 0 3px rgba(59,130,246,.35);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Inter',sans-serif;color:var(--navy);}
+  h1,h2,h3{font-family:'Outfit',sans-serif;margin:0;}
+
+  /* ---------- fondo ambiental ---------- */
+  .ambient-bg{position:fixed;inset:0;z-index:-1;overflow:hidden;
+    background:linear-gradient(160deg,#CFE8FF 0%,#EAF5FF 32%,#F7F9FC 62%,#E7F5EE 100%);}
+  .blob{position:absolute;border-radius:50%;filter:blur(70px);opacity:.55;animation:drift 24s ease-in-out infinite alternate;}
+  .blob.b1{width:420px;height:420px;background:radial-gradient(circle at 30% 30%,#8FD3FF,transparent 70%);top:-140px;left:-120px;}
+  .blob.b2{width:380px;height:380px;background:radial-gradient(circle at 60% 40%,#FFD9A0,transparent 70%);bottom:-120px;right:-100px;animation-delay:3s;}
+  .blob.b3{width:300px;height:300px;background:radial-gradient(circle at 50% 50%,#B6F3D8,transparent 70%);top:40%;left:60%;animation-delay:6s;}
+  @keyframes drift{from{transform:translate(0,0)}to{transform:translate(34px,28px)}}
+  @media (prefers-reduced-motion:reduce){.blob{animation:none}}
+
+  /* ---------- layout general ---------- */
+  .page-wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:28px 16px;}
+  .poc-header{text-align:center;}
+  .poc-header h1{font-size:30px;font-weight:700;letter-spacing:-.5px;}
+  .poc-header p{margin:4px 0 0;color:var(--text-muted);font-size:13px;}
+  .poc-jump{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:10px 16px;box-shadow:var(--shadow);}
+  .poc-jump label{font-size:12px;font-weight:600;color:var(--text-muted);}
+  .poc-jump select{border:none;background:transparent;font-family:'Inter';font-size:13px;font-weight:600;color:var(--navy);outline:none;}
+
+  /* ---------- marco de dispositivo ---------- */
+  .device-frame{width:390px;max-width:94vw;height:820px;max-height:88vh;margin:0 auto;border-radius:46px;
+    background:linear-gradient(160deg,var(--navy),var(--navy-soft));padding:12px;
+    box-shadow:var(--shadow), 0 0 0 1px rgba(255,255,255,.35) inset;position:relative;}
+  .device-screen{width:100%;height:100%;border-radius:36px;overflow:hidden;background:var(--bg);position:relative;display:flex;flex-direction:column;}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:120px;height:24px;background:var(--navy);border-radius:0 0 16px 16px;z-index:6;}
+
+  .screen{display:none;flex:1;min-height:0;flex-direction:column;}
+  .screen.active{display:flex;}
+  .screen-scroll{flex:1;overflow-y:auto;padding-bottom:24px;}
+  .device-frame.app-mode .screen-scroll{padding-bottom:96px;}
+
+  /* ---------- topbar ---------- */
+  .topbar{display:flex;align-items:center;gap:10px;padding:38px 18px 16px;
+    background:linear-gradient(135deg,rgba(156,201,255,.55),rgba(255,255,255,.3));
+    backdrop-filter:blur(16px);border-bottom:1px solid var(--glass-border);position:relative;z-index:2;}
+  .topbar h1{font-size:19px;font-weight:600;}
+  .topbar .subt{font-size:12px;color:var(--text-muted);margin-top:1px;}
+  .back-btn{width:48px;height:48px;border-radius:50%;background:var(--glass-strong);border:1px solid var(--glass-border);
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;margin-left:-7px;}
+  .back-btn:focus-visible,.topbar-action:focus-visible{outline:none;box-shadow:var(--focus-ring);}
+  .back-btn svg{width:18px;height:18px;stroke:var(--navy);}
+  .topbar-action{margin-left:auto;width:48px;height:48px;border-radius:50%;background:var(--glass-strong);
+    border:1px solid var(--glass-border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-right:-7px;}
+  .topbar-action svg{width:18px;height:18px;stroke:var(--navy);}
+
+  /* ---------- glass card ---------- */
+  .glass-card{background:var(--glass-strong);border:1px solid var(--line);border-radius:18px;
+    box-shadow:0 4px 16px rgba(26,35,51,.06);position:relative;overflow:hidden;}
+
+  /* ---------- auth ---------- */
+  .auth-wrap{padding:54px 24px 24px;display:flex;flex-direction:column;align-items:center;flex:1;}
+  .brand{text-align:center;margin-bottom:22px;}
+  .brand-mark{width:60px;height:60px;margin:0 auto 10px;border-radius:18px;
+    background:linear-gradient(135deg,var(--blue-light),#fff);display:flex;align-items:center;justify-content:center;
+    box-shadow:var(--shadow);font-size:26px;}
+  .brand h1{font-size:24px;font-weight:700;}
+  .brand p{font-size:12.5px;color:var(--text-muted);margin-top:4px;max-width:220px;}
+  .auth-card{width:100%;padding:22px 20px;}
+  .auth-switch{font-size:12.5px;color:var(--text-muted);margin-top:16px;}
+  .auth-switch a{color:var(--blue);font-weight:600;cursor:pointer;text-decoration:none;}
+  .back-link{align-self:flex-start;font-size:12.5px;color:var(--text-muted);margin-bottom:14px;cursor:pointer;display:flex;align-items:center;gap:4px;}
+
+  /* ---------- formularios ---------- */
+  .field{padding:0 18px 16px;}
+  .field label{display:block;font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:6px;}
+  .field input,.field select,.field textarea{width:100%;padding:13px 14px;min-height:48px;border-radius:14px;border:1.5px solid var(--line);
+    background:#FFFFFF;font-family:'Inter';font-size:15px;color:var(--navy);outline:none;transition:border-color .15s,box-shadow .15s;}
+  .field textarea{resize:none;min-height:80px;}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--blue);box-shadow:var(--focus-ring);}
+  .field.has-error input,.field.has-error select,.field.has-error textarea{border-color:var(--error);background:var(--error-bg);}
+  .field.has-error input:focus,.field.has-error textarea:focus{box-shadow:0 0 0 3px rgba(220,38,38,.18);}
+  .field-error{display:none;align-items:center;gap:5px;font-size:12.5px;color:var(--error);font-weight:600;margin-top:6px;}
+  .field.has-error .field-error{display:flex;}
+  .field-error svg{width:13px;height:13px;stroke:var(--error);flex-shrink:0;}
+  .form-block{padding-top:18px;}
+
+  /* segmented control (reemplaza chips para decisiones excluyentes y estructurales) */
+  .segmented{display:flex;margin:0 18px 16px;padding:4px;background:#EEF1F6;border-radius:14px;}
+  .segmented .seg-item{flex:1;text-align:center;padding:11px 8px;min-height:44px;display:flex;align-items:center;justify-content:center;gap:6px;
+    border-radius:11px;font-size:14px;font-weight:600;color:var(--text-muted);cursor:pointer;}
+  .segmented .seg-item svg{width:16px;height:16px;stroke:currentColor;flex-shrink:0;}
+  .segmented .seg-item.active{background:#fff;color:var(--navy);box-shadow:0 2px 6px rgba(26,35,51,.12);}
+
+  .chip-row{display:flex;gap:8px;padding:0 18px 14px;flex-wrap:wrap;}
+  .chip{padding:10px 16px;min-height:40px;display:inline-flex;align-items:center;border-radius:20px;border:1.5px solid var(--line);background:#fff;
+    font-size:13.5px;font-weight:600;color:var(--text-muted);cursor:pointer;}
+  .chip.active{background:var(--navy);border-color:var(--navy);color:#fff;}
+  .chip:focus-visible,.seg-item:focus-visible{outline:none;box-shadow:var(--focus-ring);}
+
+  .btn-primary,.btn-success,.btn-secondary{width:100%;border:none;border-radius:16px;padding:14px;min-height:48px;font-weight:700;font-size:15px;
+    cursor:pointer;position:relative;overflow:hidden;}
+  .btn-primary,.btn-success{color:#fff;box-shadow:var(--shadow);}
+  .btn-primary{background:linear-gradient(135deg,var(--blue),var(--blue-deep));margin-top:6px;}
+  .btn-success{background:linear-gradient(135deg,var(--green),var(--green-deep));}
+  .btn-primary::after,.btn-success::after{content:"";position:absolute;top:0;left:8%;right:8%;height:46%;
+    background:linear-gradient(180deg,rgba(255,255,255,.55),transparent);border-radius:14px 14px 50% 50%;pointer-events:none;}
+  .btn-secondary{background:transparent;color:var(--text-muted);font-weight:600;border:1.5px solid var(--line);box-shadow:none;margin-top:8px;}
+  .btn-secondary:hover{background:#F2F4F8;}
+  .btn-primary:focus-visible,.btn-success:focus-visible,.btn-secondary:focus-visible{outline:none;box-shadow:var(--focus-ring);}
+  .form-submit{padding:6px 18px 0;}
+  .form-actions{padding:0 18px 6px;display:flex;flex-direction:column;}
+
+  .toggle-row{display:flex;align-items:center;gap:10px;padding:0 18px 16px;}
+  .toggle-row input{width:20px;height:20px;}
+  .toggle-row span{font-size:13.5px;color:var(--text-muted);}
+
+  /* ---------- listas / familia ---------- */
+  .section-label{padding:18px 18px 8px;font-size:12.5px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;}
+  .member-card{display:flex;align-items:center;gap:13px;padding:13px 14px;margin:0 18px 10px;cursor:pointer;min-height:48px;}
+  .avatar{width:46px;height:46px;border-radius:15px;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg,var(--blue-light),#fff);flex-shrink:0;color:var(--navy);}
+  .avatar svg{width:24px;height:24px;stroke:var(--navy);fill:none;}
+  .member-info strong{display:block;font-size:14.5px;font-weight:600;}
+  .member-info span{font-size:12.5px;color:var(--text-muted);}
+  .chevron{margin-left:auto;color:var(--text-muted);width:18px;height:18px;}
+
+  .fab{position:absolute;right:18px;bottom:92px;width:56px;height:56px;min-width:48px;min-height:48px;border-radius:50%;
+    background:linear-gradient(135deg,var(--blue),var(--blue-deep));display:flex;align-items:center;justify-content:center;
+    color:#fff;box-shadow:0 10px 26px rgba(59,130,246,.45);cursor:pointer;z-index:5;line-height:0;}
+  .fab svg{width:24px;height:24px;stroke:#fff;fill:none;}
+  .fab:focus-visible{outline:none;box-shadow:0 0 0 4px rgba(59,130,246,.4);}
+  .device-frame:not(.app-mode) .fab{display:none;}
+
+  /* ---------- tab bar ---------- */
+  .tab-bar{display:none;position:absolute;left:14px;right:14px;bottom:14px;justify-content:space-around;
+    padding:8px 6px;background:#FFFFFF;border-radius:24px;
+    border:1px solid var(--line);box-shadow:0 8px 24px rgba(26,35,51,.12);z-index:10;}
+  .device-frame.app-mode .tab-bar{display:flex;}
+  .tab-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--text-muted);
+    font-size:11px;font-weight:600;opacity:.7;cursor:pointer;min-width:48px;min-height:48px;border-radius:14px;}
+  .tab-item svg{width:22px;height:22px;stroke:currentColor;fill:none;}
+  .tab-item.active{color:var(--blue);opacity:1;background:rgba(59,130,246,.08);}
+  .tab-item:focus-visible{outline:none;box-shadow:var(--focus-ring);}
+
+  /* ---------- perfil / detalle ---------- */
+  .profile-head{display:flex;flex-direction:column;align-items:center;padding:22px 18px;text-align:center;}
+  .profile-avatar{width:74px;height:74px;border-radius:24px;background:linear-gradient(135deg,var(--blue-light),#fff);
+    display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);margin-bottom:10px;}
+  .profile-avatar svg{width:34px;height:34px;stroke:var(--navy);}
+  .profile-head h2{font-size:19px;font-weight:700;}
+  .profile-head .subt{font-size:12.5px;color:var(--text-muted);margin-top:2px;}
+  .card-section{margin:0 18px 14px;padding:14px 16px;}
+  .card-section h3{font-size:12.5px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px;}
+  .card-section p{font-size:13.5px;margin:0;line-height:1.5;}
+  .list-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px;}
+  .list-row:last-child{border-bottom:none;}
+  .muted{color:var(--text-muted);}
+  .small{font-size:11.5px;}
+  .add-row{display:flex;align-items:center;justify-content:space-between;margin-top:6px;cursor:pointer;color:var(--blue);font-weight:600;font-size:13px;}
+  .ghost-btn{display:block;text-align:center;margin:6px 18px 18px;padding:13px;border-radius:16px;
+    border:1px solid var(--glass-border);background:var(--glass);font-weight:600;font-size:13.5px;color:var(--navy);cursor:pointer;}
+
+  /* ---------- historial / timeline ---------- */
+  .timeline-item{display:flex;gap:12px;padding:0 18px 6px;}
+  .timeline-track{display:flex;flex-direction:column;align-items:center;width:14px;flex-shrink:0;}
+  .timeline-dot{width:11px;height:11px;border-radius:50%;background:var(--blue);box-shadow:0 0 0 4px rgba(59,130,246,.16);flex-shrink:0;}
+  .timeline-line{flex:1;width:2px;background:var(--line);margin-top:2px;}
+  .timeline-body{padding-bottom:20px;}
+  .timeline-body strong{display:block;font-size:13.5px;}
+  .timeline-body p{margin:4px 0 0;font-size:12.5px;color:var(--text-muted);line-height:1.5;}
+
+  /* ---------- calendario ---------- */
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;padding:6px 18px 10px;}
+  .cal-wd{text-align:center;font-size:11.5px;font-weight:700;color:var(--text-muted);}
+  .cal-day{aspect-ratio:1;min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    border-radius:12px;font-size:13px;font-weight:600;background:#fff;border:1px solid var(--line);cursor:pointer;color:var(--navy);}
+  .cal-day.empty{visibility:hidden;cursor:default;border:none;}
+  .cal-day.selected{background:linear-gradient(135deg,var(--navy),var(--navy-soft));color:#fff;border-color:var(--navy);}
+  .cal-day:focus-visible{outline:none;box-shadow:var(--focus-ring);}
+  .cal-dots{display:flex;gap:3px;align-items:center;}
+  .cal-dot{width:6px;height:6px;flex-shrink:0;}
+  /* el color NUNCA es el único diferenciador: cada tipo además tiene una forma propia */
+  .tipo-vacuna{background:var(--blue);border-radius:50%;}                 /* círculo */
+  .tipo-medicacion{background:var(--amber);border-radius:2px;}            /* cuadrado */
+  .tipo-control{background:var(--green);clip-path:polygon(50% 0,100% 100%,0 100%);} /* triángulo */
+  .legend{display:flex;gap:16px;padding:6px 18px 14px;flex-wrap:wrap;}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:var(--text-muted);}
+  .legend-dot{width:9px;height:9px;flex-shrink:0;}
+  .event-card{display:flex;align-items:center;gap:11px;margin:0 18px 10px;padding:13px 14px;border-radius:16px;min-height:48px;
+    background:#fff;border:1px solid var(--line);box-shadow:0 2px 8px rgba(26,35,51,.05);}
+  .event-dot{width:12px;height:12px;flex-shrink:0;}
+  .event-card strong{font-size:13.5px;display:block;}
+
+
+  /* ---------- cuenta ---------- */
+  .account-head{display:flex;flex-direction:column;align-items:center;padding:30px 18px 10px;text-align:center;}
+  .account-avatar{width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--blue-light),#fff);
+    display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);margin-bottom:10px;}
+  .account-avatar svg{width:32px;height:32px;stroke:var(--navy);}
+  .logout-btn{display:flex;align-items:center;justify-content:center;margin:18px;padding:14px;min-height:48px;text-align:center;border-radius:16px;border:1px solid #FCA5A5;
+    background:var(--error-bg);color:var(--error);font-weight:700;font-size:14px;cursor:pointer;}
+
+  /* ---------- empty states ---------- */
+  .empty-state{display:flex;flex-direction:column;align-items:center;text-align:center;padding:20px 10px 8px;gap:10px;}
+  .empty-state svg{width:40px;height:40px;stroke:var(--blue-light);stroke-width:1.6;fill:none;}
+  .empty-state p{margin:0;font-size:12.5px;color:var(--text-muted);max-width:220px;line-height:1.5;}
+  .empty-state .add-row{margin-top:2px;}
+
+  @media (max-width:430px){
+    .device-frame{height:92vh;border-radius:30px;width:100%;}
+    .device-screen{border-radius:22px;}
+    .poc-jump{font-size:12px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="ambient-bg"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+
+<div class="page-wrap">
+
+  <div class="poc-header">
+    <h1>DOMUS+</h1>
+    <p>Maqueta funcional navegable · Nivel 1 (validación con stakeholders)</p>
+  </div>
+
+  <div class="device-frame" id="deviceFrame">
+    <div class="notch"></div>
+    <div class="device-screen">
+
+      <!-- LOGIN -->
+      <section class="screen active" data-screen="login">
+        <div class="screen-scroll">
+          <div class="auth-wrap">
+            <div class="brand">
+              <div class="brand-mark"><svg viewBox="0 0 24 24" width="28" height="28" stroke="var(--navy)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg></div>
+              <h1>DOMUS+</h1>
+              <p>La salud de tu familia y tus mascotas, en un solo lugar.</p>
+            </div>
+            <div class="glass-card auth-card">
+              <div class="field"><label>Correo electrónico</label><input type="email" value="ana.perez@correo.com"></div>
+              <div class="field" style="padding-bottom:0;"><label>Contraseña</label><input type="password" value="••••••••"></div>
+              <div class="form-submit"><button class="btn-primary" onclick="enterApp('familyList')">Iniciar sesión</button></div>
+            </div>
+            <p class="auth-switch">¿No tienes cuenta? <a onclick="showScreen('register')">Regístrate</a></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- REGISTER -->
+      <section class="screen" data-screen="register">
+        <div class="screen-scroll">
+          <div class="auth-wrap">
+            <span class="back-link" onclick="showScreen('login')">‹ Volver a iniciar sesión</span>
+            <div class="brand" style="margin-bottom:14px;">
+              <h1 style="font-size:20px;">Crear cuenta</h1>
+              <p>Empieza a centralizar la salud de tu familia.</p>
+            </div>
+            <div class="glass-card auth-card">
+              <div class="field"><label>Nombre</label><input type="text" value="Ana"></div>
+              <div class="field"><label>Apellido</label><input type="text" value="Pérez"></div>
+              <div class="field"><label>Correo electrónico</label><input type="email" value="ana.perez@correo.com"></div>
+              <div class="field" style="padding-bottom:0;"><label>Contraseña</label><input type="password" value="••••••••"></div>
+              <div class="form-submit"><button class="btn-primary" onclick="showScreen('groupSetup')">Crear cuenta</button></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- GROUP SETUP -->
+      <section class="screen" data-screen="groupSetup">
+        <div class="screen-scroll">
+          <div class="auth-wrap">
+            <div class="brand">
+              <div class="brand-mark"><svg viewBox="0 0 24 24" width="26" height="26" stroke="var(--navy)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="7" r="2.6"/><path d="M2.5 20c0-3 2.5-5.3 5.5-5.3s5.5 2.3 5.5 5.3"/><circle cx="17" cy="8" r="2.2"/><path d="M14.5 20c.3-2.2 1.8-3.9 4-4.3"/></svg></div>
+              <h1 style="font-size:20px;">Crea tu grupo familiar</h1>
+              <p>Aquí reunirás a las personas y mascotas que quieres cuidar.</p>
+            </div>
+            <div class="glass-card auth-card">
+              <div class="field" style="padding-bottom:0;"><label>Nombre del grupo</label><input type="text" value="Familia Pérez"></div>
+              <div class="form-submit"><button class="btn-success" onclick="enterApp('familyList')">Crear grupo</button></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FAMILY LIST (root) -->
+      <section class="screen" data-screen="familyList">
+        <div class="topbar">
+          <div><h1>Familia Pérez</h1><div class="subt">2 integrantes · 1 mascota</div></div>
+        </div>
+        <div class="screen-scroll">
+          <div class="section-label">Integrantes</div>
+          <div class="member-card glass-card" onclick="openProfile('juan')">
+            <div class="avatar"><svg viewBox="0 0 24 24" width="22" height="22" stroke="var(--navy)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.6 3.1-6.2 7-6.2s7 2.6 7 6.2"/></svg></div>
+            <div class="member-info"><strong>Juan Pérez</strong><span>Adulto · 41 años</span></div>
+            <span class="chevron"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+          <div class="member-card glass-card" onclick="openProfile('maria')">
+            <div class="avatar"><svg viewBox="0 0 24 24" width="20" height="20" stroke="var(--navy)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7.5" r="3"/><path d="M6 20c0-3.3 2.8-5.6 6-5.6s6 2.3 6 5.6"/></svg></div>
+            <div class="member-info"><strong>María Pérez</strong><span>Menor · 9 años</span></div>
+            <span class="chevron"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+          <div class="section-label">Mascotas</div>
+          <div class="member-card glass-card" onclick="openProfile('firulais')">
+            <div class="avatar"><svg viewBox="0 0 24 24" width="22" height="22" stroke="var(--navy)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="9" r="1.7"/><circle cx="12" cy="6.3" r="1.7"/><circle cx="17" cy="9" r="1.7"/><path d="M9 14.2c0-2 1.4-3.2 3-3.2s3 1.2 3 3.2c0 2.1-1.4 3.6-3 3.6s-3-1.5-3-3.6z"/></svg></div>
+            <div class="member-info"><strong>Firulais</strong><span>Perro · Labrador</span></div>
+            <span class="chevron"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+        </div>
+        <div class="fab" onclick="navigateTo('addMember')" role="button" aria-label="Agregar integrante o mascota">
+          <svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M3 20c0-3.4 2.7-5.8 6-5.8s6 2.4 6 5.8"/><path d="M18 8v6M15 11h6"/></svg>
+        </div>
+        <nav class="tab-bar">
+          <div class="tab-item active" data-tab="familia" onclick="switchTab('familia')">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3"/><path d="M2 20c0-3.3 3-6 7-6s7 2.7 7 6"/><circle cx="17" cy="9" r="2.5"/><path d="M14.5 20c.3-2.4 2-4.2 4.3-4.6"/></svg>
+            <span>Familia</span>
+          </div>
+          <div class="tab-item" data-tab="calendario" onclick="switchTab('calendario')">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+            <span>Calendario</span>
+          </div>
+          <div class="tab-item" data-tab="cuenta" onclick="switchTab('cuenta')">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>
+            <span>Cuenta</span>
+          </div>
+        </nav>
+      </section>
+
+      <!-- ADD MEMBER -->
+      <section class="screen" data-screen="addMember">
+        <div class="topbar">
+          <div class="back-btn" onclick="goBack()"><svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></div>
+          <h1>Agregar a la familia</h1>
+        </div>
+        <div class="screen-scroll">
+          <div class="segmented" style="margin-top:16px;" role="tablist" aria-label="Tipo de integrante">
+            <div class="seg-item active" data-type="integrante" onclick="toggleMemberType('integrante')" tabindex="0">
+              <svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.3"/><path d="M5.5 20c0-3.4 2.9-5.8 6.5-5.8s6.5 2.4 6.5 5.8"/></svg>
+              Persona
+            </div>
+            <div class="seg-item" data-type="mascota" onclick="toggleMemberType('mascota')" tabindex="0">
+              <svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="9" r="1.5"/><circle cx="12" cy="6.3" r="1.5"/><circle cx="17" cy="9" r="1.5"/><path d="M9 14.2c0-1.8 1.4-2.9 3-2.9s3 1.1 3 2.9c0 1.9-1.4 3.3-3 3.3s-3-1.4-3-3.3z"/></svg>
+              Mascota
+            </div>
+          </div>
+          <div class="field has-error">
+            <label>Nombre</label>
+            <input type="text" placeholder="Ej. Roberto Pérez">
+            <div class="field-error"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>Este campo es obligatorio</div>
+          </div>
+          <div id="integranteFields">
+            <div class="field"><label>Fecha de nacimiento</label><input type="date"></div>
+            <div class="field">
+              <label>Tipo</label>
+              <div class="chip-row" style="padding:0;">
+                <div class="chip active">Adulto</div><div class="chip">Menor</div><div class="chip">Mayor</div>
+              </div>
+            </div>
+            <div class="field"><label>Observaciones</label><textarea placeholder="Alergias, condiciones, notas..."></textarea></div>
+          </div>
+          <div id="mascotaFields" style="display:none;">
+            <div class="field"><label>Especie</label><input type="text" placeholder="Perro, gato, ave..."></div>
+            <div class="field"><label>Raza</label><input type="text" placeholder="Opcional"></div>
+          </div>
+          <div class="form-actions">
+            <button class="btn-success" onclick="goBack()">Guardar</button>
+            <button class="btn-secondary" onclick="goBack()">Cancelar</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- PROFILE DETAIL -->
+      <section class="screen" data-screen="profileDetail">
+        <div class="topbar">
+          <div class="back-btn" onclick="goBack()"><svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></div>
+          <h1 id="profileTitleTop">Perfil</h1>
+          <div class="topbar-action" onclick="openEdit()"><svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div>
+        </div>
+        <div class="screen-scroll">
+          <div class="profile-head">
+            <div class="profile-avatar" id="profileAvatar"><svg viewBox="0 0 24 24" width="22" height="22" stroke="var(--navy)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.6 3.1-6.2 7-6.2s7 2.6 7 6.2"/></svg></div>
+            <h2 id="profileTitle">Juan Pérez</h2>
+            <div class="subt" id="profileSubt">Adulto · 41 años</div>
+          </div>
+          <div class="card-section glass-card">
+            <h3>Observaciones</h3>
+            <p id="profileObs">Sin alergias conocidas.</p>
+          </div>
+          <div class="card-section glass-card">
+            <h3>Vacunas</h3>
+            <div id="vaccineList"></div>
+            <div class="add-row" onclick="openAddVaccine()">+ Agregar vacuna</div>
+          </div>
+          <div class="card-section glass-card">
+            <h3>Tratamientos</h3>
+            <div id="treatmentList"></div>
+            <div class="add-row" onclick="openAddTreatment()">+ Agregar tratamiento</div>
+          </div>
+          <div class="ghost-btn" onclick="openHistory()">Ver historial completo</div>
+        </div>
+      </section>
+
+      <!-- EDIT PROFILE -->
+      <section class="screen" data-screen="editProfile">
+        <div class="topbar">
+          <div class="back-btn" onclick="goBack()"><svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></div>
+          <div><h1>Editar perfil</h1><div class="subt" id="editSubjectLabel">Juan Pérez</div></div>
+        </div>
+        <div class="screen-scroll form-block">
+          <div class="field"><label>Nombre</label><input type="text" id="editName" value="Juan Pérez"></div>
+          <div class="field"><label>Observaciones</label><textarea>Sin alergias conocidas.</textarea></div>
+          <div class="form-actions"><button class="btn-success" onclick="goBack()">Guardar cambios</button><button class="btn-secondary" onclick="goBack()">Cancelar</button></div>
+        </div>
+      </section>
+
+      <!-- ADD VACCINE -->
+      <section class="screen" data-screen="addVaccine">
+        <div class="topbar">
+          <div class="back-btn" onclick="goBack()"><svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></div>
+          <div><h1>Nueva vacuna</h1><div class="subt">Para <span id="vaccineSubjectName">Juan Pérez</span></div></div>
+        </div>
+        <div class="screen-scroll form-block">
+          <div class="field"><label>Nombre de la vacuna</label><input type="text" placeholder="Ej. Antirrábica"></div>
+          <div class="field"><label>Fecha de aplicación</label><input type="date"></div>
+          <div class="field"><label>Próxima dosis (opcional)</label><input type="date"></div>
+          <div class="field"><label>Notas</label><textarea placeholder="Observaciones..."></textarea></div>
+          <div class="toggle-row"><input type="checkbox" checked><span>Crear recordatorio para la próxima dosis</span></div>
+          <div class="form-actions"><button class="btn-success" onclick="goBack()">Guardar vacuna</button><button class="btn-secondary" onclick="goBack()">Cancelar</button></div>
+        </div>
+      </section>
+
+      <!-- ADD TREATMENT -->
+      <section class="screen" data-screen="addTreatment">
+        <div class="topbar">
+          <div class="back-btn" onclick="goBack()"><svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></div>
+          <div><h1>Nuevo tratamiento</h1><div class="subt">Para <span id="treatmentSubjectName">Juan Pérez</span></div></div>
+        </div>
+        <div class="screen-scroll form-block">
+          <div class="field"><label>Descripción</label><input type="text" placeholder="Ej. Tratamiento asma leve"></div>
+          <div class="field"><label>Medicación</label><input type="text" placeholder="Ej. Salbutamol inhalador"></div>
+          <div class="field"><label>Fecha de inicio</label><input type="date"></div>
+          <div class="field"><label>Fecha de fin (opcional)</label><input type="date"></div>
+          <div class="form-actions"><button class="btn-success" onclick="goBack()">Guardar tratamiento</button><button class="btn-secondary" onclick="goBack()">Cancelar</button></div>
+        </div>
+      </section>
+
+      <!-- HISTORY -->
+      <section class="screen" data-screen="history">
+        <div class="topbar">
+          <div class="back-btn" onclick="goBack()"><svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></div>
+          <h1 id="historyTitle2">Historial</h1>
+        </div>
+        <div class="screen-scroll" style="padding-top:18px;" id="historyTimeline"></div>
+      </section>
+
+      <!-- CALENDAR (root) -->
+      <section class="screen" data-screen="calendar">
+        <div class="topbar"><h1>Calendario de salud</h1></div>
+        <div class="screen-scroll">
+          <div class="cal-grid" style="padding-top:14px;">
+            <div class="cal-wd">L</div><div class="cal-wd">M</div><div class="cal-wd">M</div><div class="cal-wd">J</div><div class="cal-wd">V</div><div class="cal-wd">S</div><div class="cal-wd">D</div>
+          </div>
+          <div class="cal-grid" id="calGrid"></div>
+          <div class="legend">
+            <div class="legend-item"><span class="legend-dot tipo-vacuna"></span>Vacuna</div>
+            <div class="legend-item"><span class="legend-dot tipo-medicacion"></span>Medicación</div>
+            <div class="legend-item"><span class="legend-dot tipo-control"></span>Control</div>
+          </div>
+          <div class="section-label" id="calSelectedLabel" style="padding-top:4px;">Eventos del 25 de junio</div>
+          <div id="dayEvents"></div>
+        </div>
+        <div class="fab" onclick="navigateTo('addReminder')" role="button" aria-label="Agregar recordatorio">
+          <svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6H4c.5-.5 2-2 2-6Z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/><path d="M19 6.5l2-1.7M5 6.5l-2-1.7" /></svg>
+        </div>
+        <nav class="tab-bar">
+          <div class="tab-item" data-tab="familia" onclick="switchTab('familia')">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3"/><path d="M2 20c0-3.3 3-6 7-6s7 2.7 7 6"/><circle cx="17" cy="9" r="2.5"/><path d="M14.5 20c.3-2.4 2-4.2 4.3-4.6"/></svg>
+            <span>Familia</span>
+          </div>
+          <div class="tab-item active" data-tab="calendario" onclick="switchTab('calendario')">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+            <span>Calendario</span>
+          </div>
+          <div class="tab-item" data-tab="cuenta" onclick="switchTab('cuenta')">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>
+            <span>Cuenta</span>
+          </div>
+        </nav>
+      </section>
+
+      <!-- ADD REMINDER -->
+      <section class="screen" data-screen="addReminder">
+        <div class="topbar">
+          <div class="back-btn" onclick="goBack()"><svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></div>
+          <h1>Nuevo recordatorio</h1>
+        </div>
+        <div class="screen-scroll form-block">
+          <div class="field">
+            <label>Tipo</label>
+            <div class="chip-row" style="padding:0;">
+              <div class="chip active">Vacuna</div><div class="chip">Medicación</div><div class="chip">Control</div>
+            </div>
+          </div>
+          <div class="field"><label>Fecha y hora</label><input type="datetime-local"></div>
+          <div class="field"><label>Vincular a (opcional)</label>
+            <select><option>Antirrábica · Firulais</option><option>Tratamiento asma · María</option></select>
+          </div>
+          <div class="form-actions"><button class="btn-success" onclick="goBack()">Guardar recordatorio</button><button class="btn-secondary" onclick="goBack()">Cancelar</button></div>
+        </div>
+      </section>
+
+      <!-- ACCOUNT (root) -->
+      <section class="screen" data-screen="account">
+        <div class="topbar"><h1>Mi cuenta</h1></div>
+        <div class="screen-scroll">
+          <div class="account-head">
+            <div class="account-avatar"><svg viewBox="0 0 24 24" width="22" height="22" stroke="var(--navy)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.6 3.1-6.2 7-6.2s7 2.6 7 6.2"/></svg></div>
+            <h2 style="font-size:18px;">Ana Pérez</h2>
+            <div class="subt">ana.perez@correo.com</div>
+          </div>
+          <div class="card-section glass-card">
+            <h3>Grupo familiar activo</h3>
+            <p>Familia Pérez — 2 integrantes, 1 mascota</p>
+          </div>
+          <div class="card-section glass-card">
+            <h3>Preferencias</h3>
+            <div class="list-row"><span>Notificaciones locales</span><span class="muted">Activas</span></div>
+            <div class="list-row"><span>Idioma</span><span class="muted">Español</span></div>
+          </div>
+          <div class="logout-btn" onclick="logout()">Cerrar sesión</div>
+        </div>
+        <nav class="tab-bar">
+          <div class="tab-item" data-tab="familia" onclick="switchTab('familia')">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3"/><path d="M2 20c0-3.3 3-6 7-6s7 2.7 7 6"/><circle cx="17" cy="9" r="2.5"/><path d="M14.5 20c.3-2.4 2-4.2 4.3-4.6"/></svg>
+            <span>Familia</span>
+          </div>
+          <div class="tab-item" data-tab="calendario" onclick="switchTab('calendario')">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+            <span>Calendario</span>
+          </div>
+          <div class="tab-item active" data-tab="cuenta" onclick="switchTab('cuenta')">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>
+            <span>Cuenta</span>
+          </div>
+        </nav>
+      </section>
+
+    </div>
+  </div>
+
+  <div class="poc-jump">
+    <label>Saltar a pantalla</label>
+    <select id="jumpSelect" onchange="jumpTo(this.value)">
+      <option value="login">Iniciar sesión</option>
+      <option value="register">Registro</option>
+      <option value="groupSetup">Crear grupo familiar</option>
+      <option value="familyList">Familia · Lista</option>
+      <option value="addMember">Agregar integrante / mascota</option>
+      <option value="profileDetail">Perfil de integrante</option>
+      <option value="editProfile">Editar perfil</option>
+      <option value="addVaccine">Agregar vacuna</option>
+      <option value="addTreatment">Agregar tratamiento</option>
+      <option value="history">Historial</option>
+      <option value="calendar">Calendario</option>
+      <option value="addReminder">Agregar recordatorio</option>
+      <option value="account">Mi cuenta</option>
+    </select>
+  </div>
+
+</div>
+
+<script>
+  const ROOT_BY_TAB = { familia:'familyList', calendario:'calendar', cuenta:'account' };
+  const FAMILIA_SCREENS = ['familyList','addMember','profileDetail','editProfile','addVaccine','addTreatment','history'];
+  const CALENDARIO_SCREENS = ['calendar','addReminder'];
+  let stack = [];
+  let currentSubjectId = null;
+
+  const SUBJECTS = {
+    juan: { nombre:'Juan Pérez', subt:'Adulto · 41 años', avatar:'person', obs:'Sin alergias conocidas.',
+      vacunas:[{nombre:'Refuerzo Tétanos', fecha:'12 mar 2025'}],
+      tratamientos:[],
+      historial:[
+        {evento:'Consulta general', fecha:'02 jun 2026', desc:'Chequeo anual. Presión arterial normal.'},
+        {evento:'Análisis de sangre', fecha:'15 ene 2026', desc:'Resultados dentro de rango.'}
+      ]},
+    maria: { nombre:'María Pérez', subt:'Menor · 9 años', avatar:'child', obs:'Asma leve, usa inhalador de rescate.',
+      vacunas:[{nombre:'Refuerzo Triple Viral', fecha:'15 ene 2026'}],
+      tratamientos:[{desc:'Tratamiento asma leve', medicacion:'Salbutamol inhalador'}],
+      historial:[
+        {evento:'Control pediátrico', fecha:'20 jun 2026', desc:'Sin episodios de crisis en el último mes.'}
+      ]},
+    firulais: { nombre:'Firulais', subt:'Perro · Labrador', avatar:'paw', obs:'Esterilizado, 28 kg.',
+      vacunas:[{nombre:'Antirrábica', fecha:'25 dic 2025', proxima:'25 jun 2026'}],
+      tratamientos:[],
+      historial:[
+        {evento:'Control veterinario', fecha:'25 dic 2025', desc:'Peso estable. Vacuna antirrábica aplicada.'}
+      ]}
+  };
+
+  const REMINDERS = [
+    {tipo:'vacuna', dia:25, hora:'10:00', sujeto:'Firulais'},
+    {tipo:'medicacion', dia:25, hora:'20:00', sujeto:'María Pérez'},
+    {tipo:'control', dia:28, hora:'09:30', sujeto:'Juan Pérez'}
+  ];
+  const TIPO_LABEL = {vacuna:'Vacuna', medicacion:'Medicación', control:'Control'};
+
+  function tabOf(id){
+    if (FAMILIA_SCREENS.includes(id)) return 'familia';
+    if (CALENDARIO_SCREENS.includes(id)) return 'calendario';
+    if (id === 'account') return 'cuenta';
+    return null;
+  }
+
+  function showScreen(id){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    document.querySelector(`[data-screen="${id}"]`).classList.add('active');
+    const tab = tabOf(id);
+    document.querySelectorAll('.tab-item').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
+    document.getElementById('jumpSelect').value = id;
+  }
+
+  function navigateTo(id){
+    const current = document.querySelector('.screen.active').dataset.screen;
+    stack.push(current);
+    showScreen(id);
+  }
+
+  function goBack(){
+    const prev = stack.pop();
+    showScreen(prev || 'familyList');
+  }
+
+  function switchTab(tab){
+    stack = [];
+    showScreen(ROOT_BY_TAB[tab]);
+  }
+
+  function enterApp(rootId){
+    document.getElementById('deviceFrame').classList.add('app-mode');
+    stack = [];
+    showScreen(rootId);
+  }
+
+  function logout(){
+    document.getElementById('deviceFrame').classList.remove('app-mode');
+    stack = [];
+    showScreen('login');
+  }
+
+  function toggleMemberType(type){
+    document.querySelectorAll('[data-screen="addMember"] .segmented .seg-item').forEach(c=>c.classList.toggle('active', c.dataset.type===type));
+    document.getElementById('integranteFields').style.display = type==='integrante' ? 'block':'none';
+    document.getElementById('mascotaFields').style.display = type==='mascota' ? 'block':'none';
+  }
+
+  const AVATAR_ICONS = {
+    person: '<svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.6 3.1-6.2 7-6.2s7 2.6 7 6.2"/></svg>',
+    child: '<svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7.5" r="3"/><path d="M6 20c0-3.3 2.8-5.6 6-5.6s6 2.3 6 5.6"/></svg>',
+    paw: '<svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="9" r="1.7"/><circle cx="12" cy="6.3" r="1.7"/><circle cx="17" cy="9" r="1.7"/><path d="M9 14.2c0-2 1.4-3.2 3-3.2s3 1.2 3 3.2c0 2.1-1.4 3.6-3 3.6s-3-1.5-3-3.6z"/></svg>'
+  };
+  const ICON_VACCINE = '<svg viewBox="0 0 24 24" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M19 5l-4 4M11 13l-4 4M14.5 7.5l2 2M9.5 12.5l2 2M16 2l6 6M2 22l5.5-1.5L9 19l-4-4-1.5 1.5z"/></svg>';
+  const ICON_TREATMENT = '<svg viewBox="0 0 24 24" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="9" rx="2"/><path d="M8 9V6a4 4 0 0 1 8 0v3"/><path d="M12 12v3M10.5 13.5h3"/></svg>';
+  const ICON_HISTORY = '<svg viewBox="0 0 24 24" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.6-6.3"/><path d="M3 4v5h5"/><path d="M12 7v5l3 3"/></svg>';
+
+  function populateProfile(id){
+    currentSubjectId = id;
+    const s = SUBJECTS[id];
+    document.getElementById('profileTitleTop').textContent = s.nombre;
+    document.getElementById('profileTitle').textContent = s.nombre;
+    document.getElementById('profileAvatar').innerHTML = AVATAR_ICONS[s.avatar];
+    document.getElementById('profileSubt').textContent = s.subt;
+    document.getElementById('profileObs').textContent = s.obs;
+    document.getElementById('vaccineList').innerHTML = s.vacunas.length
+      ? s.vacunas.map(v=>`<div class="list-row"><span>${v.nombre}</span><span class="muted small">${v.fecha}${v.proxima ? ' · próx. '+v.proxima : ''}</span></div>`).join('')
+      : `<div class="empty-state">${ICON_VACCINE}<p>Todavía no hay vacunas registradas para ${s.nombre.split(' ')[0]}.</p></div>`;
+    document.getElementById('treatmentList').innerHTML = s.tratamientos.length
+      ? s.tratamientos.map(t=>`<div class="list-row"><span>${t.desc}</span><span class="muted small">${t.medicacion}</span></div>`).join('')
+      : `<div class="empty-state">${ICON_TREATMENT}<p>Sin tratamientos activos por ahora.</p></div>`;
+  }
+  function openProfile(id){ populateProfile(id); navigateTo('profileDetail'); }
+
+  function populateHistory(id){
+    const s = SUBJECTS[id];
+    document.getElementById('historyTitle2').textContent = 'Historial de ' + s.nombre;
+    document.getElementById('historyTimeline').innerHTML = s.historial.length
+      ? s.historial.map((h,i)=>`
+      <div class="timeline-item">
+        <div class="timeline-track"><span class="timeline-dot"></span>${i < s.historial.length-1 ? '<span class="timeline-line"></span>' : ''}</div>
+        <div class="timeline-body"><strong>${h.evento}</strong><span class="muted small">${h.fecha}</span><p>${h.desc}</p></div>
+      </div>`).join('')
+      : `<div class="empty-state">${ICON_HISTORY}<p>Todavía no hay eventos en el historial de ${s.nombre.split(' ')[0]}.</p>
+          <div class="add-row" onclick="openAddVaccine()">+ Agregar primer registro</div></div>`;
+  }
+  function openHistory(){ populateHistory(currentSubjectId); navigateTo('history'); }
+
+  function populateEdit(id){
+    const s = SUBJECTS[id];
+    document.getElementById('editName').value = s.nombre;
+    document.getElementById('editSubjectLabel').textContent = s.nombre;
+  }
+  function openEdit(){ populateEdit(currentSubjectId); navigateTo('editProfile'); }
+
+  function openAddVaccine(){ document.getElementById('vaccineSubjectName').textContent = SUBJECTS[currentSubjectId].nombre; navigateTo('addVaccine'); }
+  function openAddTreatment(){ document.getElementById('treatmentSubjectName').textContent = SUBJECTS[currentSubjectId].nombre; navigateTo('addTreatment'); }
+
+  function buildCalendar(){
+    const grid = document.getElementById('calGrid');
+    const startOffset = 0; // 1 jun 2026 cae lunes
+    const daysInMonth = 30;
+    let html = '';
+    for (let i=0;i<startOffset;i++) html += '<div class="cal-day empty"></div>';
+    for (let d=1; d<=daysInMonth; d++){
+      const events = REMINDERS.filter(r=>r.dia===d);
+      const dots = events.map(e=>`<span class="cal-dot tipo-${e.tipo}"></span>`).join('');
+      html += `<div class="cal-day" data-day="${d}" onclick="selectDay(${d})"><span>${d}</span><span class="cal-dots">${dots}</span></div>`;
+    }
+    grid.innerHTML = html;
+  }
+
+  function selectDay(day){
+    document.querySelectorAll('.cal-day').forEach(d=>d.classList.toggle('selected', Number(d.dataset.day)===day));
+    document.getElementById('calSelectedLabel').textContent = `Eventos del ${day} de junio`;
+    const events = REMINDERS.filter(r=>r.dia===day);
+    document.getElementById('dayEvents').innerHTML = events.length
+      ? events.map(e=>`<div class="event-card"><span class="event-dot tipo-${e.tipo}"></span><div><strong>${TIPO_LABEL[e.tipo]} · ${e.sujeto}</strong><div class="muted small">${e.hora} hs</div></div></div>`).join('')
+      : `<div class="empty-state"><svg viewBox="0 0 24 24" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><p>No hay recordatorios para este día.</p></div>`;
+  }
+
+  function jumpTo(id){
+    const appScreens = ['familyList','addMember','profileDetail','editProfile','addVaccine','addTreatment','history','calendar','addReminder','account'];
+    document.getElementById('deviceFrame').classList.toggle('app-mode', appScreens.includes(id));
+    stack = [];
+    if (!currentSubjectId) currentSubjectId = 'juan';
+    if (id === 'profileDetail') populateProfile(currentSubjectId);
+    if (id === 'editProfile') populateEdit(currentSubjectId);
+    if (id === 'addVaccine') document.getElementById('vaccineSubjectName').textContent = SUBJECTS[currentSubjectId].nombre;
+    if (id === 'addTreatment') document.getElementById('treatmentSubjectName').textContent = SUBJECTS[currentSubjectId].nombre;
+    if (id === 'history') populateHistory(currentSubjectId);
+    showScreen(id);
+  }
+
+  buildCalendar();
+  selectDay(25);
+</script>
+</body>
+</html>
