@@ -25,6 +25,11 @@ export const radii = {
   avatar: 999,
 };
 
+export const buttonColors = {
+  primary: colors.blueDeep,
+  success: colors.greenDeep,
+};
+
 export const shadow = {
   shadowColor: colors.navy,
   shadowOffset: { width: 0, height: 10 },

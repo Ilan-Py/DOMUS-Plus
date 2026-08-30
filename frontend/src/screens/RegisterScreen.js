@@ -19,7 +19,7 @@ export default function RegisterScreen({ navigation }) {
 
   function handleRegister() {
     // TODO: conectar con POST /api/auth/registrar
-    // luego navegar a GroupSetup
+    navigation.navigate('GroupSetup');
   }
 
   return (
