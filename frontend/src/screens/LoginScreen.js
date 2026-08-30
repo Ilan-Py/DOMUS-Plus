@@ -17,6 +17,7 @@ export default function LoginScreen({ navigation }) {
 
   function handleLogin() {
     // TODO: conectar con POST /api/auth/login
+    navigation.navigate('MainTabs');
   }
 
   return (

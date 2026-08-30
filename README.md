@@ -14,7 +14,7 @@ El problema que busca resolver es la falta de organización en el seguimiento de
 | Alan Acevedo | Frontend Developer / UX Designer |
 | Ilan Pitashny | Business Analyst / QA Tester |
 
----
+--
 
 ## Tecnologías
 

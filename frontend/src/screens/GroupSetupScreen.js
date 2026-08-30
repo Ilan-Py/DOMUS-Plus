@@ -16,7 +16,7 @@ export default function GroupSetupScreen({ navigation }) {
 
   function handleCrearGrupo() {
     // TODO: conectar con POST /api/familia/grupo
-    // luego navegar a FamilyList
+    navigation.navigate('MainTabs');
   }
 
   return (
