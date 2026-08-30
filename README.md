@@ -141,9 +141,9 @@ Verificación rápida: `GET http://localhost:3000/api/ping`
 | Sprint | Módulo | Estado |
 |---|---|---|
 | Sprint 1 | Infraestructura base y BD | ✅ Completado |
-| Sprint 2 | Autenticación y gestión de perfiles | 🔄 En desarrollo |
-| Sprint 3 | Registro de salud y tratamientos | ⏳ Pendiente |
-| Sprint 4 | Recordatorios y calendario | ⏳ Pendiente |
+| Sprint 2 | Autenticación y gestión de perfiles | ✅ Completado |
+| Sprint 3 | Registro de salud y tratamientos | ✅ Completado |
+| Sprint 4 | Recordatorios y calendario | ✅ Completado |
 | Sprint 5 | Integración, testing y ajustes finales | ⏳ Pendiente |
 
 ---
