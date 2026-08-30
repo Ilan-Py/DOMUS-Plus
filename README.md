@@ -1,11 +1,5 @@
 # DOMUS+ — Plataforma de Gestión de Salud y Cuidados del Grupo Familiar
 
-Proyecto académico desarrollado en el marco de **Prácticas Profesionalizantes II** — Técnico Superior en Desarrollo de Software, IES Santa Fe.
-
----
-
-## Descripción
-
 DOMUS+ es una aplicación mobile orientada a centralizar la información de salud y cuidados del grupo familiar, incluyendo tanto personas como mascotas. Permite registrar tratamientos, vacunas e historial médico, y configurar recordatorios para controles y medicación periódica.
 
 El problema que busca resolver es la falta de organización en el seguimiento de cuidados cotidianos: la mayoría de las personas depende de la memoria o de sistemas informales, lo que genera olvidos y pérdida de información relevante.
