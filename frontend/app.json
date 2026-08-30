@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "DOMUS+",
+    "slug": "domus-plus",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#F7F9FC"
+    },
+    "ios": {
+      "supportsTablet": false
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#F7F9FC"
+      }
+    }
+  }
+}
