@@ -1,5 +1,11 @@
 # DOMUS+ — Plataforma de Gestión de Salud y Cuidados del Grupo Familiar
 
+Proyecto académico desarrollado en el marco de **Prácticas Profesionalizantes II** — Técnico Superior en Desarrollo de Software, IES Santa Fe.
+
+---
+
+## Descripción
+
 DOMUS+ es una aplicación mobile orientada a centralizar la información de salud y cuidados del grupo familiar, incluyendo tanto personas como mascotas. Permite registrar tratamientos, vacunas e historial médico, y configurar recordatorios para controles y medicación periódica.
 
 El problema que busca resolver es la falta de organización en el seguimiento de cuidados cotidianos: la mayoría de las personas depende de la memoria o de sistemas informales, lo que genera olvidos y pérdida de información relevante.
@@ -14,7 +20,7 @@ El problema que busca resolver es la falta de organización en el seguimiento de
 | Alan Acevedo | Frontend Developer / UX Designer |
 | Ilan Pitashny | Business Analyst / QA Tester |
 
---
+---
 
 ## Tecnologías
 
@@ -57,7 +63,24 @@ Domus-Plus/
 │       └── Scripts/
 │           ├── 01_schema.sql   # Creación de base de datos y tablas
 │           └── 02_inserts.sql  # Datos de prueba para desarrollo
-└── frontend/               # React Native — en desarrollo
+└── frontend/               # React Native (Expo) — en desarrollo
+    ├── package.json
+    ├── App.js              # Entry point, navegación raíz (stack)
+    ├── app.json
+    └── src/
+        ├── theme/
+        │   └── colors.js       # Paleta y estilos base (extraídos del mockup)
+        ├── navigation/
+        │   └── MainTabs.js     # Tab bar: Familia / Calendario / Cuenta
+        └── screens/
+            ├── LoginScreen.js
+            ├── RegisterScreen.js
+            ├── GroupSetupScreen.js
+            ├── FamilyListScreen.js
+            ├── AddMemberScreen.js
+            ├── ProfileDetailScreen.js  # pendiente
+            ├── CalendarScreen.js       # pendiente
+            └── AccountScreen.js        # pendiente
 ```
 
 ---
@@ -145,6 +168,30 @@ Verificación rápida: `GET http://localhost:3000/api/ping`
 | Sprint 3 | Registro de salud y tratamientos | ✅ Completado |
 | Sprint 4 | Recordatorios y calendario | ✅ Completado |
 | Sprint 5 | Integración, testing y ajustes finales | ⏳ Pendiente |
+
+---
+
+## Frontend (React Native / Expo)
+
+Conversión del mockup navegable (`docs/DOMUS+ Mockup.html`) a pantallas reales.
+
+| Pantalla (mockup) | Estado |
+|---|---|
+| Login | ✅ Implementada |
+| Registro | ✅ Implementada |
+| Crear grupo familiar | ✅ Implementada |
+| Familia · Lista | ✅ Implementada |
+| Agregar integrante / mascota | ✅ Implementada |
+| Perfil de integrante | ⏳ Pendiente |
+| Editar perfil | ⏳ Pendiente |
+| Agregar vacuna | ⏳ Pendiente |
+| Agregar tratamiento | ⏳ Pendiente |
+| Historial | ⏳ Pendiente |
+| Calendario | ⏳ Pendiente |
+| Agregar recordatorio | ⏳ Pendiente |
+| Mi cuenta | ⏳ Pendiente |
+
+Todavía sin conectar al backend (las pantallas usan datos mock); esa integración queda para después de completar las 13 pantallas.
 
 ---
 
