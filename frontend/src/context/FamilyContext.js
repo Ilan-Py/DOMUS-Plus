@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import api from '../api/client';
+import { getList } from '../api/client';
 
 const FamilyContext = createContext(null);
 
@@ -16,8 +16,8 @@ export function FamilyProvider({ children }) {
     setError(null);
     try {
       const [datosIntegrantes, datosMascotas] = await Promise.all([
-        api.get('/api/familia/integrantes'),
-        api.get('/api/familia/mascotas'),
+        getList('/api/familia/integrantes'),
+        getList('/api/familia/mascotas'),
       ]);
       setIntegrantes(datosIntegrantes);
       setMascotas(datosMascotas);
