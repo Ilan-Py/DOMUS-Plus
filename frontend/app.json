@@ -15,6 +15,15 @@
       "adaptiveIcon": {
         "backgroundColor": "#F7F9FC"
       }
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-font"
+    ],
+    "extra": {
+      "apiUrlProd": "https://REPLACE_WITH_PROD_HOST",
+      "apiUrlLan": "http://192.168.0.8:3000",
+      "useLanIp": false
     }
   }
 }
