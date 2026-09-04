@@ -45,4 +45,15 @@ api.interceptors.response.use(
   }
 );
 
+// Wrapper para endpoints de lista — garantiza un array incluso si `datos`
+// viene ausente/no-array (contrato roto o respuesta inesperada), en vez de
+// dejar que cada consumidor asuma `.length`/`.map`/`.forEach` sobre lo que
+// sea que haya devuelto el interceptor. No se toca el interceptor en sí
+// porque no puede distinguir "lista" de "recurso único" (un `datos` de
+// recurso único no debe coercionarse a []).
+export async function getList(url, config) {
+  const datos = await api.get(url, config);
+  return Array.isArray(datos) ? datos : [];
+}
+
 export default api;
