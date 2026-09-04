@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import api, { setUnauthorizedHandler } from '../api/client';
 import { saveSession, loadSession, clearSession } from '../api/session';
 
@@ -9,10 +9,6 @@ export function AuthProvider({ children }) {
   const [usuario, setUsuario] = useState(null);
   const [grupo, setGrupo] = useState(null);
   const [booting, setBooting] = useState(true);
-
-  // Evita depender de `token`/`grupo` como closures obsoletas dentro de logout()
-  const stateRef = useRef({ token, grupo });
-  stateRef.current = { token, grupo };
 
   function resetState() {
     setToken(null);
@@ -79,9 +75,21 @@ export function AuthProvider({ children }) {
 
   async function login(email, password) {
     const datos = await api.post('/api/auth/login', { email, password });
-    await saveSession({ token: datos.token, usuario: datos.usuario, grupo: stateRef.current.grupo });
+
+    let grupoActual = null;
+    try {
+      grupoActual = await api.get('/api/familia/grupo');
+    } catch (err) {
+      // 404 = el usuario aún no creó un grupo familiar (no es un error de sesión)
+      if (err.status !== 404) {
+        console.warn('AuthContext.login (grupo):', err.mensaje);
+      }
+    }
+
+    await saveSession({ token: datos.token, usuario: datos.usuario, grupo: grupoActual });
     setToken(datos.token);
     setUsuario(datos.usuario);
+    setGrupo(grupoActual);
     return datos;
   }
 
