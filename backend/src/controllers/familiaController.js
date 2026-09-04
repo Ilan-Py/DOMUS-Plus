@@ -111,6 +111,74 @@ async function listarIntegrantes(req, res) {
     }
 }
 
+async function editarIntegrante(req, res) {
+    const usuarioId = req.usuario.id;
+    const integranteId = req.params.id;
+    const { nombre, apellido, fecha_nacimiento, tipo, observaciones } = req.body;
+
+    if (!nombre || !apellido || !fecha_nacimiento || !tipo) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre, apellido, fecha_nacimiento y tipo son obligatorios.' });
+    }
+    if (esFechaFutura(fecha_nacimiento)) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'La fecha de nacimiento no puede ser una fecha futura.' });
+    }
+
+    try {
+        const [grupo] = await db.query(
+            'SELECT id FROM grupo_familiar WHERE usuario_id = ?', [usuarioId]
+        );
+        if (grupo.length === 0) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Debe crear un grupo familiar primero.' });
+        }
+
+        const grupoId = grupo[0].id;
+        const [result] = await db.query(
+            'UPDATE integrante SET nombre = ?, apellido = ?, fecha_nacimiento = ?, tipo = ?, observaciones = ? WHERE id = ? AND grupo_id = ?',
+            [nombre.trim(), apellido.trim(), fecha_nacimiento, tipo, observaciones || null, integranteId, grupoId]
+        );
+        // affectedRows === 0 cubre tanto "no existe" como "existe pero es de
+        // otro grupo" — mismo id, no filtra cuál de los dos casos fue.
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Integrante no encontrado.' });
+        }
+        return res.status(200).json({ codigo: 200, estado: 'ok', datos: { id: Number(integranteId), nombre, apellido, fecha_nacimiento, tipo, observaciones: observaciones || null } });
+
+    } catch (err) {
+        console.error('editarIntegrante=', err.message);
+        return res.status(500).json({ codigo: 500, estado: 'error', datos: 'Error interno del servidor.' });
+    }
+}
+
+async function eliminarIntegrante(req, res) {
+    const usuarioId = req.usuario.id;
+    const integranteId = req.params.id;
+
+    try {
+        const [grupo] = await db.query(
+            'SELECT id FROM grupo_familiar WHERE usuario_id = ?', [usuarioId]
+        );
+        if (grupo.length === 0) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Debe crear un grupo familiar primero.' });
+        }
+
+        const grupoId = grupo[0].id;
+        // ON DELETE CASCADE en vacuna/tratamiento/historial (ver 01_schema.sql)
+        // se encarga de los registros de salud del integrante — no hace falta
+        // borrarlos a mano acá.
+        const [result] = await db.query(
+            'DELETE FROM integrante WHERE id = ? AND grupo_id = ?', [integranteId, grupoId]
+        );
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Integrante no encontrado.' });
+        }
+        return res.status(200).json({ codigo: 200, estado: 'ok', datos: 'Integrante eliminado.' });
+
+    } catch (err) {
+        console.error('eliminarIntegrante=', err.message);
+        return res.status(500).json({ codigo: 500, estado: 'error', datos: 'Error interno del servidor.' });
+    }
+}
+
 // ──────────────────────────────────────────────
 // CU5 — Mascotas
 // ──────────────────────────────────────────────
@@ -164,4 +232,71 @@ async function listarMascotas(req, res) {
     }
 }
 
-module.exports = { crearGrupo, obtenerGrupo, agregarIntegrante, listarIntegrantes, agregarMascota, listarMascotas };
+async function editarMascota(req, res) {
+    const usuarioId = req.usuario.id;
+    const mascotaId = req.params.id;
+    const { nombre, especie, raza, fecha_nacimiento } = req.body;
+
+    if (!nombre || !especie) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre y especie son obligatorios.' });
+    }
+    if (fecha_nacimiento && esFechaFutura(fecha_nacimiento)) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'La fecha de nacimiento no puede ser una fecha futura.' });
+    }
+
+    try {
+        const [grupo] = await db.query(
+            'SELECT id FROM grupo_familiar WHERE usuario_id = ?', [usuarioId]
+        );
+        if (grupo.length === 0) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Debe crear un grupo familiar primero.' });
+        }
+
+        const grupoId = grupo[0].id;
+        const [result] = await db.query(
+            'UPDATE mascota SET nombre = ?, especie = ?, raza = ?, fecha_nacimiento = ? WHERE id = ? AND grupo_id = ?',
+            [nombre.trim(), especie.trim(), raza ? raza.trim() : null, fecha_nacimiento || null, mascotaId, grupoId]
+        );
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Mascota no encontrada.' });
+        }
+        return res.status(200).json({ codigo: 200, estado: 'ok', datos: { id: Number(mascotaId), nombre, especie, raza: raza || null, fecha_nacimiento: fecha_nacimiento || null } });
+
+    } catch (err) {
+        console.error('editarMascota=', err.message);
+        return res.status(500).json({ codigo: 500, estado: 'error', datos: 'Error interno del servidor.' });
+    }
+}
+
+async function eliminarMascota(req, res) {
+    const usuarioId = req.usuario.id;
+    const mascotaId = req.params.id;
+
+    try {
+        const [grupo] = await db.query(
+            'SELECT id FROM grupo_familiar WHERE usuario_id = ?', [usuarioId]
+        );
+        if (grupo.length === 0) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Debe crear un grupo familiar primero.' });
+        }
+
+        const grupoId = grupo[0].id;
+        const [result] = await db.query(
+            'DELETE FROM mascota WHERE id = ? AND grupo_id = ?', [mascotaId, grupoId]
+        );
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Mascota no encontrada.' });
+        }
+        return res.status(200).json({ codigo: 200, estado: 'ok', datos: 'Mascota eliminada.' });
+
+    } catch (err) {
+        console.error('eliminarMascota=', err.message);
+        return res.status(500).json({ codigo: 500, estado: 'error', datos: 'Error interno del servidor.' });
+    }
+}
+
+module.exports = {
+    crearGrupo, obtenerGrupo,
+    agregarIntegrante, listarIntegrantes, editarIntegrante, eliminarIntegrante,
+    agregarMascota, listarMascotas, editarMascota, eliminarMascota
+};

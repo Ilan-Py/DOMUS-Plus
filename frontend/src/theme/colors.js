@@ -89,6 +89,13 @@ export const colors = {
   error: '#DC2626',         // semántico, no se toca
   errorBg: '#FEF2F2',
 
+  // Ícono de acción destructiva (ej. tacho de eliminar en ProfileDetailScreen)
+  // — reddish-orange, deliberadamente distinto de `error` (rojo de
+  // validación de formularios) y de `lime`/`limeDeep` (terracota semántico
+  // de "urgente/atención" en badges y botones) para no mezclar esos tres
+  // significados bajo un mismo tono.
+  danger: '#E85D04',
+
   // preserva el azul original de blueDeep bajo su propio nombre, independiente
   // de que blueDeep ahora signifique negro/negro-cálido — sin consumidores
   // tras repuntar reminderBadge.vacuna a la familia gold, se deja el valor

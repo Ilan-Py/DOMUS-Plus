@@ -2,38 +2,123 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { colors, radii, shadow, buttonColors } from '../theme/colors';
+import { colors, radii, shadow } from '../theme/colors';
+import { poppinsWeight } from '../theme/typography';
+import api from '../api/client';
+import { useFamily } from '../context/FamilyContext';
+import FormField from '../components/FormField';
+import PrimaryButton from '../components/PrimaryButton';
+import SegmentedControl from '../components/SegmentedControl';
+import ErrorBanner from '../components/ErrorBanner';
+import DatePickerField, { formatDateOnly } from '../components/DatePickerField';
+import PressScale from '../components/PressScale';
+import { parseApiDate } from '../utils/displayFormat';
 
 const TIPOS_INTEGRANTE = ['Adulto', 'Menor', 'Mayor'];
+const TIPO_MIEMBRO_OPTIONS = [
+  { label: 'Persona', value: 'integrante' },
+  { label: 'Mascota', value: 'mascota' },
+];
 
-export default function AddMemberScreen({ navigation }) {
-  const [tipoMiembro, setTipoMiembro] = useState('integrante'); // 'integrante' | 'mascota'
-  const [nombre, setNombre] = useState('');
-  const [nombreError, setNombreError] = useState(false);
+// 'adulto' -> 'Adulto' — inverso del .toLowerCase() que arma el payload al
+// guardar; memberToEdit.tipo siempre llega en minúsculas (columna ENUM).
+function capitalizarTipo(tipo) {
+  if (!tipo) return 'Adulto';
+  return tipo.charAt(0).toUpperCase() + tipo.slice(1);
+}
+
+export default function AddMemberScreen({ navigation, route }) {
+  const { refresh } = useFamily();
+
+  // memberToEdit: el item completo de integrante/mascota (viene de
+  // FamilyListScreen — long-press — o ProfileDetailScreen — botón editar).
+  // Su presencia decide el modo de la pantalla; tipoMiembro siempre lo manda
+  // el caller explícitamente en ese caso, nunca se infiere del objeto.
+  const { memberToEdit } = route?.params || {};
+  const isEditing = !!memberToEdit;
+
+  // Soporte mínimo para preseleccionar el segmentado desde afuera (RadialFab
+  // en FamilyListScreen, o el modo edición) — cualquier otro valor, o
+  // ausencia del param, cae al default de siempre ('integrante').
+  const tipoMiembroInicial = route?.params?.tipoMiembro === 'mascota' ? 'mascota' : 'integrante';
+  const [tipoMiembro, setTipoMiembro] = useState(tipoMiembroInicial); // 'integrante' | 'mascota' — el segmentado sólo se muestra si !isEditing, ver JSX
+  const [nombre, setNombre] = useState(() => memberToEdit?.nombre || '');
+  const [nombreError, setNombreError] = useState('');
 
   // Campos de integrante
-  const [fechaNacimiento, setFechaNacimiento] = useState('');
-  const [tipoIntegrante, setTipoIntegrante] = useState('Adulto');
-  const [observaciones, setObservaciones] = useState('');
+  const [apellido, setApellido] = useState(() => memberToEdit?.apellido || '');
+  const [apellidoError, setApellidoError] = useState('');
+  const [fechaNacimiento, setFechaNacimiento] = useState(() =>
+    memberToEdit?.fecha_nacimiento ? parseApiDate(memberToEdit.fecha_nacimiento) : null
+  );
+  const [fechaNacimientoError, setFechaNacimientoError] = useState('');
+  const [tipoIntegrante, setTipoIntegrante] = useState(() => capitalizarTipo(memberToEdit?.tipo));
+  const [observaciones, setObservaciones] = useState(() => memberToEdit?.observaciones || '');
 
   // Campos de mascota
-  const [especie, setEspecie] = useState('');
-  const [raza, setRaza] = useState('');
+  const [especie, setEspecie] = useState(() => memberToEdit?.especie || '');
+  const [raza, setRaza] = useState(() => memberToEdit?.raza || '');
 
-  function handleGuardar() {
-    if (!nombre.trim()) {
-      setNombreError(true);
-      return;
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function handleGuardar() {
+    const faltaNombre = !nombre.trim();
+    const faltaApellido = tipoMiembro === 'integrante' && !apellido.trim();
+    const faltaFechaNacimiento = tipoMiembro === 'integrante' && !fechaNacimiento;
+    setNombreError(faltaNombre ? 'Este campo es obligatorio' : '');
+    setApellidoError(faltaApellido ? 'Este campo es obligatorio' : '');
+    setFechaNacimientoError(faltaFechaNacimiento ? 'Este campo es obligatorio' : '');
+    setFormError('');
+
+    if (faltaNombre || faltaApellido || faltaFechaNacimiento) return;
+
+    setSaving(true);
+    try {
+      if (tipoMiembro === 'integrante') {
+        // Enum de MySQL en minúsculas ('adulto'|'menor'|'mayor') — el picker
+        // muestra las etiquetas capitalizadas, se convierte recién acá.
+        const payload = {
+          nombre,
+          apellido,
+          fecha_nacimiento: fechaNacimiento ? formatDateOnly(fechaNacimiento) : undefined,
+          tipo: tipoIntegrante.toLowerCase(),
+          observaciones: observaciones || undefined,
+        };
+        if (isEditing) {
+          await api.patch(`/api/familia/integrantes/${memberToEdit.id}`, payload);
+        } else {
+          await api.post('/api/familia/integrantes', payload);
+        }
+      } else {
+        const payload = {
+          nombre,
+          especie,
+          raza: raza || undefined,
+        };
+        if (isEditing) {
+          await api.patch(`/api/familia/mascotas/${memberToEdit.id}`, payload);
+        } else {
+          await api.post('/api/familia/mascotas', payload);
+        }
+      }
+
+      await refresh();
+      navigation.goBack();
+    } catch (err) {
+      if (err.status === 400 && /fecha de nacimiento/i.test(err.mensaje || '')) {
+        setFechaNacimientoError(err.mensaje);
+      } else {
+        setFormError(err.mensaje);
+      }
+    } finally {
+      setSaving(false);
     }
-    // TODO: conectar con POST /api/familia/integrantes o /api/familia/mascotas
-    navigation.goBack();
   }
 
   return (
@@ -42,78 +127,78 @@ export default function AddMemberScreen({ navigation }) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.topbar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <PressScale
+          contentStyle={styles.backBtn}
+          onPress={() => navigation.goBack()}
+          accessibilityLabel="Volver"
+        >
           <Text style={styles.backBtnIcon}>‹</Text>
-        </TouchableOpacity>
-        <Text style={styles.topbarTitle}>Agregar a la familia</Text>
+        </PressScale>
+        <Text style={styles.topbarTitle}>
+          {isEditing ? 'Editar' : 'Agregar a la familia'}
+        </Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.segmented}>
-          <TouchableOpacity
-            style={[styles.segItem, tipoMiembro === 'integrante' && styles.segItemActive]}
-            onPress={() => setTipoMiembro('integrante')}
-          >
-            <Text
-              style={[
-                styles.segItemText,
-                tipoMiembro === 'integrante' && styles.segItemTextActive,
-              ]}
-            >
-              Persona
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.segItem, tipoMiembro === 'mascota' && styles.segItemActive]}
-            onPress={() => setTipoMiembro('mascota')}
-          >
-            <Text
-              style={[
-                styles.segItemText,
-                tipoMiembro === 'mascota' && styles.segItemTextActive,
-              ]}
-            >
-              Mascota
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Nombre</Text>
-          <TextInput
-            style={[styles.input, nombreError && styles.inputError]}
-            value={nombre}
-            onChangeText={(text) => {
-              setNombre(text);
-              if (text.trim()) setNombreError(false);
-            }}
-            placeholder="Ej. Roberto Pérez"
-            placeholderTextColor={colors.textMuted}
+        {isEditing ? (
+          // El tipo (persona/mascota) no se puede cambiar al editar — id y
+          // tabla ya están fijados por memberToEdit. Mismo texto que el label
+          // "Tipo" de abajo, no el segmentado interactivo.
+          <Text style={styles.lockedTipo}>
+            {tipoMiembro === 'integrante' ? 'Persona' : 'Mascota'}
+          </Text>
+        ) : (
+          <SegmentedControl
+            options={TIPO_MIEMBRO_OPTIONS}
+            selectedValue={tipoMiembro}
+            onChange={setTipoMiembro}
           />
-          {nombreError && (
-            <Text style={styles.fieldErrorText}>Este campo es obligatorio</Text>
-          )}
-        </View>
+        )}
+
+        <FormField
+          label="Nombre"
+          value={nombre}
+          onChangeText={(text) => {
+            setNombre(text);
+            if (nombreError) setNombreError('');
+          }}
+          placeholder={tipoMiembro === 'integrante' ? 'Ej. Roberto' : 'Ej. Firulais'}
+          error={nombreError}
+          style={styles.field}
+        />
 
         {tipoMiembro === 'integrante' ? (
           <>
-            <View style={styles.field}>
-              <Text style={styles.label}>Fecha de nacimiento</Text>
-              <TextInput
-                style={styles.input}
-                value={fechaNacimiento}
-                onChangeText={setFechaNacimiento}
-                placeholder="AAAA-MM-DD"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
+            <FormField
+              label="Apellido"
+              value={apellido}
+              onChangeText={(text) => {
+                setApellido(text);
+                if (apellidoError) setApellidoError('');
+              }}
+              placeholder="Ej. Pérez"
+              error={apellidoError}
+              style={styles.field}
+            />
+            <DatePickerField
+              label="Fecha de nacimiento"
+              value={fechaNacimiento}
+              onChange={(date) => {
+                setFechaNacimiento(date);
+                if (fechaNacimientoError) setFechaNacimientoError('');
+              }}
+              mode="date"
+              maximumDate={new Date()}
+              error={fechaNacimientoError}
+              style={styles.field}
+            />
             <View style={styles.field}>
               <Text style={styles.label}>Tipo</Text>
               <View style={styles.chipRow}>
                 {TIPOS_INTEGRANTE.map((tipo) => (
-                  <TouchableOpacity
+                  <PressScale
                     key={tipo}
-                    style={[styles.chip, tipoIntegrante === tipo && styles.chipActive]}
+                    contentStyle={[styles.chip, tipoIntegrante === tipo && styles.chipActive]}
                     onPress={() => setTipoIntegrante(tipo)}
                   >
                     <Text
@@ -124,58 +209,56 @@ export default function AddMemberScreen({ navigation }) {
                     >
                       {tipo}
                     </Text>
-                  </TouchableOpacity>
+                  </PressScale>
                 ))}
               </View>
             </View>
-            <View style={styles.field}>
-              <Text style={styles.label}>Observaciones</Text>
-              <TextInput
-                style={[styles.input, styles.textarea]}
-                value={observaciones}
-                onChangeText={setObservaciones}
-                placeholder="Alergias, condiciones, notas..."
-                placeholderTextColor={colors.textMuted}
-                multiline
-              />
-            </View>
+            <FormField
+              label="Observaciones"
+              value={observaciones}
+              onChangeText={setObservaciones}
+              placeholder="Alergias, condiciones, notas..."
+              multiline
+              style={styles.field}
+            />
           </>
         ) : (
           <>
-            <View style={styles.field}>
-              <Text style={styles.label}>Especie</Text>
-              <TextInput
-                style={styles.input}
-                value={especie}
-                onChangeText={setEspecie}
-                placeholder="Perro, gato, ave..."
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
-            <View style={styles.field}>
-              <Text style={styles.label}>Raza</Text>
-              <TextInput
-                style={styles.input}
-                value={raza}
-                onChangeText={setRaza}
-                placeholder="Opcional"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
+            <FormField
+              label="Especie"
+              value={especie}
+              onChangeText={setEspecie}
+              placeholder="Perro, gato, ave..."
+              style={styles.field}
+            />
+            <FormField
+              label="Raza"
+              value={raza}
+              onChangeText={setRaza}
+              placeholder="Opcional"
+              style={styles.field}
+            />
           </>
         )}
 
+        {!!formError && (
+          <View style={styles.field}>
+            <ErrorBanner message={formError} />
+          </View>
+        )}
+
         <View style={styles.formActions}>
-          <TouchableOpacity style={styles.btnSuccess} onPress={handleGuardar} activeOpacity={0.85}>
-            <Text style={styles.btnSuccessText}>Guardar</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.btnSecondary}
+          <PrimaryButton
+            title={isEditing ? 'Guardar cambios' : 'Guardar'}
+            onPress={handleGuardar}
+            loading={saving}
+            variant="success"
+          />
+          <PrimaryButton
+            title="Cancelar"
             onPress={() => navigation.goBack()}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.btnSecondaryText}>Cancelar</Text>
-          </TouchableOpacity>
+            variant="secondary"
+          />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -194,9 +277,11 @@ const styles = StyleSheet.create({
     paddingTop: 54,
     paddingHorizontal: 18,
     paddingBottom: 16,
-    backgroundColor: 'rgba(156,201,255,0.25)',
+    // bgBase (no colors.glass, que ahora es blanco puro) — mismo criterio
+    // que el resto de los headers, ver FamilyListScreen.js.
+    backgroundColor: colors.bgBase,
     borderBottomWidth: 1,
-    borderBottomColor: colors.glassBorder,
+    borderBottomColor: colors.glassBorderSoft,
   },
   backBtn: {
     width: 40,
@@ -216,40 +301,13 @@ const styles = StyleSheet.create({
   topbarTitle: {
     fontSize: 19,
     fontWeight: '600',
+    fontFamily: poppinsWeight('600'),
     color: colors.navy,
   },
+  // 100 (no 40) para despejar la tab bar flotante (position:'absolute' en
+  // MainTabs) — mismo valor que CalendarScreen/FamilyListScreen.
   scroll: {
-    paddingBottom: 40,
-  },
-  segmented: {
-    flexDirection: 'row',
-    marginHorizontal: 18,
-    marginTop: 16,
-    marginBottom: 16,
-    padding: 4,
-    backgroundColor: '#EEF1F6',
-    borderRadius: 14,
-  },
-  segItem: {
-    flex: 1,
-    paddingVertical: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 11,
-  },
-  segItemActive: {
-    backgroundColor: '#FFFFFF',
-    ...shadow,
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-  },
-  segItemText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textMuted,
-  },
-  segItemTextActive: {
-    color: colors.navy,
+    paddingBottom: 100,
   },
   field: {
     paddingHorizontal: 18,
@@ -258,34 +316,20 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
+    fontFamily: poppinsWeight('600'),
     color: colors.textMuted,
     marginBottom: 6,
   },
-  input: {
-    width: '100%',
-    minHeight: 48,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    borderRadius: radii.input,
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    backgroundColor: '#FFFFFF',
-    fontSize: 15,
-    color: colors.navy,
-  },
-  inputError: {
-    borderColor: colors.error,
-    backgroundColor: colors.errorBg,
-  },
-  fieldErrorText: {
-    fontSize: 12.5,
-    color: colors.error,
+  lockedTipo: {
+    marginHorizontal: 18,
+    marginTop: 16,
+    marginBottom: 16,
+    fontSize: 13,
     fontWeight: '600',
-    marginTop: 6,
-  },
-  textarea: {
-    minHeight: 80,
-    textAlignVertical: 'top',
+    fontFamily: poppinsWeight('600'),
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   chipRow: {
     flexDirection: 'row',
@@ -308,43 +352,15 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: 13.5,
     fontWeight: '600',
+    fontFamily: poppinsWeight('600'),
     color: colors.textMuted,
   },
   chipTextActive: {
-    color: '#FFFFFF',
+    color: colors.onAccent,
   },
   formActions: {
     paddingHorizontal: 18,
     paddingTop: 6,
     gap: 10,
-  },
-  btnSuccess: {
-    width: '100%',
-    minHeight: 48,
-    borderRadius: radii.button,
-    backgroundColor: buttonColors.success,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow,
-  },
-  btnSuccessText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  btnSecondary: {
-    width: '100%',
-    minHeight: 48,
-    borderRadius: radii.button,
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
-  },
-  btnSecondaryText: {
-    color: colors.textMuted,
-    fontWeight: '600',
-    fontSize: 15,
   },
 });
