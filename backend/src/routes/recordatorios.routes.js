@@ -6,6 +6,8 @@ const { verificarToken } = require('../config/auth');
 const {
     crearRecordatorio,
     listarRecordatorios,
+    editarRecordatorio,
+    eliminarRecordatorio,
     desactivarRecordatorio
 } = require('../controllers/recordatoriosController');
 
@@ -14,5 +16,7 @@ router.use(verificarToken);
 router.post('/',           crearRecordatorio);
 router.get('/',            listarRecordatorios);
 router.patch('/:id/desactivar', desactivarRecordatorio);
+router.patch('/:id',       editarRecordatorio);
+router.delete('/:id',      eliminarRecordatorio);
 
 module.exports = router;
