@@ -2,24 +2,63 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
 } from 'react-native';
-import { colors, radii, shadow } from '../theme/colors';
+import { colors, shadow, glassPanel } from '../theme/colors';
+import { poppinsWeight } from '../theme/typography';
+import { useAuth } from '../context/AuthContext';
+import FormField from '../components/FormField';
+import PrimaryButton from '../components/PrimaryButton';
+import ErrorBanner from '../components/ErrorBanner';
+import BackgroundBlobs from '../components/BackgroundBlobs';
+
+// Misma regla que authController.js: mínimo 8 caracteres, 1 mayúscula, 1 número
+const PASSWORD_RULE = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
+const PASSWORD_RULE_MSG = 'La contraseña debe tener mínimo 8 caracteres, al menos una mayúscula y un número.';
 
 export default function RegisterScreen({ navigation }) {
+  const { register } = useAuth();
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  function handleRegister() {
-    // TODO: conectar con POST /api/auth/registrar
-    navigation.navigate('GroupSetup');
+  async function handleRegister() {
+    setEmailError('');
+    setPasswordError('');
+    setFormError('');
+
+    if (!PASSWORD_RULE.test(password)) {
+      setPasswordError(PASSWORD_RULE_MSG);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // register() hace POST /api/auth/registrar y encadena login() con las
+      // mismas credenciales (el endpoint de registro no devuelve token).
+      // Al actualizarse `token` sin `grupo`, App.js muestra GroupSetup
+      // automáticamente — no se navega manualmente desde acá.
+      await register({ nombre, apellido, email, password });
+    } catch (err) {
+      if (err.status === 409) {
+        setEmailError(err.mensaje);
+      } else if (err.status === 400) {
+        setPasswordError(err.mensaje);
+      } else {
+        setFormError(err.mensaje);
+      }
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -27,6 +66,8 @@ export default function RegisterScreen({ navigation }) {
       style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <BackgroundBlobs />
+
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.authWrap}>
           <TouchableOpacity
@@ -43,58 +84,45 @@ export default function RegisterScreen({ navigation }) {
             </Text>
           </View>
 
-          <View style={styles.card}>
-            <View style={styles.field}>
-              <Text style={styles.label}>Nombre</Text>
-              <TextInput
-                style={styles.input}
-                value={nombre}
-                onChangeText={setNombre}
-                placeholder="Ana"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
-            <View style={styles.field}>
-              <Text style={styles.label}>Apellido</Text>
-              <TextInput
-                style={styles.input}
+          <View style={styles.cardWrap}>
+            <View style={styles.card}>
+              <FormField label="Nombre" value={nombre} onChangeText={setNombre} placeholder="Ana" />
+              <FormField
+                label="Apellido"
                 value={apellido}
                 onChangeText={setApellido}
                 placeholder="Pérez"
-                placeholderTextColor={colors.textMuted}
               />
-            </View>
-            <View style={styles.field}>
-              <Text style={styles.label}>Correo electrónico</Text>
-              <TextInput
-                style={styles.input}
+              <FormField
+                label="Correo electrónico"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (emailError) setEmailError('');
+                }}
                 placeholder="ana.perez@correo.com"
-                placeholderTextColor={colors.textMuted}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                error={emailError}
               />
-            </View>
-            <View style={[styles.field, { paddingBottom: 0 }]}>
-              <Text style={styles.label}>Contraseña</Text>
-              <TextInput
-                style={styles.input}
+              <FormField
+                label="Contraseña"
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  if (passwordError) setPasswordError('');
+                }}
                 placeholder="••••••••"
-                placeholderTextColor={colors.textMuted}
                 secureTextEntry
+                error={passwordError}
+                style={{ paddingBottom: 0 }}
               />
+
+              <ErrorBanner message={formError} />
             </View>
-            <View style={styles.formSubmit}>
-              <TouchableOpacity
-                style={styles.btnPrimary}
-                onPress={handleRegister}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.btnPrimaryText}>Crear cuenta</Text>
-              </TouchableOpacity>
+
+            <View style={styles.submitFloat}>
+              <PrimaryButton title="Crear cuenta" onPress={handleRegister} loading={saving} />
             </View>
           </View>
         </View>
@@ -106,7 +134,7 @@ export default function RegisterScreen({ navigation }) {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.bgBase,
   },
   scroll: {
     flexGrow: 1,
@@ -132,6 +160,7 @@ const styles = StyleSheet.create({
   brandTitle: {
     fontSize: 20,
     fontWeight: '700',
+    fontFamily: poppinsWeight('700'),
     color: colors.navy,
   },
   brandSubtitle: {
@@ -139,51 +168,25 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 4,
   },
+  // Contenedor relativo compartido por el card y el botón flotante — el
+  // botón se posiciona respecto a él vía absolute.
+  cardWrap: {
+    width: '100%',
+    position: 'relative',
+    marginBottom: 24,
+  },
   card: {
     width: '100%',
-    backgroundColor: colors.glassStrong,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radii.card,
+    ...glassPanel,
     paddingHorizontal: 20,
     paddingVertical: 22,
+    overflow: 'hidden', // recorta el contenido al radio redondeado del card
   },
-  field: {
-    paddingBottom: 16,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textMuted,
-    marginBottom: 6,
-  },
-  input: {
-    width: '100%',
-    minHeight: 48,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    borderRadius: radii.input,
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    backgroundColor: '#FFFFFF',
-    fontSize: 15,
-    color: colors.navy,
-  },
-  formSubmit: {
-    paddingTop: 6,
-  },
-  btnPrimary: {
-    width: '100%',
-    minHeight: 48,
-    borderRadius: radii.button,
-    backgroundColor: colors.blueDeep,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow,
-  },
-  btnPrimaryText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 15,
+  submitFloat: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    bottom: -22,
+    zIndex: 3,
   },
 });

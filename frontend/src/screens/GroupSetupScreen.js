@@ -1,22 +1,37 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-} from 'react-native';
-import { colors, radii, shadow, buttonColors } from '../theme/colors';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { colors, radii, shadow } from '../theme/colors';
+import { poppinsWeight } from '../theme/typography';
+import { useAuth } from '../context/AuthContext';
+import FormField from '../components/FormField';
+import PrimaryButton from '../components/PrimaryButton';
+import ErrorBanner from '../components/ErrorBanner';
 
-export default function GroupSetupScreen({ navigation }) {
+export default function GroupSetupScreen() {
+  const { crearGrupo } = useAuth();
   const [nombre, setNombre] = useState('');
+  const [nombreError, setNombreError] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  function handleCrearGrupo() {
-    // TODO: conectar con POST /api/familia/grupo
-    navigation.navigate('MainTabs');
+  async function handleCrearGrupo() {
+    if (!nombre.trim()) {
+      setNombreError(true);
+      return;
+    }
+    setFormError('');
+    setSaving(true);
+    try {
+      // crearGrupo() hace POST /api/familia/grupo y actualiza `grupo` en
+      // AuthContext (si el grupo ya existe, lo recupera con GET en vez de
+      // mostrar error). Al actualizarse `grupo`, App.js cambia a MainTabs
+      // automáticamente — no se navega manualmente desde acá.
+      await crearGrupo(nombre.trim());
+    } catch (err) {
+      setFormError(err.mensaje);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -37,24 +52,27 @@ export default function GroupSetupScreen({ navigation }) {
           </View>
 
           <View style={styles.card}>
-            <View style={[styles.field, { paddingBottom: 0 }]}>
-              <Text style={styles.label}>Nombre del grupo</Text>
-              <TextInput
-                style={styles.input}
-                value={nombre}
-                onChangeText={setNombre}
-                placeholder="Familia Pérez"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
+            <FormField
+              label="Nombre del grupo"
+              value={nombre}
+              onChangeText={(text) => {
+                setNombre(text);
+                if (text.trim()) setNombreError(false);
+              }}
+              placeholder="Familia Pérez"
+              error={nombreError ? 'Este campo es obligatorio' : ''}
+              style={{ paddingBottom: 0 }}
+            />
+
+            <ErrorBanner message={formError} />
+
             <View style={styles.formSubmit}>
-              <TouchableOpacity
-                style={styles.btnSuccess}
+              <PrimaryButton
+                title="Crear grupo"
                 onPress={handleCrearGrupo}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.btnText}>Crear grupo</Text>
-              </TouchableOpacity>
+                loading={saving}
+                variant="success"
+              />
             </View>
           </View>
         </View>
@@ -86,7 +104,12 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 18,
-    backgroundColor: colors.blueLight,
+    // Insignia decorativa de marca, mismo rol que brandBadge en LoginScreen
+    // (que ya usa colors.lime/terracota) — no es un elemento de urgencia ni
+    // de "estado secundario calmo", es la marca de la app en el onboarding,
+    // así que sigue ese mismo precedente en vez de sage. Era colors.blueLight
+    // (#9CC9FF), el último azul frío hardcodeado que quedaba sin migrar.
+    backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
@@ -99,6 +122,7 @@ const styles = StyleSheet.create({
   brandTitle: {
     fontSize: 20,
     fontWeight: '700',
+    fontFamily: poppinsWeight('700'),
     color: colors.navy,
     textAlign: 'center',
   },
@@ -118,42 +142,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 22,
   },
-  field: {
-    paddingBottom: 16,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textMuted,
-    marginBottom: 6,
-  },
-  input: {
-    width: '100%',
-    minHeight: 48,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    borderRadius: radii.input,
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    backgroundColor: '#FFFFFF',
-    fontSize: 15,
-    color: colors.navy,
-  },
   formSubmit: {
     paddingTop: 6,
-  },
-  btnSuccess: {
-    width: '100%',
-    minHeight: 48,
-    borderRadius: radii.button,
-    backgroundColor: buttonColors.success,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow,
-  },
-  btnText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 15,
   },
 });
