@@ -15,11 +15,13 @@ const authRoutes          = require('./routes/auth.routes');
 const familiaRoutes       = require('./routes/familia.routes');
 const saludRoutes         = require('./routes/salud.routes');
 const recordatoriosRoutes = require('./routes/recordatorios.routes');
+const adjuntosRoutes      = require('./routes/adjuntos.routes');
 
 app.use('/api/auth',          authRoutes);
 app.use('/api/familia',       familiaRoutes);
 app.use('/api/salud',         saludRoutes);
 app.use('/api/recordatorios', recordatoriosRoutes);
+app.use('/api/adjuntos',      adjuntosRoutes);
 
 //4 — Health check
 app.get('/api/ping', (req, res) => {

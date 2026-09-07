@@ -2,6 +2,9 @@ backend/node_modules/
 backend/.env
 frontend/node_modules/
 
+# docker-compose reads this for DB_PASSWORD/DB_NAME/JWT_SECRET/JWT_EXPIRES_IN
+.env
+
 # Expo
 frontend/.expo/
 frontend/dist/
