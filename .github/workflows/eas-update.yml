@@ -42,18 +42,28 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Setup EAS
+      - name: Setup EAS auth
+        # No `eas-version` input here on purpose: this action's own eas-cli
+        # installer (a yarn-based "global install" into an empty temp dir)
+        # fails on current runners ("Usage Error: No project found" /
+        # "yarn failed with exit code 1"). Omitting eas-version makes it skip
+        # that step entirely (matches its own log: "Skipped installing
+        # expo-cli: 'expo-version' not provided") — this step then only
+        # exports EXPO_TOKEN so eas-cli (installed via plain npm below) is
+        # authenticated.
         uses: expo/expo-github-action@v8
         with:
-          eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install eas-cli
+        run: npm install -g eas-cli
 
       - name: Publish update
         # Manual dispatch lets you target preview/development too; a plain push to
