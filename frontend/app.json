@@ -34,6 +34,12 @@
         "projectId": "9e2a5935-9ac1-443f-9530-30c861eabecd"
       }
     },
-    "owner": "alan-acevedo"
+    "owner": "alan-acevedo",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/9e2a5935-9ac1-443f-9530-30c861eabecd"
+    }
   }
 }
