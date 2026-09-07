@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { colors, shadow, glassPanel } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
+import { layout } from '../theme/spacing';
 import { useAuth } from '../context/AuthContext';
 import FormField from '../components/FormField';
 import PrimaryButton from '../components/PrimaryButton';
@@ -142,7 +143,7 @@ const styles = StyleSheet.create({
   },
   authWrap: {
     paddingHorizontal: 24,
-    paddingTop: 54,
+    paddingTop: layout.screenTopPadding,
     paddingBottom: 24,
     alignItems: 'stretch',
   },

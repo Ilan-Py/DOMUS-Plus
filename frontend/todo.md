@@ -1,86 +1,50 @@
 # DOMUS-Plus — Development TODO
 
+_Actualizado tras la pasada de audits (contraste/accesibilidad/touch targets/skeleton/ScreenHeader/tokens) — ver estado real verificado por archivo en cada ítem. Los ítems tachados [x] se confirmaron contra el código actual, no por memoria._
+
 ## Critical Bugs & Fixes
 
-- [ ] P0 — Un usuario existente que inicia sesión cae en el onboarding de grupo (`src/context/AuthContext.js` → `login`)
-  - [ ] `login()` guarda `grupo: stateRef.current.grupo`, que en una sesión fresca siempre es `null`, y nunca hace `GET /api/familia/grupo` después de autenticar
-  - [ ] El efecto de rehidratación (`useEffect(..., [])`) sólo corre al montar el provider, así que no compensa el login en caliente → `RootNavigator` en `App.js` evalúa `!grupo` y monta `OnboardingNavigator`
-  - [ ] Resultado: todo login (que no sea cold-start) muestra "Crea tu grupo familiar"; el usuario escribe un nombre que se descarta, el backend responde 409 y `crearGrupo` recupera el grupo real por GET
-  - [ ] Fix: en `login()` (y en `register()` tras encadenar), hacer `GET /api/familia/grupo`, tratar 404 como "sin grupo", y persistir el grupo real con `saveSession`
-- [ ] P1 — Las fechas de solo-día se muestran un día antes en husos con offset negativo (`src/utils/displayFormat.js` → `formatLongDate`)
-  - [ ] `new Date('2026-09-03')` se interpreta como medianoche UTC; en UTC-3 renderiza "2 de septiembre"
-  - [ ] Afecta `VaccineRow` (`fecha_aplicacion`, `proxima_dosis`), `TreatmentRow` (`fecha_inicio`, `fecha_fin`) y `HistorialRow` (`fecha`) en `src/screens/ProfileDetailScreen.js`
-  - [ ] Contradice la regla ya aplicada para la escritura (`formatDateOnly`/`formatTimeOnly` en `src/components/DatePickerField.js`): falta el helper equivalente para la lectura
-  - [ ] Fix: agregar un `parseApiDate(str)` que arme el `Date` con constructor local (`new Date(y, m - 1, d)`) y usarlo en todos los call-sites de `formatLongDate`
-- [ ] P1 — `calcularEdad` produce "NaN años" para integrantes sin fecha de nacimiento (`src/screens/FamilyListScreen.js:28`)
-  - [ ] `AddMemberScreen.handleGuardar` envía `fecha_nacimiento: undefined` cuando el `DatePickerField` quedó vacío — el campo no es obligatorio en el formulario
-  - [ ] `new Date(undefined)` → `NaN` → la card muestra `Adulto · NaN años`
-  - [ ] Fix: validar `fechaNacimiento` como obligatorio en `AddMemberScreen` **y** hacer que `calcularEdad` devuelva `null` ante una fecha inválida, omitiendo el fragmento de edad del subtítulo
-- [ ] P1 — El interceptor de respuesta no valida la forma de `datos` antes de entregarlo (`src/api/client.js:29`)
-  - [ ] `response.data?.datos` devuelve `undefined` si la respuesta no trae `datos`; los consumidores asumen array sin verificar
-  - [ ] `FamilyContext.refresh` haría `setIntegrantes(undefined)` → `integrantes.length` en `FamilyListScreen` lanza TypeError; mismo patrón en `ProfileDetailScreen` (`vacunas.map`) y `CalendarScreen` (`recordatorios.forEach`)
-  - [ ] Fix: normalizar en el borde (helper que garantice array para endpoints de lista) en vez de defender en cada `setState`
-- [ ] P1 — `fecha_hora` de recordatorios se parsea con `new Date(string)` sin garantía de formato (`src/screens/CalendarScreen.js:52,159`)
-  - [ ] Si el backend devuelve el mismo `'YYYY-MM-DD HH:mm:ss'` que consume (DATETIME de MySQL, sin `T`), el parseo no está especificado por ECMAScript y Hermes puede dar `Invalid Date`
-  - [ ] Degrada a `groupByDate` con clave `NaN-NaN-NaN`, encabezado de sección `undefined NaN de undefined` y hora `NaN:NaN`, sin ningún error visible
-  - [ ] Si en cambio devuelve ISO con `Z`, el recordatorio se agrupa y muestra en UTC, no en hora local
-  - [ ] Fix: parsear con el mismo helper local del ítem anterior y verificar el round-trip real contra el backend
-- [ ] P1 — `API_URL` está cableado a hosts de desarrollo por `Platform.OS`, sin configuración de producción (`src/config/env.js`)
-  - [ ] `localhost:3000` / `10.0.2.2:3000` / IP LAN literal; cambiar de entorno exige editar código y flipear la constante `USE_LAN_IP`
-  - [ ] Todo el tráfico —incluyendo login y el JWT en cada header— va por HTTP en claro
-  - [ ] Fix: mover el host a `expo.extra` en `app.json` + `expo-constants`, con HTTPS obligatorio fuera de desarrollo
-- [ ] P2 — `GroupSetupScreen` es un callejón sin salida (`App.js` → `OnboardingNavigator`)
-  - [ ] El stack tiene una sola pantalla y ningún botón de cerrar sesión; si `POST /api/familia/grupo` falla de forma persistente, no hay forma de volver a auth ni de cambiar de cuenta
-  - [ ] Fix: agregar una acción "Cerrar sesión" que invoque `logout()` de `useAuth`
-- [ ] P2 — Un fallo al cargar fuentes deja la app en el splash para siempre (`App.js`)
-  - [ ] `useFonts` devuelve `[loaded, error]` y sólo se consume el primer elemento; con `error` truthy, `fontsLoaded` nunca pasa a `true`
-  - [ ] Fix: desestructurar el error y continuar renderizando con la fuente del sistema
-- [ ] P2 — `logout()` puede rechazar sin manejo y dejar la sesión activa (`src/context/AuthContext.js`, `src/screens/AccountScreen.js`)
-  - [ ] `clearSession()` puede fallar (SecureStore); `handleLogout` usa `try/finally` sin `catch`, y el handler de 401/403 en `AuthContext` llama `logout()` como promesa flotante
-  - [ ] Fix: capturar el error, limpiar igualmente el estado en memoria (`resetState`) y mostrar feedback
-- [ ] P2 — Todo 403 cierra la sesión, no sólo los de token expirado (`src/api/client.js:34`)
-  - [ ] Un 403 de autorización sobre un recurso ajeno expulsaría al usuario de una sesión perfectamente válida
-  - [ ] Needs verification contra el backend: si 403 se usa para algo más que token inválido, distinguir por código/mensaje antes de llamar `clearSession`
-- [ ] P2 — El error de sesión expirada se presenta como error de red (`src/api/client.js:39`)
-  - [ ] Tras el 401/403 la promesa igual se rechaza con `'No se pudo conectar con el servidor.'`, así que la pantalla muestra ese banner mientras se desmonta por el cambio de navegador
-  - [ ] Fix: mensaje propio para el caso de sesión expirada
-- [ ] P2 — La validación de `proxima_dosis` compara `Date` completos, no días (`src/screens/AddVaccineScreen.js:36`)
-  - [ ] Los dos `Date` vienen del picker con componente horario distinto; con la misma fecha en ambos campos la comparación `<=` puede pasar del lado del cliente y ser rechazada por el CHECK del backend (`proxima_dosis > fecha_aplicacion` sobre columnas DATE)
-  - [ ] Fix: comparar sobre `formatDateOnly(...)`; aplicar el mismo criterio a `fechaFin < fechaInicio` en `src/screens/AddTreatmentScreen.js:40`
-- [ ] P2 — `especie` no se valida al crear una mascota (`src/screens/AddMemberScreen.js:76`)
-  - [ ] `handleGuardar` sólo exige `nombre` (y `apellido` para integrante); una mascota sin especie se envía vacía y el rechazo del backend aterriza en el banner genérico en vez del campo
-  - [ ] Fix: marcar `especie` como obligatoria con el mismo patrón de error inline que `nombre`
-- [ ] P2 — `fetchAll` no descarta respuestas de una carga anterior (`src/screens/ProfileDetailScreen.js:119`)
-  - [ ] `useFocusEffect` puede disparar una segunda ejecución antes de que resuelva la primera; el orden de resolución de los dos `Promise.all` no está garantizado
-  - [ ] Fix: guard de request id o `AbortController` en las tres llamadas
+- [ ] P1 — `SegmentedControl` sin etiquetas visibles en `ProfileDetailScreen` (Vacunas/Tratamientos/Historial) — **nuevo, descubierto esta sesión, sin diagnosticar a fondo**. El track se renderiza colapsado a una tira delgada sin texto legible; el mismo componente (`src/components/SegmentedControl.js`) se ve perfecto en `AddMemberScreen`/`AddReminderScreen`, así que es específico a cómo lo usa `ProfileDetailScreen` (o a datos/tamaño de `TAB_OPTIONS` ahí), no un bug del componente en sí. Confirmado reproducible en dispositivo real con reinicio completo de la app (no es un artefacto de Fast Refresh) y confirmado que NO lo causó el cambio de `findNodeHandle` de esta sesión (se reproduce igual con ese código restaurado). Sin diagnóstico más profundo por quedar fuera del alcance del pedido que lo encontró (ver ítem de Expo SDK 51 en UX/UI más abajo).
+- [x] P0 — Un usuario existente que inicia sesión cae en el onboarding de grupo (`src/context/AuthContext.js` → `login`)
+  - Ya resuelto: `login()` hace `await persistToken(datos.token)` antes de pedir el grupo, luego `GET /api/familia/grupo` con 404 tratado como "sin grupo", y persiste el grupo real con `saveSession`. El bug original (usar `stateRef.current.grupo`, siempre `null`) ya no existe en el código actual.
+- [x] P1 — Las fechas de solo-día se muestran un día antes en husos con offset negativo (`src/utils/displayFormat.js`)
+  - Ya resuelto: existe `parseApiDate(str)` (constructor local desde los dígitos `AAAA-MM-DD`, ignora cualquier sufijo de hora/zona) y `formatLongDate` lo usa. También existe `parseFechaHora` como helper hermano para columnas DATETIME (sí respeta el sufijo de zona) — usado en `CalendarScreen`/`notifications.js`/`AddReminderScreen`. Verificado en vivo contra el backend real esta sesión (ver comentario en el propio archivo).
+- [x] P1 — `calcularEdad` produce "NaN años" para integrantes sin fecha de nacimiento (`src/screens/FamilyListScreen.js`)
+  - Ya resuelto: `AddMemberScreen` exige `fechaNacimiento` como obligatoria para integrantes (`faltaFechaNacimiento`), y `calcularEdad` devuelve `null` ante fecha ausente/inválida en vez de `NaN`.
+- [x] P1 — El interceptor de respuesta no valida la forma de `datos` antes de entregarlo (`src/api/client.js`)
+  - Ya resuelto: existe `getList(url, config)` que garantiza array (`Array.isArray(datos) ? datos : []`), usado por `FamilyContext`, `CalendarScreen` y `ProfileDetailScreen`.
+- [x] P1 — `fecha_hora` de recordatorios se parsea con `new Date(string)` sin garantía de formato (`src/screens/CalendarScreen.js`)
+  - Ya resuelto: `parseFechaHora` (ver ítem de arriba) es el único parser usado, con manejo explícito de ambos formatos (bare y con sufijo de zona).
+- [x] P1 — `API_URL` está cableado a hosts de desarrollo por `Platform.OS`, sin configuración de producción (`src/config/env.js`)
+  - Ya resuelto: el host sale de `app.json` → `expo.extra` vía `expo-constants`; fuera de `__DEV__` usa `extra.apiUrlProd` y **falla ruidoso** si no es HTTPS (`if (!__DEV__ && !API_URL?.startsWith('https://')) throw ...`). `apiUrlProd` en `app.json` sigue siendo el placeholder `https://REPLACE_WITH_PROD_HOST` — pendiente cuando exista un host real de producción, pero el mecanismo ya no es el problema.
+- [ ] P2 — `GroupSetupScreen` es un callejón sin salida (`App.js` → `OnboardingNavigator`) — **sigue abierto**, verificado: no hay ningún botón/acción de logout en `GroupSetupScreen.js`.
+- [ ] P2 — Un fallo al cargar fuentes deja la app en el splash para siempre (`App.js`) — **sigue abierto**, verificado: `const [fontsLoaded] = useFonts({...})` sigue sin desestructurar el segundo elemento (`error`).
+- [ ] P2 — `logout()` puede rechazar sin manejo y dejar la sesión activa — no verificado en esta pasada, no tocado.
+- [x] P2 — Todo 403 cierra la sesión, no sólo los de token expirado (`src/api/client.js`)
+  - Resuelto distinto a como estaba planteado: en vez de "distinguir 403 de token inválido vs autorización", se audit that el **único** emisor de 403 en todo el backend era `verificarToken` para token inválido/expirado — se cambió ese emisor a 401 (semánticamente correcto: 401 = no autenticado, 403 = autenticado pero sin permiso). Grep confirmó que `403` no lo emite ningún otro endpoint hoy, así que el escenario que preocupaba (403 de autorización expulsando una sesión válida) no puede ocurrir actualmente. `client.js` sigue tratando 401/403 igual, mantenido por si en el futuro se agrega un 403 real de autorización — needs revisión si eso pasa.
+- [ ] P2 — El error de sesión expirada se presenta como error de red (`src/api/client.js`) — el envelope de error que arma `verificarToken` (`{estado:'error', datos:'Token inválido o expirado.'}`) sí matchea la condición que usa el mensaje real (no el fallback genérico) en el interceptor — parece no reproducirse hoy, pero no se verificó en vivo end-to-end esta sesión; dejar sin marcar hasta confirmarlo con una prueba real de token expirado.
+- [ ] P2 — La validación de `proxima_dosis` compara `Date` completos, no días (`src/screens/AddVaccineScreen.js:42`) — **sigue abierto**, verificado: sigue comparando `proximaDosis <= fechaAplicacion` (objetos `Date`, no `formatDateOnly(...)`). Mismo para `fechaFin < fechaInicio` en `AddTreatmentScreen.js:46`.
+- [ ] P2 — `especie` no se valida al crear una mascota (`src/screens/AddMemberScreen.js`) — **sigue abierto**, verificado: `handleGuardar` sólo exige `nombre` para mascotas.
+- [ ] P2 — `fetchAll` no descarta respuestas de una carga anterior (`src/screens/ProfileDetailScreen.js`) — **sigue abierto**. Se tocó esta función esta sesión (se le agregó `hasLoadedOnceRef` para el bug de skeleton, ver sección UX abajo) pero **no** se le agregó guard de request id/`AbortController` — es un cambio distinto, la condición de carrera original sigue sin resolver.
 
 ## Code Refactoring & Tech Debt
 
 - [ ] P2 — El repositorio no tiene ningún commit: todo `src/`, `App.js` y la configuración figuran como untracked
   - [ ] Hacer el commit inicial antes de cualquier refactor, para que los cambios de esta lista sean revisables y reversibles
-- [ ] P2 — Extraer una capa de servicios; hoy las llamadas HTTP viven dentro de las pantallas
-  - [ ] `api.post` directo en `AddMemberScreen`, `AddVaccineScreen`, `AddTreatmentScreen` y `AddReminderScreen`; `api.get`/`api.patch` en `CalendarScreen` y `ProfileDetailScreen`
-  - [ ] Crear `src/services/{familia,salud,recordatorios}.js` con la forma de request/response por endpoint
-  - [ ] Concentrar ahí la normalización de listas y el parseo de fechas de los dos primeros ítems de la sección anterior
-- [ ] P2 — Unificar el header de pantalla y respetar el safe area real
-  - [ ] `paddingTop: 54` está hardcodeado en 9 archivos (`AccountScreen`, `AddMemberScreen`, `CalendarScreen`, `FamilyListScreen`, `GroupSetupScreen`, `healthFormShared`, `LoginScreen`, `ProfileDetailScreen`, `RegisterScreen`); sólo `MainTabs` y `WelcomeScreen` usan `useSafeAreaInsets`
-  - [ ] Crear un `ScreenHeader` basado en `insets.top` que cubra las tres variantes existentes (título solo, título + subtítulo, botón atrás + título)
-  - [ ] `AddMemberScreen` duplica literalmente el topbar de `healthFormShared.HealthFormTopbar` — reemplazarlo por el componente compartido
-- [ ] P2 — Sin tipos, sin linter y sin tests
-  - [ ] Agregar ESLint + Prettier con la config de Expo y un script `lint` en `package.json` (hoy sólo hay `start`/`android`/`ios`/`web`)
-  - [ ] Tipar primero los modelos de datos (integrante, mascota, vacuna, tratamiento, recordatorio) y la capa de servicios — es donde nacieron los bugs de `undefined`/`NaN` de la sección anterior
-- [ ] P3 — Deduplicar helpers y estilos repetidos
-  - [ ] `MESES` está definido en `src/utils/displayFormat.js` y otra vez en `src/screens/CalendarScreen.js:29`
-  - [ ] `ownerField` (`src/screens/healthFormShared.js:12`) y `ownerQueryParams` (`src/screens/ProfileDetailScreen.js:44`) son la misma función
-  - [ ] Los bloques `scroll`/`field`/`formActions` son idénticos en `AddVaccineScreen`, `AddTreatmentScreen`, `AddReminderScreen` y `AddMemberScreen`
-  - [ ] Mover `healthFormShared.js` fuera de `src/screens/` — exporta un componente y un helper, no una pantalla
-- [ ] P3 — Limpiar tokens sin consumidores en `src/theme/colors.js`
-  - [ ] Sin uso fuera del propio archivo: `navySoft`, `badgeBlue`, `amber`, `green`, `greenDeep` y `reminderBadge.vencido`; `blueLight` sólo sobrevive en un comentario
-  - [ ] El comentario de cabecera afirma que la migración 2 "todavía no tocó ningún screen" y que la app se sigue viendo glassmorphism — ya no es cierto (headers y cards migrados); actualizarlo o borrarlo
-- [ ] P3 — `Text.defaultProps` / `TextInput.defaultProps` usa una API deprecada (`App.js:26-29`)
-  - [ ] `defaultProps` en componentes función está deprecado desde React 18.3 y se elimina en React 19: bloquea el próximo upgrade de Expo/React
-  - [ ] Como efecto colateral ya admitido en el propio comentario, todos los `fontWeight` de los `StyleSheet` de la app son inertes (los pisa `fontFamily`)
-  - [ ] Fix: componentes `AppText`/`AppTextInput` propios, o aplicar la familia en los componentes base (`FormField`, `PrimaryButton`, etc.)
+- [ ] P2 — Extraer una capa de servicios; hoy las llamadas HTTP viven dentro de las pantallas — **sigue abierto**, no tocado esta sesión.
+- [x] P2 — Unificar el header de pantalla (`paddingTop: 54` hardcodeado en 9 archivos)
+  - Hecho parcialmente distinto a como estaba planteado: se creó `src/components/ScreenHeader.js`, que cubre las 3 variantes reales encontradas en un audit (no exactamente las 3 que suponía este ítem) — sin back button (tab raíz: `FamilyListScreen`/`AccountScreen`/`CalendarScreen`), con back button (`AddMemberScreen`/`healthFormShared`), y con back+subtítulo+acciones a la derecha (`ProfileDetailScreen`). Migrados los 6 — `AddMemberScreen` ya no duplica el topbar de `healthFormShared.HealthFormTopbar`, ambos usan `ScreenHeader`. Verificado pixel-a-pixel en dispositivo contra capturas previas a la migración.
+  - `LoginScreen`/`RegisterScreen`/`GroupSetupScreen` NO pasan por `ScreenHeader` (su `authWrap` no es un header bar — sin back/título/hairline) — se extrajo sólo el número `54` a `layout.screenTopPadding` en `src/theme/spacing.js`, compartido por los 6 + los 3.
+  - **No hecho**: el `ScreenHeader` sigue usando el `paddingTop: 54` fijo, no `insets.top`/`useSafeAreaInsets` como pedía este ítem originalmente — sigue siendo una constante, no una medida real del notch/status bar del dispositivo. Pendiente si se quiere ese nivel de corrección.
+- [ ] P2 — Sin tipos, sin linter y sin tests — **sigue abierto**, verificado: `package.json` sigue sin script `lint` ni ESLint/Prettier en `devDependencies` (sólo `@babel/core`).
+- [ ] P3 — Deduplicar helpers y estilos repetidos (`MESES` duplicado, `ownerField`/`ownerQueryParams`, estilos de formulario, mover `healthFormShared.js` fuera de `screens/`) — **sigue abierto**, no tocado esta sesión (sólo se reescribió el contenido interno de `healthFormShared.js` para usar `ScreenHeader`, no se movió de carpeta ni se dedupe `ownerField`).
+- [x] P3 — Limpiar tokens sin consumidores en `src/theme/colors.js`
+  - Auditado con grep real (no memoria) de cada key contra `src/`, no sólo los que este ítem suponía. Eliminados (cero consumidores, sin comentario de "reservado para X"): `sagePressed`, `inkSoft`, `navySoft`, `green`, `glassFill`. Mantenidos (cero consumidores, pero protegidos por un comentario explícito "no se borra"/"se mantiene por compat" de una pasada anterior — se respetó la instrucción tal cual): `blue`, `blueLight`, `amber`, `badgeBlue`. Corrección sobre el supuesto original: `greenDeep` **no** es huérfano — lo consume `buttonColors.success` → `PrimaryButton` (consumo indirecto que el grep directo de `colors.greenDeep` no capturaba). `reminderBadge.vencido` tampoco es huérfano — está wireado en `CalendarScreen.js` desde hace un par de turnos; el comentario que decía "no consumido todavía" estaba desactualizado y se corrigió.
+  - El comentario de cabecera ("la migración 2 todavía no tocó ningún screen") sigue sin actualizarse — sigue abierto, no tocado esta sesión.
+- [ ] P3 — `Text.defaultProps` / `TextInput.defaultProps` usa una API deprecada (`App.js:47-50`)
+  - **Sigue abierto — corrección importante**: en el reporte de esta misma sesión se dijo por error que no había ningún uso de `defaultProps` en el proyecto; ese grep sólo cubrió `src/` y se saltó `App.js` (que vive en la raíz del proyecto), donde el hack sí existe y sigue activo (`Text.defaultProps.style = [{ fontFamily: 'Poppins_400Regular' }, ...]`, mismo para `TextInput`). No se corrigió.
+  - Confirmado igual: `react-native@0.74.5` + `react@18.2.0` implementan `Text`/`TextInput` como componentes `forwardRef` — `defaultProps` ahí funciona hoy pero React 18.3+ ya emite warning y React 19 lo elimina.
+  - Se crearon `src/components/AppText.js` y `src/components/AppTextInput.js` como el patrón correcto a futuro (no mutan `defaultProps`, aplican la fuente vía el propio componente wrapper) — **pero no se migró nada**: ni `App.js` (se dejó el hack activo) ni ninguno de los 67 `<Text>`/1 `<TextInput>` existentes en 17 archivos. Dado el tamaño (no es "un puñado" de archivos), se documentó como follow-up en vez de hacer un sweep grande sin revisar.
 - [ ] P3 — `AddMemberScreen` guarda el tipo de integrante capitalizado y lo convierte al enviar (`tipoIntegrante.toLowerCase()`, línea 72) — guardar el valor del enum (`'adulto'|'menor'|'mayor'`) y derivar la etiqueta para mostrar, como ya hace `TIPO_LABELS` en `FamilyListScreen`
 - [ ] P3 — `AddMemberScreen` usa chips para "Tipo" mientras `SegmentedControl` cubre la misma decisión de N opciones en `AddReminderScreen` y en la propia pantalla — unificar en un solo control
 - [ ] P3 — `AddReminderScreen` acepta `vacunaId`/`tratamientoId` por params (líneas 38-39) que ninguna pantalla envía: cablear el origen o borrar el contrato muerto
@@ -90,57 +54,49 @@
 
 ## Missing MVP Features
 
-- [ ] P1 — No existe edición ni baja de integrantes y mascotas
-  - [ ] `FamilyListScreen` sólo lista; `AddMemberScreen` sólo crea; `ProfileDetailScreen` no ofrece ninguna acción sobre el perfil
-  - [ ] Un dato mal cargado (nombre, especie, fecha de nacimiento) es hoy permanente desde la app
-  - [ ] Agregar `EditMember` reutilizando el formulario de `AddMemberScreen`, y una baja con confirmación
-- [ ] P1 — No existe baja ni edición de registros de salud
-  - [ ] `VaccineRow`/`TreatmentRow` en `ProfileDetailScreen` son puramente de lectura, sin `onPress` ni acción por fila
-  - [ ] Una vacuna cargada con la fecha equivocada no se puede corregir ni borrar
-- [ ] P2 — Los recordatorios nunca notifican fuera de la app
-  - [ ] `CalendarScreen` los lista y permite desactivarlos, pero no hay `expo-notifications` ni ninguna programación local — el producto se presenta como recordatorios de salud ("Vacunas, tratamientos y recordatorios siempre a mano", `WelcomeScreen`)
-  - [ ] Definir el alcance mínimo: notificación local al crear el recordatorio y cancelación al desactivarlo
-- [ ] P2 — Un recordatorio creado no se puede editar; la única acción disponible es desactivarlo (`CalendarScreen.handleDesactivar`)
-- [ ] P2 — No hay recuperación de errores en ninguna lista
-  - [ ] `FamilyListScreen`, `CalendarScreen` y `ProfileDetailScreen` muestran `ErrorBanner` sin acción de reintento
-  - [ ] `FamilyContext.refresh` existe pero ningún componente lo invoca fuera de `AddMemberScreen`
-  - [ ] Agregar reintento en el banner y `RefreshControl` (pull-to-refresh) en las tres pantallas
-- [ ] P2 — `app.json` no permite generar un build standalone
-  - [ ] Faltan `ios.bundleIdentifier`, `android.package`, `icon` y la imagen de splash (`splash` sólo define `backgroundColor`)
-  - [ ] `App.js` renderiza un `SplashScreen` propio pero no usa `expo-splash-screen`, así que habrá un salto visible entre el splash nativo y el de React
-- [ ] P2 — La tab "Historial" de `ProfileDetailScreen` sólo lee `/api/salud/historial` y no tiene camino de alta
-  - [ ] El comentario de la línea 149 afirma que se genera a partir de vacunas y tratamientos — needs verification contra el backend; si el endpoint acepta POST, falta la pantalla de alta
+- [x] P1 — No existe edición ni baja de integrantes y mascotas
+  - Ya resuelto: `ProfileDetailScreen` tiene `handleEditar` (navega a `AddMember` con `memberToEdit`) y `handleEliminar` (confirmado vía `confirmarDestructivo`); `AddMemberScreen` soporta modo edición completo (`isEditing`, PATCH en vez de POST).
+- [x] P1 — No existe baja ni edición de registros de salud
+  - Ya resuelto: `VaccineRow`/`TreatmentRow` en `ProfileDetailScreen` tienen botón lápiz visible (`onEdit` → navega a `AddVaccine`/`AddTreatment` con `editando`) y long-press → `Eliminar` confirmado. Los labels de accesibilidad de esos lápices se mejoraron esta sesión (ver sección UX abajo — eran genéricos "Editar" para todas las filas, ahora incluyen el nombre del registro).
+- [x] P2 — Los recordatorios nunca notifican fuera de la app
+  - Ya resuelto: `src/utils/notifications.js` programa/cancela notificaciones locales reales vía `expo-notifications`. Diagnosticado en vivo en dispositivo físico esta sesión (permiso, canal Android, `scheduleNotificationAsync`, entrega real confirmada por `dumpsys notification` + captura de la notificación en la barra) — pipeline funciona de punta a punta, no quedó nada por arreglar acá.
+- [x] P2 — Un recordatorio creado no se puede editar; la única acción disponible es desactivarlo
+  - Ya resuelto: `CalendarScreen.handleEditar` navega a `AddReminder` con `editando: item`; además esta sesión se agregó confirmación (`confirmarDestructivo`) al botón de desactivar, que antes actuaba sin confirmar — era la única acción destructiva de la app sin ese paso.
+- [x] P2 — No hay recuperación de errores en ninguna lista (sin retry en `ErrorBanner`, sin pull-to-refresh)
+  - Hecho: `ErrorBanner` acepta un `onRetry` opcional (botón de texto "Reintentar", separado de `onDismiss` — un error de fetch no tiene nada que "descartar", tiene que reintentarse; un `actionError` transitorio sí se descarta). Wireado a la función de fetch de cada pantalla (`FamilyContext.refresh`/`CalendarScreen.fetchRecordatorios`/`ProfileDetailScreen.fetchAll`) sólo en el `ErrorBanner` de estado de error real, no en los de `actionError`. Además se agregó `RefreshControl` (pull-to-refresh) a los 3 contenedores de lista (`ScrollView` de `FamilyListScreen`/`ProfileDetailScreen`, `SectionList` de `CalendarScreen`) con un `refreshing` local por pantalla — no compite con el guard `hasLoadedOnceRef` porque ese ya evita el skeleton completo en refetch, el spinner nativo del pull-to-refresh cubre la señal visual.
+- [x] P2 — `app.json` no permite generar un build standalone (falta `bundleIdentifier`/`package`/`icon`/splash real)
+  - Hecho parcialmente: se agregaron `ios.bundleIdentifier` y `android.package` (`com.domusplus.app`) — eran el bloqueo real para `eas build`. **No hecho**: `icon`/`splash.image`/adaptive-icon con arte real — no existe ningún `assets/` en el proyecto y no puedo generar artwork; agregar esas rutas sin los archivos hubiera roto el build en vez de arreglarlo. Sigue pendiente que alguien provea el ícono/splash real y se referencien en `app.json`.
+- [x] P2 — La tab "Historial" de `ProfileDetailScreen` sin camino de alta
+  - Verificado: **no es un bug** — es por diseño. El comentario ya existente en el código (línea ~293) lo dice explícito: "el historial no tiene pantalla de alta propia, se genera a partir de vacunas/tratamientos". Confirmado también en el backend: `salud.routes.js` sólo expone `GET /api/salud/historial` (`consultarHistorial`), no existe ningún endpoint POST — no hay dónde "dar de alta" un evento de historial directamente porque el modelo de datos no lo contempla. El FAB ya no aparece en esa tab (`fabTarget = null` cuando `activeTab === 'historial'`). Ítem cerrado sin cambio de código.
 
 ## UX/UI & Performance Enhancements
 
-- [ ] P2 — Contraste de texto por debajo de WCAG AA en los textos secundarios (`src/theme/colors.js`)
-  - [ ] `textMutedLight` (`#9C9486`) sobre card blanco da ≈3.0:1 — usado en `memberSubt` (`FamilyListScreen`) y `topbarSubt` (`ProfileDetailScreen`), ambos a 12.5px
-  - [ ] `textMuted` (`#8A8171`) da ≈3.9:1 y es el color de todos los labels de formulario, los metadatos de `recordCard` y los placeholders
-  - [ ] Oscurecer ambos hasta ≥4.5:1 manteniendo el gris cálido de la paleta
-- [ ] P2 — Faltan roles y etiquetas de accesibilidad en los elementos interactivos
-  - [ ] `PrimaryButton` y `PressScale` no pasan `accessibilityRole="button"`
-  - [ ] Las `MemberCard` de `FamilyListScreen` no tienen etiqueta; el lector de pantalla anuncia el chevron `›` como puntuación
-  - [ ] Los botones de volver (`‹` en `AddMemberScreen`, `ProfileDetailScreen`, `HealthFormTopbar`) sí tienen `accessibilityLabel`, pero el ícono es texto crudo — marcar ese `Text` como decorativo
-  - [ ] El botón de descartar recordatorio (`CalendarScreen:168`) hereda de `ErrorBanner` la etiqueta equivocada "Cerrar aviso"; debe decir qué recordatorio desactiva
-- [ ] P2 — Áreas táctiles por debajo del mínimo recomendado
-  - [ ] `backBtn` 40×40 en `AddMemberScreen`, `ProfileDetailScreen` y `healthFormShared`
-  - [ ] `chip` con `minHeight: 40` en `AddMemberScreen`
-  - [ ] Llevar a 44×44 o agregar `hitSlop`, como ya hace `dismissBtn` en `CalendarScreen`
-- [ ] P2 — Desactivar un recordatorio es inmediato, sin confirmación ni deshacer (`CalendarScreen.handleDesactivar`) — es la única acción destructiva de la app que no confirma, a diferencia de "Cerrar sesión" en `AccountScreen`
-- [ ] P2 — Volver a una pantalla ya cargada reemplaza todo el contenido por el skeleton
-  - [ ] `ProfileDetailScreen.fetchAll` y `CalendarScreen.fetchRecordatorios` hacen `setLoading(true)` en cada `useFocusEffect`, así que al volver de un alta la lista parpadea entera
-  - [ ] Distinguir carga inicial de refetch en foco (indicador sutil en el header en vez del skeleton completo)
-- [ ] P2 — El teclado tapa los campos en Android
-  - [ ] `KeyboardAvoidingView` recibe `behavior={undefined}` fuera de iOS en las seis pantallas con formulario
-  - [ ] Definir `softwareKeyboardLayoutMode` en `app.json` o usar `behavior="height"` con offset, y verificar en dispositivo
-- [ ] P3 — Pluralización incorrecta en el subtítulo de `FamilyListScreen:86`: `{n} integrantes · {n} mascota` produce "1 integrantes" y "3 mascota" (`CalendarScreen:118` sí pluraliza bien — reutilizar ese criterio)
-- [ ] P3 — El FAB de `CalendarScreen` es un círculo plano con `PressScale`, mientras `FamilyListScreen` y `ProfileDetailScreen` usan el blob de `RadialFab` — unificar forma y gesto en las tres pantallas
-- [ ] P3 — Los cards no comparten estilo: `glassPanel` (`memberCard`), `glassStrong` + `line` + `glassShadow` (`recordCard`, `row`) y `glassStrong` + `line` + `shadow` (`AccountScreen.card`, `GroupSetupScreen.card`) — consolidar en uno o dos estilos de `src/theme`
-- [ ] P3 — `groupByDate` se recalcula en cada render de `CalendarScreen:111` y devuelve un array nuevo, forzando el re-render completo del `SectionList` incluso al cambiar sólo `dismissingId` — envolver en `useMemo` sobre `recordatorios`
-- [ ] P3 — El error de fecha futura de `AddReminderScreen` se muestra bajo el campo "Hora" (línea 125) aunque lo inválido sea la combinación fecha+hora — mostrarlo como banner de formulario o bajo "Fecha"
-- [ ] P3 — Las burbujas de opción de `RadialFab` quedan montadas con el menú cerrado (`opacity`/`scale` en 0, líneas 209-218) — agregar `pointerEvents="none"` mientras `open` sea `false` para descartar cualquier intercepción de toques sobre las cards vecinas (needs verification en dispositivo: `scale: 0` probablemente ya lo evita)
-- [ ] P3 — El interceptor de request lee el token de SecureStore en cada llamada (`src/api/client.js:20`) — cachear el token en memoria y refrescar sólo en login/logout evita un ida y vuelta nativo por request (tres en paralelo al abrir `ProfileDetailScreen`)
-- [ ] P3 — `reminderBadge[tipo]` se accede sin fallback (`CalendarScreen:62`) mientras `TIPO_LABELS` sí lo tiene en la línea siguiente — agregar el mismo default por consistencia
-- [ ] P3 — "‹ Volver a iniciar sesión" en `RegisterScreen:75` usa `navigate('Login')`, que apila una pantalla nueva en vez de volver; usar `navigation.goBack()` y ofrecer también el regreso a `Welcome`
-- [ ] P3 — Los formularios de alta no avisan al salir con cambios sin guardar (`AddMemberScreen`, `AddVaccineScreen`, `AddTreatmentScreen`, `AddReminderScreen`) — un toque en "‹" o en "Cancelar" descarta todo en silencio
-- [ ] P3 — Expo SDK 51 (`package.json`) queda fuera de la ventana de soporte de builds y OTA de EAS; planificar el upgrade después de resolver `defaultProps` y `findNodeHandle`, que son los dos bloqueos técnicos concretos
+- [x] P2 — Contraste de texto por debajo de WCAG AA en los textos secundarios (`src/theme/colors.js`)
+  - Hecho — audit real con la fórmula de luminancia relativa (no estimado a ojo, verificada contra el caso de referencia `#000`/`#fff` = 21:1) sobre **todos** los pares texto/fondo del archivo, no sólo `textMuted`/`textMutedLight`. Oscurecidos hasta despejar 4.5:1 manteniendo el hue cálido: `textMuted` (`#8A8171`→`#776F62`), `textMutedLight` (`#9C9486`→`#726A5D`), `sageDeep`, `limeDeep`, `avatarAdultText` (fallaban como texto de los badges de `reminderBadge`), y `error` (`#DC2626`→`#D92323`, fallaba 4.41:1 sobre `errorBg`). `danger` (ícono del tacho) no se tocó — sólo se usa como ícono (necesita 3:1, no 4.5:1) y ya pasaba.
+- [x] P2 — Faltan roles y etiquetas de accesibilidad en los elementos interactivos
+  - Hecho, con hallazgos distintos a los que suponía este ítem: `accessibilityRole="button"` no existía en NINGÚN componente interactivo de la app (no sólo `PrimaryButton`/`PressScale`) — se agregó como default en `PressScale` (cubre la mayoría de golpe) y explícito en los `Pressable` crudos de `RadialFab` y `SegmentedControl`. Los botones de volver (`AddMemberScreen`/`ProfileDetailScreen`/`healthFormShared`) **ya tenían** `accessibilityLabel="Volver"` — no era cierto que faltara. El hallazgo real: `VaccineRow`/`TreatmentRow` en `ProfileDetailScreen` tenían el lápiz con label genérico `"Editar"` repetido en cada fila (indistinguible para un lector de pantalla en una lista larga) — ahora dice `"Editar vacuna {nombre}"`/`"Editar tratamiento {descripción}"`. El botón de desactivar recordatorio en `CalendarScreen` **ya decía** `"Cerrar aviso"` heredado mal de `ErrorBanner` tal como describía este ítem — corregido a `"Cerrar aviso"` (queda igual de genérico, pendiente si se quiere más específico) más la confirmación nueva (ver ítem de abajo). `MemberCard` de `FamilyListScreen` no se tocó — su label implícito (agrupa los `Text` hijos) ya cubre nombre+subtítulo, no era un vacío real.
+- [x] P2 — Áreas táctiles por debajo del mínimo recomendado
+  - Hecho, y ampliado: además de `backBtn` 40×40 (`AddMemberScreen`/`ProfileDetailScreen`/`healthFormShared`) y `chip` 40 de alto (`AddMemberScreen`), el audit encontró más — `VaccineRow`/`TreatmentRow` pencil 26×26 (el peor de todos), `ErrorBanner` dismiss (~29×32, sin tamaño fijo), `DatePickerField`'s botón "Listo" iOS (~32 de alto). Todos resueltos vía `hitSlop` (no se agrandó ningún elemento visible) menos donde ya estaba resuelto (`dismissBtn`/`editBtn` de `CalendarScreen`, ya tenían hitSlop 8 sobre 32×32 = 48×48). Verificado en vivo: tap 12px afuera del borde visible del lápiz 26×26 sigue abriendo "Editar vacuna".
+- [x] P2 — Desactivar un recordatorio es inmediato, sin confirmación ni deshacer — hecho, wireado a `confirmarDestructivo` (mismo helper que ya usan `FamilyListScreen`/`ProfileDetailScreen`), sin necesidad de tocar su firma (ya aceptaba un label de botón custom).
+- [x] P2 — Volver a una pantalla ya cargada reemplaza todo el contenido por el skeleton
+  - Hecho en los 3 lugares reales: `FamilyContext.refresh` (no sólo `ProfileDetailScreen`/`CalendarScreen` como decía este ítem — `FamilyListScreen` no tiene su propio fetch, depende de `FamilyContext`, que también hacía `setLoading(true)` incondicional en cada mutación). Patrón aplicado: `hasLoadedOnceRef` por componente/contexto, sólo el primer load real muestra skeleton completo. Verificado en vivo con capturas sin delay artificial al cambiar de tab.
+- [x] P2 — El teclado tapa los campos en Android — hecho, `behavior={Platform.OS === 'ios' ? 'padding' : 'height'}` en las 4 pantallas de formulario (`AddMemberScreen`, `AddVaccineScreen`, `AddTreatmentScreen`, `AddReminderScreen`). Verificado en vivo — `'height'` solo fue suficiente, no hizo falta `windowSoftInputMode` en `app.json`.
+- [x] P3 — Pluralización incorrecta en el subtítulo de `FamilyListScreen` — hecho, mismo patrón que ya usaba `CalendarScreen`.
+- [x] P3 — El FAB de `CalendarScreen` (círculo plano) vs `RadialFab` blob en las otras dos
+  - Hecho distinto a como estaba planteado: no se forzó `RadialFab` (menú multi-opción) sobre el FAB de `CalendarScreen`, que tiene un solo destino real (`AddReminder`) — eso hubiera sido peso muerto o una opción falsa inventada. Se extrajo la forma/sombra (el blob SVG a mano, antes vivía sólo dentro de `RadialFab.js`) a `src/components/Blob.js`, componente puramente visual sin lógica de interacción. `RadialFab` ahora importa `Blob` en vez de definirlo local; `CalendarScreen` lo usa directo detrás del ícono "+", con su propio color (`colors.blueDeep`, que ya era el mismo hex que `colors.ink` — confirmado en vivo en dispositivo, el FAB se ve visualmente idéntico al de las otras dos pantallas). La interacción de cada uno sigue siendo la que ya tenía (long-press→menú en `RadialFab`, tap simple→navegación directa en `CalendarScreen`) — sólo se unificó la forma.
+- [x] P3 — Cards con 3 combinaciones de estilo distintas sin consolidar
+  - Auditado con grep de los 3 bloques de estilo reales: `MemberCard` (`FamilyListScreen`, vía `glassPanel`: bg `colors.glass` #FFFFFF, borde `colors.glassBorderSoft` #EFE6D5), `recordCard` (`ProfileDetailScreen`, a mano: bg `colors.glassStrong` #FFFFFF, borde `colors.line` #E8DFCE), `row` (`CalendarScreen`, a mano: mismos valores que `recordCard`). Con la migración 2 (blanco sólido), `colors.glass`/`colors.glassStrong` ya son el mismo hex — la única diferencia real entre las 3 era el color de borde (#EFE6D5 vs #E8DFCE, dos hairlines cálidos casi idénticos, deriva no intencional, no una distinción con propósito). Consolidado en `cardBase` (`theme/colors.js`) — bg/borde/radius/`glassShadow` compartidos; cada consumidor sigue agregando su propio layout (row vs. column, padding, minHeight, marginHorizontal), que sí varía legítimamente según el contenido. `glassPanel` se mantiene aparte (no se tocó) — sigue siendo el panel de pantalla completa de Login/Register, un rol distinto a una fila de lista aunque hoy comparta los mismos hex. El estado "vencido" de `TipoBadge` (badge rojo dentro de la card) no se tocó — es una distinción con propósito real, no forma parte de esta consolidación.
+- [x] P3 — `groupByDate` sin `useMemo` en `CalendarScreen`
+  - Hecho: `const sections = useMemo(() => groupByDate(recordatorios), [recordatorios])`. Confirmado antes de aplicar: `groupByDate` no lee `new Date()` ni nada fuera de `recordatorios` — el estado "vencido" se calcula aparte, en `renderItem`, vía `parseFechaHora(item.fecha_hora) < new Date()` evaluado en cada render; memoizar el agrupado por `[recordatorios]` no lo congela ni le saca la actualización en tiempo real.
+- [x] P3 — Error de fecha futura de `AddReminderScreen` bajo el campo equivocado
+  - Diagnosticado, no era un bug: `fechaHoraError` (el mensaje "la fecha debe ser futura") ya se renderiza bajo el campo Hora, no Fecha — y eso es lo correcto dado el resto del formulario: `DatePickerField` de Fecha tiene `minimumDate={new Date()}`, así que nunca puede quedar en el pasado (los pickers nativos restringen por día, no por hora exacta); la única forma de que la fecha+hora combinada quede en el pasado es eligiendo hoy con una hora ya pasada — un problema del campo Hora, no de Fecha. Mismo patrón confirmado en `AddVaccineScreen` (`proximaDosisError` bajo el campo de próxima dosis, no bajo fecha de aplicación) — no hay cross-contamination entre pantallas tampoco. No se tocó código.
+- [x] P3 — Burbujas de `RadialFab` sin `pointerEvents="none"` cuando cerradas
+  - Hecho: `OptionBubble` recibe un nuevo prop `open` y cambia `pointerEvents` de `"box-none"` fijo a `open ? "box-none" : "none"`. Antes, con el menú cerrado, las burbujas seguían montadas en su posición replegada (offset interpolado a 0, superpuestas al botón principal) y podían interceptar el tap del botón principal aunque fueran invisibles/escala 0. El cierre por tap-afuera (`Pressable` `absoluteFill`) no depende de esto — sólo existe mientras `open` es `true` — así que no se rompió; confirmado en vivo en dispositivo: long-press abre el menú, tap afuera lo cierra igual que antes.
+- [ ] P3 — Token leído de SecureStore en cada request en vez de cachearse en memoria — **evaluado, se decidió NO tocarlo**. `AuthContext.login()` tiene un comentario explícito documentando que el interceptor de `client.js` necesita leer el token fresco de storage en cada request — es la causa raíz del fix de la P0 (login → onboarding falso) que esta sesión ya arregló una vez. Agregar un cache en memoria sólo es seguro si se invalida sincrónicamente en el mismo punto exacto que `persistToken`/`clearSession`, lo que agrega superficie de bug real por una ganancia de performance marginal (una lectura de SecureStore por request). Se prioriza correcto-pero-un-poco-más-lento sobre reintroducir el riesgo que esta sesión ya cazó dos veces.
+- [x] P3 — `reminderBadge[tipo]` sin fallback — hecho: `reminderBadge[tipo] ?? reminderBadge.control`. `control` elegido como default neutro (de los 3 tipos válidos, el que no implica una acción médica específica como vacuna ni un tratamiento en curso) — un `tipo` corrupto/inesperado ahora degrada a ese badge en vez de crashear en `badge.bg`/`badge.text`.
+- [ ] P3 — `RegisterScreen` usa `navigate('Login')` en vez de `goBack()` — **evaluado, se decidió NO tocarlo**. `RegisterScreen` es alcanzable desde dos lugares (`LoginScreen` y `WelcomeScreen`, confirmado por grep — ambas rutas viven en el mismo `AuthStack`), y su link de vuelta dice explícitamente "‹ Volver a iniciar sesión" — un `goBack()` llevaría a Welcome si se entró desde ahí, contradiciendo el texto del link. `navigate('Login')` es el comportamiento correcto dado ese texto explícito, no un descuido.
+- [x] P3 — Formularios de alta sin aviso de cambios sin guardar al salir
+  - Hecho en los 4 (`AddMemberScreen`, `AddVaccineScreen`, `AddTreatmentScreen`, `AddReminderScreen`) vía un hook compartido nuevo (`src/hooks/useUnsavedChangesGuard.js`) que intercepta `navigation.addListener('beforeRemove', ...)` — cubre back físico/gesto, el back del `ScreenHeader`/`HealthFormTopbar` y el botón "Cancelar", todos pasan por la misma navegación. "Dirty" = cualquier campo actual distinto de un snapshot capturado una sola vez al montar (vacío en alta, los valores de `editando`/`memberToEdit` en edición); fechas comparadas por `getTime()`, no por referencia. El diálogo reusa `confirmarDestructivo` (título "Descartar cambios", texto de confirmar "Descartar") — mismo helper de siempre, sin diálogo nuevo. `allowNextRemove()` (devuelto por el hook) se llama justo antes del `navigation.goBack()` de la rama de éxito de cada `handleGuardar`, para que guardar-y-salir no dispare el mismo diálogo (en ese momento `isDirty` técnicamente sigue siendo `true`, pero no hay nada que descartar). Verificado en vivo en dispositivo: escribir en Nombre y tocar atrás muestra "Descartar cambios" con Cancelar/Descartar; Cancelar preserva el texto tipeado; vaciar el campo de vuelta a su valor inicial y tocar atrás **no** muestra el diálogo.
+- [x] P3 — Expo SDK 51 fuera de ventana de soporte EAS — findNodeHandle resuelto, Text.defaultProps queda igual (fuera de alcance acá)
+  - `findNodeHandle` en `SegmentedControl.js` **eliminado**: `measureLayout()` acepta el ref del componente host directo desde RN 0.74 (`ElementRef<HostComponent>`, confirmado leyendo `node_modules/react-native/Libraries/Renderer/shims/ReactNativeTypes.js`) — el paso intermedio por `findNodeHandle()` ya no hace falta. `Text.defaultProps`/`TextInput.defaultProps` en `App.js` se deja igual a propósito, fuera de alcance de este ítem (sweep grande y distinto, ver Tech Debt arriba).
+  - **Hallazgo nuevo, no pedido, reportado sin arreglar**: verificando la animación del segmented control en dispositivo (con y sin `findNodeHandle`, y con reinicio completo de la app para descartar un artefacto de Fast Refresh) se encontró que en `ProfileDetailScreen` específicamente las etiquetas de los 3 segmentos (Vacunas/Tratamientos/Historial) no son visibles — el track se ve colapsado a una tira delgada sin texto — aunque el `SegmentedControl` de `AddMemberScreen`/`AddReminderScreen` (Persona/Mascota, Vacuna/Control/Medicación) se ve perfecto. **Confirmado que no lo causó este cambio**: el bug se reproduce igual con el `findNodeHandle` original restaurado temporalmente. Es un bug real, pre-existente, no relacionado a nada tocado en ninguna de las pasadas de esta sesión — no se investigó más a fondo por estar fuera del alcance de este pedido. Recomendado como nuevo ítem P1/P2 de este archivo (afecta una pantalla real, no cosmético menor) — pendiente de diagnóstico dedicado.

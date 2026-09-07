@@ -13,6 +13,7 @@ import ProfileDetailScreen from '../screens/ProfileDetailScreen';
 import AddVaccineScreen from '../screens/AddVaccineScreen';
 import AddTreatmentScreen from '../screens/AddTreatmentScreen';
 import AddReminderScreen from '../screens/AddReminderScreen';
+import EmergencyScreen from '../screens/EmergencyScreen';
 import { colors } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 
@@ -29,10 +30,19 @@ function FamiliaStackNavigator() {
       screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bgBase } }}
     >
       <FamiliaStack.Screen name="FamilyList" component={FamilyListScreen} />
-      <FamiliaStack.Screen name="AddMember" component={AddMemberScreen} />
+      {/* presentation:'modal' en los 3 forms de alta/edición — los distingue
+          visualmente de "drilling in" (ProfileDetail, slide lateral default):
+          se sienten como una tarea acotada que se abre encima, no un nivel
+          más profundo de navegación. Ver auditoría de transiciones. */}
+      <FamiliaStack.Screen name="AddMember" component={AddMemberScreen} options={{ presentation: 'modal' }} />
       <FamiliaStack.Screen name="ProfileDetail" component={ProfileDetailScreen} />
-      <FamiliaStack.Screen name="AddVaccine" component={AddVaccineScreen} />
-      <FamiliaStack.Screen name="AddTreatment" component={AddTreatmentScreen} />
+      <FamiliaStack.Screen name="AddVaccine" component={AddVaccineScreen} options={{ presentation: 'modal' }} />
+      <FamiliaStack.Screen name="AddTreatment" component={AddTreatmentScreen} options={{ presentation: 'modal' }} />
+      {/* Sin presentation:'modal' a propósito — se siente como un drill-in
+          más (a la ProfileDetail), no como una tarea acotada tipo alta de
+          registro; tiene su propio ScreenHeader con back, igual que
+          ProfileDetail. */}
+      <FamiliaStack.Screen name="Emergency" component={EmergencyScreen} />
     </FamiliaStack.Navigator>
   );
 }
@@ -45,7 +55,11 @@ function CalendarioStackNavigator() {
       screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bgBase } }}
     >
       <CalendarioStack.Screen name="Calendar" component={CalendarScreen} />
-      <CalendarioStack.Screen name="AddReminder" component={AddReminderScreen} />
+      <CalendarioStack.Screen
+        name="AddReminder"
+        component={AddReminderScreen}
+        options={{ presentation: 'modal' }}
+      />
     </CalendarioStack.Navigator>
   );
 }

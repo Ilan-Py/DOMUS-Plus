@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { colors } from '../theme/colors';
 import api from '../api/client';
@@ -8,6 +8,13 @@ import ErrorBanner from '../components/ErrorBanner';
 import DatePickerField, { formatDateOnly } from '../components/DatePickerField';
 import { HealthFormTopbar, ownerField } from './healthFormShared';
 import { parseApiDate } from '../utils/displayFormat';
+import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
+
+function sameDate(a, b) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return a.getTime() === b.getTime();
+}
 
 export default function AddTreatmentScreen({ navigation, route }) {
   const { ownerId, ownerTipo, ownerNombre, editando } = route.params;
@@ -28,6 +35,22 @@ export default function AddTreatmentScreen({ navigation, route }) {
   const [fechaFinError, setFechaFinError] = useState('');
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const initialRef = useRef({
+    descripcion: editando?.descripcion || '',
+    medicacion: editando?.medicacion || '',
+    fechaInicio: editando?.fecha_inicio ? parseApiDate(editando.fecha_inicio) : null,
+    fechaFin: editando?.fecha_fin ? parseApiDate(editando.fecha_fin) : null,
+  });
+
+  const isDirty =
+    descripcion !== initialRef.current.descripcion ||
+    medicacion !== initialRef.current.medicacion ||
+    !sameDate(fechaInicio, initialRef.current.fechaInicio) ||
+    !sameDate(fechaFin, initialRef.current.fechaFin);
+
+  const { allowNextRemove } = useUnsavedChangesGuard(navigation, isDirty);
 
   async function handleGuardar() {
     const faltaDescripcion = !descripcion.trim();
@@ -64,7 +87,10 @@ export default function AddTreatmentScreen({ navigation, route }) {
         await api.post('/api/salud/tratamientos', { ...ownerField(ownerTipo, ownerId), ...payload });
       }
       // ProfileDetailScreen refetch al recuperar el foco (useFocusEffect)
-      navigation.goBack();
+      allowNextRemove();
+      setSaved(true);
+      setTimeout(() => navigation.goBack(), 380);
+      return;
     } catch (err) {
       setFormError(err.mensaje);
     } finally {
@@ -75,7 +101,7 @@ export default function AddTreatmentScreen({ navigation, route }) {
   return (
     <KeyboardAvoidingView
       style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <HealthFormTopbar
         navigation={navigation}
@@ -141,6 +167,7 @@ export default function AddTreatmentScreen({ navigation, route }) {
             title={isEditing ? 'Guardar cambios' : 'Guardar'}
             onPress={handleGuardar}
             loading={saving}
+            success={saved}
             variant="success"
           />
           <PrimaryButton

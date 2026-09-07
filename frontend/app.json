@@ -9,9 +9,11 @@
       "backgroundColor": "#F7F9FC"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.domusplus.app"
     },
     "android": {
+      "package": "com.domusplus.app",
       "adaptiveIcon": {
         "backgroundColor": "#F7F9FC"
       }
@@ -23,7 +25,7 @@
     "extra": {
       "apiUrlProd": "https://REPLACE_WITH_PROD_HOST",
       "apiUrlLan": "http://192.168.0.8:3000",
-      "useLanIp": false
+      "useLanIp": true
     }
   }
 }

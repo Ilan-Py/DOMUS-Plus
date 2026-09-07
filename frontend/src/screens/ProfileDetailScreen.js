@@ -8,10 +8,11 @@ import {
   Easing,
   Alert,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, glassShadow } from '../theme/colors';
+import { colors, cardBase, radii } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 import api, { getList } from '../api/client';
 import { useFamily } from '../context/FamilyContext';
@@ -19,11 +20,16 @@ import SegmentedControl from '../components/SegmentedControl';
 import ErrorBanner from '../components/ErrorBanner';
 import EmptyState from '../components/EmptyState';
 import BackgroundBlobs from '../components/BackgroundBlobs';
+import ScreenHeader from '../components/ScreenHeader';
 import RadialFab from '../components/RadialFab';
 import PressScale from '../components/PressScale';
 import Skeleton from '../components/Skeleton';
 import { formatLongDate, toSentenceCase } from '../utils/displayFormat';
 import { confirmarDestructivo } from '../utils/confirm';
+import FadeSlideIn from '../components/FadeSlideIn';
+import FadeOutRow, { EXIT_DURATION } from '../components/FadeOutRow';
+import AttachmentsSection from '../components/AttachmentsSection';
+import ProfessionalContactsSection from '../components/ProfessionalContactsSection';
 
 // Silueta de un record-card (VaccineRow/TreatmentRow/HistorialRow) — título +
 // una o dos líneas de meta — reutilizando el mismo Skeleton de siempre.
@@ -68,7 +74,13 @@ function VaccineRow({ item, onEdit, onLongPress, disabled }) {
     <PressScale contentStyle={styles.recordCard} onPress={() => {}} onLongPress={onLongPress} disabled={disabled}>
       <View style={styles.recordHeader}>
         <Text style={[styles.recordTitle, styles.recordTitleFlex]}>{toSentenceCase(item.nombre)}</Text>
-        <PressScale contentStyle={styles.recordEditBtn} onPress={onEdit} disabled={disabled} accessibilityLabel="Editar">
+        <PressScale
+          contentStyle={styles.recordEditBtn}
+          onPress={onEdit}
+          disabled={disabled}
+          hitSlop={{ top: 9, bottom: 9, left: 9, right: 9 }}
+          accessibilityLabel={`Editar vacuna ${toSentenceCase(item.nombre)}`}
+        >
           <Ionicons name="pencil-outline" size={14} color={colors.textMuted} />
         </PressScale>
       </View>
@@ -77,6 +89,7 @@ function VaccineRow({ item, onEdit, onLongPress, disabled }) {
         <Text style={styles.recordMeta}>Próxima dosis: {formatLongDate(item.proxima_dosis)}</Text>
       )}
       {!!item.notas && <Text style={styles.recordNotes}>{item.notas}</Text>}
+      <AttachmentsSection parentType="vacuna" parentId={item.id} />
     </PressScale>
   );
 }
@@ -86,7 +99,13 @@ function TreatmentRow({ item, onEdit, onLongPress, disabled }) {
     <PressScale contentStyle={styles.recordCard} onPress={() => {}} onLongPress={onLongPress} disabled={disabled}>
       <View style={styles.recordHeader}>
         <Text style={[styles.recordTitle, styles.recordTitleFlex]}>{toSentenceCase(item.descripcion)}</Text>
-        <PressScale contentStyle={styles.recordEditBtn} onPress={onEdit} disabled={disabled} accessibilityLabel="Editar">
+        <PressScale
+          contentStyle={styles.recordEditBtn}
+          onPress={onEdit}
+          disabled={disabled}
+          hitSlop={{ top: 9, bottom: 9, left: 9, right: 9 }}
+          accessibilityLabel={`Editar tratamiento ${toSentenceCase(item.descripcion)}`}
+        >
           <Ionicons name="pencil-outline" size={14} color={colors.textMuted} />
         </PressScale>
       </View>
@@ -95,6 +114,7 @@ function TreatmentRow({ item, onEdit, onLongPress, disabled }) {
         Desde {formatLongDate(item.fecha_inicio)}
         {item.fecha_fin ? ` hasta ${formatLongDate(item.fecha_fin)}` : ' · en curso'}
       </Text>
+      <AttachmentsSection parentType="tratamiento" parentId={item.id} />
     </PressScale>
   );
 }
@@ -105,6 +125,7 @@ function HistorialRow({ item }) {
       <Text style={styles.recordTitle}>{item.evento}</Text>
       <Text style={styles.recordMeta}>{formatLongDate(item.fecha)}</Text>
       {!!item.descripcion && <Text style={styles.recordNotes}>{item.descripcion}</Text>}
+      <AttachmentsSection parentType="historial" parentId={item.id} />
     </View>
   );
 }
@@ -131,6 +152,10 @@ export default function ProfileDetailScreen({ navigation, route }) {
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [recordBusy, setRecordBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  // Clave `${tipoRegistro}-${id}` de la card en su animación de salida —
+  // mismo patrón que FamilyListScreen/CalendarScreen.
+  const [exitingKey, setExitingKey] = useState(null);
 
   function handleEditar() {
     navigation.navigate('AddMember', { tipoMiembro: tipo, memberToEdit: member });
@@ -183,8 +208,14 @@ export default function ProfileDetailScreen({ navigation, route }) {
   const contentOpacity = contentAnim;
   const contentTranslateY = contentAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
 
+  // useFocusEffect dispara fetchAll cada vez que se vuelve a esta pantalla
+  // (p. ej. al volver de AddVaccine/AddTreatment), no sólo al montar — sin
+  // este guard, cada refocus tapaba las listas ya cargadas con el skeleton
+  // completo de nuevo.
+  const hasLoadedOnceRef = useRef(false);
+
   const fetchAll = useCallback(async () => {
-    setLoading(true);
+    if (!hasLoadedOnceRef.current) setLoading(true);
     setError('');
     try {
       const params = ownerQueryParams(tipo, id);
@@ -196,6 +227,7 @@ export default function ProfileDetailScreen({ navigation, route }) {
       setVacunas(datosVacunas);
       setTratamientos(datosTratamientos);
       setHistorial(datosHistorial);
+      hasLoadedOnceRef.current = true;
     } catch (err) {
       setError(err.mensaje);
     } finally {
@@ -210,6 +242,12 @@ export default function ProfileDetailScreen({ navigation, route }) {
       fetchAll();
     }, [fetchAll])
   );
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await fetchAll();
+    setRefreshing(false);
+  }
 
   const ownerParams = { ownerId: id, ownerTipo: tipo, ownerNombre: nombre };
 
@@ -230,6 +268,8 @@ export default function ProfileDetailScreen({ navigation, route }) {
       const url =
         tipoRegistro === 'vacuna' ? `/api/salud/vacunas/${item.id}` : `/api/salud/tratamientos/${item.id}`;
       await api.delete(url);
+      setExitingKey(`${tipoRegistro}-${item.id}`);
+      await new Promise((resolve) => setTimeout(resolve, EXIT_DURATION));
       // Mismo fetchAll ya usado por useFocusEffect — no se duplica la
       // llamada a las tres listas, sólo se vuelve a disparar.
       await fetchAll();
@@ -237,6 +277,7 @@ export default function ProfileDetailScreen({ navigation, route }) {
       setError(err.mensaje);
     } finally {
       setRecordBusy(false);
+      setExitingKey(null);
     }
   }
 
@@ -280,111 +321,167 @@ export default function ProfileDetailScreen({ navigation, route }) {
     <View style={styles.root}>
       <BackgroundBlobs />
 
-      <View style={styles.topbar}>
-        <PressScale
-          contentStyle={styles.backBtn}
-          onPress={() => navigation.goBack()}
-          accessibilityLabel="Volver"
-        >
-          <Text style={styles.backBtnIcon}>‹</Text>
-        </PressScale>
-        <View style={styles.topbarTextWrap}>
-          <Text style={styles.topbarTitle}>{nombre}</Text>
-          <Text style={styles.topbarSubt}>{TIPO_LABELS[tipo] ?? tipo}</Text>
-        </View>
-        <PressScale
-          contentStyle={styles.topbarIconBtn}
-          onPress={handleEditar}
-          disabled={deleting}
-          accessibilityLabel="Editar"
-        >
-          <Ionicons name="pencil-outline" size={18} color={colors.navy} />
-        </PressScale>
-        <PressScale
-          contentStyle={styles.topbarIconBtn}
-          onPress={handleEliminar}
-          disabled={deleting}
-          accessibilityLabel="Eliminar"
-        >
-          <Ionicons name="trash-outline" size={18} color={colors.danger} />
-        </PressScale>
-      </View>
-
-      <SegmentedControl
-        options={TAB_OPTIONS}
-        selectedValue={activeTab}
-        onChange={setActiveTab}
-        style={styles.tabs}
+      <ScreenHeader
+        title={nombre}
+        subtitle={TIPO_LABELS[tipo] ?? tipo}
+        subtitleStyle={styles.topbarSubt}
+        onBack={() => navigation.goBack()}
+        rightActions={
+          <>
+            <PressScale
+              contentStyle={styles.topbarIconBtn}
+              onPress={handleEditar}
+              disabled={deleting}
+              hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
+              accessibilityLabel="Editar"
+            >
+              <Ionicons name="pencil-outline" size={18} color={colors.navy} />
+            </PressScale>
+            <PressScale
+              contentStyle={styles.topbarIconBtn}
+              onPress={handleEliminar}
+              disabled={deleting}
+              hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
+              accessibilityLabel="Eliminar"
+            >
+              <Ionicons name="trash-outline" size={18} color={colors.danger} />
+            </PressScale>
+          </>
+        }
       />
 
-      {loading ? (
-        <View style={styles.scroll}>
-          <SkeletonRecordRow />
-          <SkeletonRecordRow />
-          <SkeletonRecordRow />
-        </View>
-      ) : (
-        <ScrollView contentContainerStyle={styles.scroll}>
-          {!!error && (
-            <View style={styles.errorWrap}>
-              <ErrorBanner message={error} />
-            </View>
+      {/* Antes `profileAttachments`/SegmentedControl vivían fijos arriba del
+          ScrollView (para que el selector de tabs quedara "pegado" mientras
+          sólo la lista de abajo scrolleaba). Sumar ProfessionalContactsSection
+          acá rompió ese layout: su formulario de alta/edición (6 campos +
+          botones) puede superar el alto fijo disponible, dejando el botón
+          "Guardar" fuera de pantalla y sin ninguna forma de hacer scroll para
+          alcanzarlo — bug real encontrado en la prueba en dispositivo. Se
+          unifica todo en un solo ScrollView; se pierde el "sticky" del
+          selector de tabs, pero todo el contenido queda siempre alcanzable. */}
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.navy} />
+        }
+      >
+        <View style={styles.profileAttachments}>
+          {/* Segundo punto de acceso a la ficha de emergencia (no urgente,
+              "dejame revisar/actualizar esto") — el otro vive en el ícono
+              terracota de MemberCard (FamilyListScreen), pensado para el caso
+              realmente urgente. Sólo integrantes: alergias/tipo de
+              sangre/contactos de emergencia no aplican a una mascota igual
+              (ver scope de la feature). */}
+          {tipo === 'integrante' && (
+            <PressScale
+              contentStyle={styles.emergencyBanner}
+              onPress={() => navigation.navigate('Emergency', { id, nombre })}
+              accessibilityLabel="Ver ficha de emergencia"
+            >
+              <View style={styles.emergencyIconWrap}>
+                <Ionicons name="medkit" size={16} color={colors.onAccent} />
+              </View>
+              <Text style={styles.emergencyBannerText}>Ficha de emergencia</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.danger} />
+            </PressScale>
           )}
 
-          <Animated.View
-            style={[
-              styles.tabContent,
-              { opacity: contentOpacity, transform: [{ translateY: contentTranslateY }] },
-            ]}
-          >
-            {!error && activeTab === 'vacunas' && (
-              vacunas.length === 0 ? (
-                <View style={styles.emptyWrap}>
-                  <EmptyState message="No hay vacunas registradas." />
-                </View>
-              ) : (
-                vacunas.map((item) => (
-                  <VaccineRow
-                    key={item.id}
-                    item={item}
-                    disabled={recordBusy}
-                    onEdit={() => handleEditarRegistro('vacuna', item)}
-                    onLongPress={() => handleLongPressRegistro('vacuna', item, toSentenceCase(item.nombre))}
-                  />
-                ))
-              )
+          <AttachmentsSection parentType={tipo} parentId={id} />
+          <ProfessionalContactsSection parentType={tipo} parentId={id} />
+        </View>
+
+        <SegmentedControl
+          options={TAB_OPTIONS}
+          selectedValue={activeTab}
+          onChange={setActiveTab}
+          style={styles.tabs}
+        />
+
+        {loading ? (
+          <>
+            <SkeletonRecordRow />
+            <SkeletonRecordRow />
+            <SkeletonRecordRow />
+          </>
+        ) : (
+          <>
+            {!!error && (
+              <View style={styles.errorWrap}>
+                <ErrorBanner message={error} onRetry={fetchAll} />
+              </View>
             )}
 
-            {!error && activeTab === 'tratamientos' && (
-              tratamientos.length === 0 ? (
-                <View style={styles.emptyWrap}>
-                  <EmptyState message="No hay tratamientos registrados." />
-                </View>
-              ) : (
-                tratamientos.map((item) => (
-                  <TreatmentRow
-                    key={item.id}
-                    item={item}
-                    disabled={recordBusy}
-                    onEdit={() => handleEditarRegistro('tratamiento', item)}
-                    onLongPress={() => handleLongPressRegistro('tratamiento', item, toSentenceCase(item.descripcion))}
-                  />
-                ))
-              )
-            )}
+            <Animated.View
+              style={[
+                styles.tabContent,
+                { opacity: contentOpacity, transform: [{ translateY: contentTranslateY }] },
+              ]}
+            >
+              {!error && activeTab === 'vacunas' && (
+                vacunas.length === 0 ? (
+                  <View style={styles.emptyWrap}>
+                    <EmptyState message="No hay vacunas registradas." />
+                  </View>
+                ) : (
+                  vacunas.map((item, i) => {
+                    const key = `vacuna-${item.id}`;
+                    return (
+                      <FadeSlideIn key={key} index={i}>
+                        <FadeOutRow exiting={exitingKey === key}>
+                          <VaccineRow
+                            item={item}
+                            disabled={recordBusy}
+                            onEdit={() => handleEditarRegistro('vacuna', item)}
+                            onLongPress={() => handleLongPressRegistro('vacuna', item, toSentenceCase(item.nombre))}
+                          />
+                        </FadeOutRow>
+                      </FadeSlideIn>
+                    );
+                  })
+                )
+              )}
 
-            {!error && activeTab === 'historial' && (
-              historial.length === 0 ? (
-                <View style={styles.emptyWrap}>
-                  <EmptyState message="No hay eventos en el historial." />
-                </View>
-              ) : (
-                historial.map((item) => <HistorialRow key={item.id} item={item} />)
-              )
-            )}
-          </Animated.View>
-        </ScrollView>
-      )}
+              {!error && activeTab === 'tratamientos' && (
+                tratamientos.length === 0 ? (
+                  <View style={styles.emptyWrap}>
+                    <EmptyState message="No hay tratamientos registrados." />
+                  </View>
+                ) : (
+                  tratamientos.map((item, i) => {
+                    const key = `tratamiento-${item.id}`;
+                    return (
+                      <FadeSlideIn key={key} index={i}>
+                        <FadeOutRow exiting={exitingKey === key}>
+                          <TreatmentRow
+                            item={item}
+                            disabled={recordBusy}
+                            onEdit={() => handleEditarRegistro('tratamiento', item)}
+                            onLongPress={() => handleLongPressRegistro('tratamiento', item, toSentenceCase(item.descripcion))}
+                          />
+                        </FadeOutRow>
+                      </FadeSlideIn>
+                    );
+                  })
+                )
+              )}
+
+              {!error && activeTab === 'historial' && (
+                historial.length === 0 ? (
+                  <View style={styles.emptyWrap}>
+                    <EmptyState message="No hay eventos en el historial." />
+                  </View>
+                ) : (
+                  historial.map((item, i) => (
+                    <FadeSlideIn key={item.id} index={i}>
+                      <HistorialRow item={item} />
+                    </FadeSlideIn>
+                  ))
+                )
+              )}
+            </Animated.View>
+          </>
+        )}
+      </ScrollView>
 
       <RadialFab
         style={styles.fab}
@@ -417,40 +514,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bgBase,
   },
-  topbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingTop: 54,
-    paddingHorizontal: 18,
-    paddingBottom: 16,
-    // bgBase (no colors.glass, que ahora es blanco puro) — mismo criterio
-    // que el resto de los headers, ver FamilyListScreen.js.
-    backgroundColor: colors.bgBase,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.glassBorderSoft,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.glassStrong,
-    borderWidth: 1,
-    borderColor: colors.glassBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: -6,
-  },
-  backBtnIcon: {
-    fontSize: 22,
-    color: colors.navy,
-  },
-  topbarTextWrap: {
-    flex: 1,
-  },
-  // Mismo tamaño/forma que backBtn (40x40, pill, glassStrong) — los tres
-  // botones del topbar (volver/editar/eliminar) comparten un solo lenguaje
-  // visual de "ícono en burbuja".
+  // Mismo tamaño/forma que el backBtn de ScreenHeader (40x40, pill,
+  // glassStrong) — los tres botones del topbar (volver/editar/eliminar)
+  // comparten un solo lenguaje visual de "ícono en burbuja". Se queda local
+  // acá (no se sube a ScreenHeader) porque es específico de las acciones de
+  // este screen, pasadas vía `rightActions`.
   topbarIconBtn: {
     width: 40,
     height: 40,
@@ -461,18 +529,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  topbarTitle: {
-    fontSize: 19,
-    fontWeight: '600',
-    fontFamily: poppinsWeight('600'),
-    color: colors.navy,
-  },
+  // Override de ScreenHeader.topbarSubt (default 12px/textMuted, sin
+  // Poppins) — este screen ya usaba un subtítulo distinto (12.5px/400/
+  // Poppins/textMutedLight) antes de migrar a ScreenHeader. Drift
+  // preexistente entre las 3 copias hand-rolled, preservado acá en vez de
+  // unificarse silenciosamente durante la migración.
   topbarSubt: {
     fontSize: 12.5,
     fontWeight: '400',
     fontFamily: poppinsWeight('400'),
     color: colors.textMutedLight,
     marginTop: 1,
+  },
+  profileAttachments: {
+    paddingHorizontal: 18,
+    paddingTop: 14,
+  },
+  emergencyBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    marginBottom: 14,
+    borderRadius: radii.card,
+    backgroundColor: colors.glassStrong,
+    borderWidth: 1,
+    borderColor: colors.danger,
+  },
+  emergencyIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emergencyBannerText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: poppinsWeight('600'),
+    color: colors.navy,
   },
   tabs: {
     marginHorizontal: 18,
@@ -504,18 +601,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // ...glassShadow — sin esto, recordCard leía como un recorte plano contra
-  // el crema de fondo (mismo criterio que memberCard/glassPanel en
-  // FamilyListScreen); glassShadow (no `shadow`, más fuerte) porque son
-  // varias cards apiladas en una lista, no un panel único.
+  // cardBase (theme/colors.js) — mismo bg/borde/radius/sombra que memberCard
+  // (FamilyListScreen) y row (CalendarScreen), consolidado en la auditoría de
+  // cards. Sólo el layout de contenido (padding column, no row) es propio de
+  // acá.
   recordCard: {
-    backgroundColor: colors.glassStrong,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radii.card,
     padding: 14,
     marginBottom: 10,
-    ...glassShadow,
+    ...cardBase,
   },
   // Fila título+lápiz — sólo lo necesario para alinear el affordance nuevo,
   // no se toca el resto del layout de la card.

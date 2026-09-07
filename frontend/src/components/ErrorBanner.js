@@ -7,16 +7,26 @@ import PressScale from './PressScale';
 // Unifica el formErrorBox duplicado en LoginScreen, RegisterScreen y
 // GroupSetupScreen para errores generales (401/500) no atados a un campo.
 // Renderiza null si no hay mensaje, así el caller no necesita el `{!!x && (...)}`.
-export default function ErrorBanner({ message, onDismiss }) {
+export default function ErrorBanner({ message, onDismiss, onRetry }) {
   if (!message) return null;
 
   return (
     <View style={styles.box}>
       <Text style={styles.text}>{message}</Text>
+      {!!onRetry && (
+        <PressScale
+          onPress={onRetry}
+          hitSlop={{ top: 14, bottom: 14, left: 12, right: 12 }}
+          accessibilityLabel="Reintentar"
+          accessibilityRole="button"
+        >
+          <Text style={styles.retryText}>Reintentar</Text>
+        </PressScale>
+      )}
       {!!onDismiss && (
         <PressScale
           onPress={onDismiss}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          hitSlop={{ top: 14, bottom: 14, left: 16, right: 16 }}
           accessibilityLabel="Cerrar aviso"
         >
           <Text style={styles.dismissIcon}>✕</Text>
@@ -51,5 +61,13 @@ const styles = StyleSheet.create({
     color: colors.error,
     fontWeight: '700',
     fontFamily: poppinsWeight('700'),
+  },
+  retryText: {
+    marginLeft: 10,
+    fontSize: 12.5,
+    color: colors.error,
+    fontWeight: '700',
+    fontFamily: poppinsWeight('700'),
+    textDecorationLine: 'underline',
   },
 });

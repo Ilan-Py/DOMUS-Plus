@@ -1,10 +1,10 @@
 import React, { useRef, useState } from 'react';
 import { View, Pressable, Text, StyleSheet, Animated, Platform } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, shadow } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
+import Blob from './Blob';
 
 // Mismo timing que PressScale (100ms, scale+nativeDriver) — no se reusa el
 // componente en sí porque acá el Pressable ya tiene onPress/onLongPress con
@@ -38,20 +38,6 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-// Blob orgánico hecho a mano con curvas cúbicas alrededor del origen (radio
-// ~46-58, no un círculo perfecto) — primer uso real de react-native-svg,
-// agregada hace un tiempo para la ilustración de mascotas pendiente y nunca
-// usada hasta ahora. Se eligió SVG en vez del truco de borderRadius asimétrico
-// (radios distintos por esquina) porque ese truco sólo da 4 grados de
-// libertad — se nota "una forma redondeada rara", no un blob de verdad, y acá
-// la forma es LA pieza central del rediseño, no un detalle menor. El path es
-// una curva plausible a mano, no generada — no hay forma de verificar el
-// resultado exacto sin renderizar en dispositivo/simulador (misma limitación
-// de siempre en este entorno).
-export const BLOB_PATH =
-  'M42,-28 C54,-14 56,10 46,26 C36,42 12,50 -10,46 C-34,42 -52,24 -54,0 ' +
-  'C-56,-24 -42,-46 -18,-52 C6,-58 30,-44 42,-28 Z';
-
 // Spring con un toque de rebote (bounciness 4, no 0 como en SegmentedControl)
 // — ahí se quería "sin overshoot" para no ensuciar la lectura de un texto
 // deslizando; acá el pop-out es un gesto lúdico/táctil (menú estilo Sims),
@@ -67,15 +53,7 @@ const OPTION_OFFSETS = [
   { x: -44, y: -76 },
 ];
 
-function Blob({ size, color, extraStyle }) {
-  return (
-    <Svg width={size} height={size} viewBox="-60 -60 120 120" style={extraStyle}>
-      <Path d={BLOB_PATH} fill={color} />
-    </Svg>
-  );
-}
-
-function OptionBubble({ option, anim, offset, size }) {
+function OptionBubble({ option, anim, offset, size, open }) {
   const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [0, offset.x] });
   const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, offset.y] });
   const pressAnim = useRef(new Animated.Value(0)).current;
@@ -88,7 +66,14 @@ function OptionBubble({ option, anim, offset, size }) {
 
   return (
     <Animated.View
-      pointerEvents="box-none"
+      // 'none' cuando el menú está cerrado — closeMenu() anima anim a 0 pero
+      // hasta ahí las burbujas seguían montadas en su posición replegada
+      // (translateX/Y interpolados a 0, superpuestas al botón principal) y
+      // 'box-none' dejaba que su Pressable interno siguiera interceptando
+      // toques ahí encima aunque fueran invisibles/escala 0. El cierre por
+      // tap-afuera (Pressable absoluteFill, ver más abajo) no depende de
+      // esto — sólo existe mientras open es true.
+      pointerEvents={open ? 'box-none' : 'none'}
       style={[
         styles.optionWrap,
         {
@@ -104,6 +89,7 @@ function OptionBubble({ option, anim, offset, size }) {
         onPressIn={() => animatePressTo(1)}
         onPressOut={() => animatePressTo(0)}
         style={styles.optionPressable}
+        accessibilityRole="button"
         accessibilityLabel={option.label}
       >
         <Animated.View style={[styles.optionPressable, { transform: [{ scale: pressScale }] }]}>
@@ -214,6 +200,7 @@ export default function RadialFab({ onPress, options, style, size = 64, optionSi
               anim={anims[i]}
               offset={OPTION_OFFSETS[i] || { x: 0, y: -80 }}
               size={optionSize}
+              open={open}
             />
           ))}
 
@@ -224,6 +211,7 @@ export default function RadialFab({ onPress, options, style, size = 64, optionSi
           onPressOut={() => animateMainPressTo(0)}
           delayLongPress={280}
           style={styles.mainPressable}
+          accessibilityRole="button"
           accessibilityLabel="Agregar"
         >
           <Animated.View style={[styles.mainPressable, { transform: [{ scale: mainPressScale }] }]}>

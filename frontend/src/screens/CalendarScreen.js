@@ -1,17 +1,21 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, SectionList, ActivityIndicator } from 'react-native';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, SectionList, ActivityIndicator, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, shadow, glassShadow, reminderBadge } from '../theme/colors';
+import { colors, shadow, cardBase, reminderBadge } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 import api, { getList } from '../api/client';
 import ErrorBanner from '../components/ErrorBanner';
 import EmptyState from '../components/EmptyState';
+import ScreenHeader from '../components/ScreenHeader';
 import PressScale from '../components/PressScale';
 import Skeleton from '../components/Skeleton';
-import { cancelarNotificacion } from '../utils/notifications';
+import { cancelarNotificacion, sincronizarNotificaciones } from '../utils/notifications';
 import { parseFechaHora } from '../utils/displayFormat';
 import { confirmarDestructivo } from '../utils/confirm';
+import Blob from '../components/Blob';
+import FadeSlideIn from '../components/FadeSlideIn';
+import FadeOutRow, { EXIT_DURATION } from '../components/FadeOutRow';
 
 // Silueta de una fila de recordatorio — badge + hora + una línea de
 // descripción — mismo layout de `row`, armado con el Skeleton compartido.
@@ -35,6 +39,13 @@ const MESES = [
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
 ];
 const TIPO_LABELS = { vacuna: 'Vacuna', control: 'Control', medicacion: 'Medicación' };
+// Un ícono Ionicons-outline por tipo — mismo lenguaje visual que el resto de
+// la app (pencil-outline/trash-outline/calendar-outline en ScreenHeader/tabs),
+// antes el badge era sólo color+texto, sin apoyo visual para escanear la
+// lista rápido o para quien no distingue bien el color. 'vencido' no está acá
+// — usa su propio ícono fijo (alert-circle-outline) porque pisa el tipo, no
+// es uno de los 3 valores del enum.
+const TIPO_ICONS = { vacuna: 'medical-outline', control: 'clipboard-outline', medicacion: 'medkit-outline' };
 
 // Sin librería de Intl (riesgo de soporte parcial en Hermes) — formateo manual.
 function formatSectionTitle(fecha) {
@@ -67,11 +78,23 @@ function groupByDate(recordatorios) {
   return Array.from(map.values());
 }
 
-function TipoBadge({ tipo }) {
-  const badge = reminderBadge[tipo];
+// vencido pisa el badge de tipo — un recordatorio activo cuya fecha_hora ya
+// pasó se muestra como "Vencido" en vez de Vacuna/Control/Medicación. Es
+// puramente visual: no hay cron ni job en esta app que desactive
+// recordatorios vencidos solo, así que siguen en la lista (dismissible y
+// editable como cualquier otro) hasta que alguien los desactive/elimine a mano.
+function TipoBadge({ tipo, vencido }) {
+  // Fallback a 'control' — de los 3 tipos válidos (vacuna/control/medicacion)
+  // es el más neutro semánticamente (no implica una acción médica específica
+  // como vacuna, ni un tratamiento en curso). Un `tipo` corrupto/inesperado
+  // ahora degrada a ese badge en vez de crashear en badge.bg/badge.text.
+  const badge = vencido ? reminderBadge.vencido : reminderBadge[tipo] ?? reminderBadge.control;
+  const label = vencido ? 'Vencido' : (TIPO_LABELS[tipo] ?? tipo);
+  const icon = vencido ? 'alert-circle-outline' : TIPO_ICONS[tipo] ?? TIPO_ICONS.control;
   return (
     <View style={[styles.badge, { backgroundColor: badge.bg }]}>
-      <Text style={[styles.badgeText, { color: badge.text }]}>{TIPO_LABELS[tipo] ?? tipo}</Text>
+      <Ionicons name={icon} size={12} color={badge.text} />
+      <Text style={[styles.badgeText, { color: badge.text }]}>{label}</Text>
     </View>
   );
 }
@@ -82,13 +105,31 @@ export default function CalendarScreen({ navigation }) {
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
   const [dismissingId, setDismissingId] = useState(null);
+  // Id de la fila que ya confirmó desactivar/eliminar en el backend y está
+  // en su animación de salida (FadeOutRow) — distinto de dismissingId
+  // (activo desde que se confirma hasta que la llamada resuelve, muestra el
+  // spinner inline del botón). exitingId arranca recién cuando la llamada
+  // ya tuvo éxito, y sólo dura EXIT_DURATION antes del refetch real.
+  const [exitingId, setExitingId] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  // useFocusEffect dispara fetchRecordatorios cada vez que se vuelve a esta
+  // tab, no sólo al montar — sin este guard, cada refocus tapaba la lista ya
+  // cargada con el skeleton completo de nuevo (ver auditoría de refetch).
+  const hasLoadedOnceRef = useRef(false);
 
   const fetchRecordatorios = useCallback(async () => {
-    setLoading(true);
+    if (!hasLoadedOnceRef.current) setLoading(true);
     setError('');
     try {
       const datos = await getList('/api/recordatorios');
       setRecordatorios(datos);
+      hasLoadedOnceRef.current = true;
+      // Fire-and-forget — no bloquea el estado de carga de la lista (mismo
+      // criterio que programarNotificacion en AddReminderScreen: si falla o
+      // no hay permiso, el recordatorio ya está guardado igual). Necesario
+      // para que este dispositivo programe recordatorios que OTRO
+      // integrante del grupo creó (ver comentario en utils/notifications.js).
+      sincronizarNotificaciones(datos).catch(() => {});
     } catch (err) {
       setError(err.mensaje);
     } finally {
@@ -102,6 +143,12 @@ export default function CalendarScreen({ navigation }) {
     }, [fetchRecordatorios])
   );
 
+  async function onRefresh() {
+    setRefreshing(true);
+    await fetchRecordatorios();
+    setRefreshing(false);
+  }
+
   async function handleDesactivar(id) {
     setActionError('');
     setDismissingId(id);
@@ -110,11 +157,14 @@ export default function CalendarScreen({ navigation }) {
       // solo importa si la llamada tuvo éxito.
       await api.patch(`/api/recordatorios/${id}/desactivar`);
       await cancelarNotificacion(id);
+      setExitingId(id);
+      await new Promise((resolve) => setTimeout(resolve, EXIT_DURATION));
       await fetchRecordatorios();
     } catch (err) {
       setActionError(err.mensaje);
     } finally {
       setDismissingId(null);
+      setExitingId(null);
     }
   }
 
@@ -128,11 +178,14 @@ export default function CalendarScreen({ navigation }) {
     try {
       await api.delete(`/api/recordatorios/${id}`);
       await cancelarNotificacion(id);
+      setExitingId(id);
+      await new Promise((resolve) => setTimeout(resolve, EXIT_DURATION));
       await fetchRecordatorios();
     } catch (err) {
       setActionError(err.mensaje);
     } finally {
       setDismissingId(null);
+      setExitingId(null);
     }
   }
 
@@ -141,6 +194,15 @@ export default function CalendarScreen({ navigation }) {
       'Eliminar recordatorio',
       `¿Seguro que querés eliminar este recordatorio${item.descripcion ? ` ("${item.descripcion}")` : ''}?`,
       () => handleEliminar(item.id)
+    );
+  }
+
+  function confirmDesactivar(id) {
+    confirmarDestructivo(
+      'Desactivar recordatorio',
+      '¿Seguro que querés desactivarlo? Podés seguir viéndolo en el historial, pero dejará de aparecer como pendiente.',
+      () => handleDesactivar(id),
+      'Desactivar'
     );
   }
 
@@ -160,16 +222,18 @@ export default function CalendarScreen({ navigation }) {
     confirmEliminar(item);
   }
 
-  const sections = groupByDate(recordatorios);
+  // groupByDate no lee nada fuera de recordatorios (no llama new Date() ni
+  // depende de "ahora") — el estado "vencido" se calcula aparte, en
+  // renderItem, a partir de parseFechaHora(item.fecha_hora) < new Date() en
+  // cada render; memoizar acá por [recordatorios] no lo congela.
+  const sections = useMemo(() => groupByDate(recordatorios), [recordatorios]);
 
   return (
     <View style={styles.root}>
-      <View style={styles.topbar}>
-        <Text style={styles.topbarTitle}>Calendario</Text>
-        <Text style={styles.topbarSubt}>
-          {recordatorios.length} recordatorio{recordatorios.length === 1 ? '' : 's'}
-        </Text>
-      </View>
+      <ScreenHeader
+        title="Calendario"
+        subtitle={`${recordatorios.length} recordatorio${recordatorios.length === 1 ? '' : 's'}`}
+      />
 
       {loading ? (
         <View style={styles.listContent}>
@@ -179,7 +243,7 @@ export default function CalendarScreen({ navigation }) {
         </View>
       ) : error ? (
         <View style={styles.errorWrap}>
-          <ErrorBanner message={error} />
+          <ErrorBanner message={error} onRetry={fetchRecordatorios} />
         </View>
       ) : recordatorios.length === 0 ? (
         <EmptyState
@@ -193,6 +257,9 @@ export default function CalendarScreen({ navigation }) {
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.listContent}
           stickySectionHeadersEnabled={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.navy} />
+          }
           ListHeaderComponent={
             !!actionError ? (
               <View style={styles.errorWrap}>
@@ -203,42 +270,49 @@ export default function CalendarScreen({ navigation }) {
           renderSectionHeader={({ section }) => (
             <Text style={styles.sectionLabel}>{section.title}</Text>
           )}
-          renderItem={({ item }) => (
-            <PressScale
-              contentStyle={styles.row}
-              onLongPress={() => handleLongPress(item)}
-              disabled={dismissingId === item.id}
-            >
-              <View style={styles.rowMain}>
-                <View style={styles.rowTop}>
-                  <TipoBadge tipo={item.tipo} />
-                  <Text style={styles.rowHora}>{formatHora(parseFechaHora(item.fecha_hora))}</Text>
-                </View>
-                {!!item.descripcion && <Text style={styles.rowDescripcion}>{item.descripcion}</Text>}
-              </View>
-              <PressScale
-                contentStyle={styles.editBtn}
-                onPress={() => handleEditar(item)}
-                disabled={dismissingId === item.id}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityLabel="Editar recordatorio"
-              >
-                <Ionicons name="pencil-outline" size={16} color={colors.textMuted} />
-              </PressScale>
-              <PressScale
-                contentStyle={styles.dismissBtn}
-                onPress={() => handleDesactivar(item.id)}
-                disabled={dismissingId === item.id}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityLabel="Cerrar aviso"
-              >
-                {dismissingId === item.id ? (
-                  <ActivityIndicator size="small" color={colors.textMuted} />
-                ) : (
-                  <Text style={styles.dismissIcon}>✕</Text>
-                )}
-              </PressScale>
-            </PressScale>
+          renderItem={({ item, index }) => (
+            <FadeSlideIn index={index}>
+              <FadeOutRow exiting={exitingId === item.id}>
+                <PressScale
+                  contentStyle={styles.row}
+                  onLongPress={() => handleLongPress(item)}
+                  disabled={dismissingId === item.id}
+                >
+                  <View style={styles.rowMain}>
+                    <View style={styles.rowTop}>
+                      <TipoBadge
+                        tipo={item.tipo}
+                        vencido={!!item.activo && parseFechaHora(item.fecha_hora) < new Date()}
+                      />
+                      <Text style={styles.rowHora}>{formatHora(parseFechaHora(item.fecha_hora))}</Text>
+                    </View>
+                    {!!item.descripcion && <Text style={styles.rowDescripcion}>{item.descripcion}</Text>}
+                  </View>
+                  <PressScale
+                    contentStyle={styles.editBtn}
+                    onPress={() => handleEditar(item)}
+                    disabled={dismissingId === item.id}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityLabel="Editar recordatorio"
+                  >
+                    <Ionicons name="pencil-outline" size={16} color={colors.textMuted} />
+                  </PressScale>
+                  <PressScale
+                    contentStyle={styles.dismissBtn}
+                    onPress={() => confirmDesactivar(item.id)}
+                    disabled={dismissingId === item.id}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityLabel="Cerrar aviso"
+                  >
+                    {dismissingId === item.id ? (
+                      <ActivityIndicator size="small" color={colors.textMuted} />
+                    ) : (
+                      <Ionicons name="close-outline" size={18} color={colors.textMuted} />
+                    )}
+                  </PressScale>
+                </PressScale>
+              </FadeOutRow>
+            </FadeSlideIn>
           )}
         />
       )}
@@ -249,6 +323,7 @@ export default function CalendarScreen({ navigation }) {
         onPress={() => navigation.navigate('AddReminder')}
         accessibilityLabel="Agregar"
       >
+        <Blob size={56} color={colors.blueDeep} extraStyle={[StyleSheet.absoluteFill, shadow]} />
         <Text style={styles.fabIcon}>+</Text>
       </PressScale>
     </View>
@@ -259,27 +334,6 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.bg,
-  },
-  topbar: {
-    paddingTop: 54,
-    paddingHorizontal: 18,
-    paddingBottom: 16,
-    // bgBase (no colors.glass, que ahora es blanco puro) — mismo criterio
-    // que el resto de los headers, ver FamilyListScreen.js.
-    backgroundColor: colors.bgBase,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.glassBorderSoft,
-  },
-  topbarTitle: {
-    fontSize: 19,
-    fontWeight: '600',
-    fontFamily: poppinsWeight('600'),
-    color: colors.navy,
-  },
-  topbarSubt: {
-    fontSize: 12,
-    color: colors.textMuted,
-    marginTop: 1,
   },
   errorWrap: {
     paddingHorizontal: 18,
@@ -299,9 +353,10 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  // ...glassShadow — mismo fix de sombra que ProfileDetailScreen.recordCard:
-  // sin esto la fila leía plana contra el crema (auditoría de sombras, ver
-  // resumen de la pasada de polish).
+  // cardBase (theme/colors.js) — mismo bg/borde/radius/sombra que memberCard
+  // (FamilyListScreen) y recordCard (ProfileDetailScreen), consolidado en la
+  // auditoría de cards. Sólo el layout row (vs. column en recordCard) es
+  // propio de acá.
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -310,11 +365,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     marginBottom: 10,
     minHeight: 48,
-    backgroundColor: colors.glassStrong,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radii.card,
-    ...glassShadow,
+    ...cardBase,
   },
   rowMain: {
     flex: 1,
@@ -336,6 +387,9 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
@@ -361,12 +415,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dismissIcon: {
-    fontSize: 15,
-    color: colors.textMuted,
-    fontWeight: '700',
-    fontFamily: poppinsWeight('700'),
-  },
   // Posición en su propio bloque (aplicado al Pressable externo de
   // PressScale) — separado de `fab` (forma/color, aplicado al Animated.View
   // interno) porque position:'absolute' en el hijo interno posicionaría
@@ -379,14 +427,13 @@ const styles = StyleSheet.create({
     // se superpondría al FAB si se quedara pegado al borde real.
     bottom: 90,
   },
+  // Forma/color/sombra ahora los pinta el Blob (ver JSX) — acá sólo el
+  // tamaño de la caja y el centrado del ícono "+" encima.
   fab: {
     width: 56,
     height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.blueDeep,
     alignItems: 'center',
     justifyContent: 'center',
-    ...shadow,
   },
   fabIcon: {
     fontSize: 28,

@@ -64,6 +64,26 @@ aparecer — ninguna pantalla debería ver el envelope crudo.
    a `fecha_inicio` en tratamientos — esa validación es responsabilidad
    exclusiva del cliente.
 
+## Probar en un dispositivo Android físico por USB
+
+`API_URL` (`frontend/src/config/env.js`) distingue emulador de
+dispositivo físico vía `Device.isDevice` (expo-device): el emulador usa
+`10.0.2.2` (alias que sólo existe en su red virtual), un dispositivo
+físico usa `localhost:3000`. Para que eso funcione en un teléfono real
+conectado por cable, hace falta correr una vez por sesión de USB, antes
+de abrir la app:
+
+```bash
+adb reverse tcp:3000 tcp:3000
+```
+
+Esto reenvía el `localhost:3000` del teléfono al `localhost:3000` de la
+PC donde corre el backend. Sin este paso, cualquier request del
+dispositivo físico falla con "No se pudo conectar con el servidor" (el
+`resolveApiUrl()` es correcto, pero no hay nada escuchando del otro
+lado). No es algo que la app pueda disparar sola — es un paso manual del
+entorno de desarrollo, se repite cada vez que se reconecta el USB.
+
 ## Formateo de fechas — cuidado con UTC
 
 `toISOString()` convierte a UTC y puede correr la fecha un día según

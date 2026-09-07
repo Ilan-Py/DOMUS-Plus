@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, TouchableOpacity, StyleSheet, Platform, Animated, findNodeHandle } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Platform, Animated } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { colors, shadow } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
@@ -61,7 +61,13 @@ const Segment = React.forwardRef(function Segment({ option, active, onPress }, r
   });
 
   return (
-    <TouchableOpacity ref={ref} style={[styles.segItem, active && styles.segItemActive]} onPress={onPress}>
+    <TouchableOpacity
+      ref={ref}
+      style={[styles.segItem, active && styles.segItemActive]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+    >
       <Animated.Text style={[styles.segItemText, { color }]}>{option.label}</Animated.Text>
     </TouchableOpacity>
   );
@@ -113,11 +119,14 @@ export default function SegmentedControl({ options, selectedValue, onChange, sty
     const node = itemRefs.current[selectedValue];
     const trackNode = trackRef.current;
     if (!node || !trackNode) return;
-    const trackHandle = findNodeHandle(trackNode);
-    if (!trackHandle) return;
 
+    // measureLayout acepta el ref del componente host directo desde RN
+    // 0.74 (ElementRef<HostComponent>) — findNodeHandle() ya no hace falta
+    // para este caso, era el paso intermedio que pedían versiones viejas de
+    // RN. Confirmado en node_modules/react-native/.../ReactNativeTypes.js
+    // (measureLayout(relativeToNativeNode: number | ElementRef<...>, ...)).
     node.measureLayout(
-      trackHandle,
+      trackNode,
       (x, _y, width) => syncHighlightTo(x, width),
       () => {} // nodo recién desmontado u otra falla de medición — no hay nada que hacer
     );

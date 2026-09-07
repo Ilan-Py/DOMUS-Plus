@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { colors } from '../theme/colors';
 import api from '../api/client';
@@ -8,6 +8,13 @@ import ErrorBanner from '../components/ErrorBanner';
 import DatePickerField, { formatDateOnly } from '../components/DatePickerField';
 import { HealthFormTopbar, ownerField } from './healthFormShared';
 import { parseApiDate } from '../utils/displayFormat';
+import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
+
+function sameDate(a, b) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return a.getTime() === b.getTime();
+}
 
 export default function AddVaccineScreen({ navigation, route }) {
   const { ownerId, ownerTipo, ownerNombre, editando } = route.params;
@@ -27,6 +34,22 @@ export default function AddVaccineScreen({ navigation, route }) {
   const [proximaDosisError, setProximaDosisError] = useState('');
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const initialRef = useRef({
+    nombre: editando?.nombre || '',
+    fechaAplicacion: editando?.fecha_aplicacion ? parseApiDate(editando.fecha_aplicacion) : null,
+    proximaDosis: editando?.proxima_dosis ? parseApiDate(editando.proxima_dosis) : null,
+    notas: editando?.notas || '',
+  });
+
+  const isDirty =
+    nombre !== initialRef.current.nombre ||
+    !sameDate(fechaAplicacion, initialRef.current.fechaAplicacion) ||
+    !sameDate(proximaDosis, initialRef.current.proximaDosis) ||
+    notas !== initialRef.current.notas;
+
+  const { allowNextRemove } = useUnsavedChangesGuard(navigation, isDirty);
 
   async function handleGuardar() {
     const faltaNombre = !nombre.trim();
@@ -60,7 +83,10 @@ export default function AddVaccineScreen({ navigation, route }) {
         await api.post('/api/salud/vacunas', { ...ownerField(ownerTipo, ownerId), ...payload });
       }
       // ProfileDetailScreen refetch al recuperar el foco (useFocusEffect)
-      navigation.goBack();
+      allowNextRemove();
+      setSaved(true);
+      setTimeout(() => navigation.goBack(), 380);
+      return;
     } catch (err) {
       setFormError(err.mensaje);
     } finally {
@@ -71,7 +97,7 @@ export default function AddVaccineScreen({ navigation, route }) {
   return (
     <KeyboardAvoidingView
       style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <HealthFormTopbar
         navigation={navigation}
@@ -134,6 +160,7 @@ export default function AddVaccineScreen({ navigation, route }) {
             title={isEditing ? 'Guardar cambios' : 'Guardar'}
             onPress={handleGuardar}
             loading={saving}
+            success={saved}
             variant="success"
           />
           <PrimaryButton

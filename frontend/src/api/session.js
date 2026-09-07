@@ -15,7 +15,7 @@ const GRUPO_KEY = 'domus_grupo';
 
 const IS_WEB = Platform.OS === 'web';
 
-async function setToken(token) {
+export async function setToken(token) {
   if (IS_WEB) {
     return AsyncStorage.setItem(TOKEN_KEY, token);
   }

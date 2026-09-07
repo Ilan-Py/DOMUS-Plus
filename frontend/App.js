@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { View, StyleSheet, Text, TextInput } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, StyleSheet, Text, TextInput, Animated } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -80,26 +80,48 @@ function OnboardingNavigator() {
   );
 }
 
+// Cruce entre Auth/Onboarding/Main: no son screens dentro de un mismo
+// native-stack (son árboles de navegación enteros y distintos, elegidos acá
+// por un simple if/else) — el prop `animation` de native-stack no tiene
+// forma de aplicarse acá, no hay stack compartido que lo entienda. Se logra
+// el mismo efecto de "llegada" a mano: un fade-in liviano (Animated.View +
+// opacity) cada vez que `phaseKey` cambia, sin tocar la lógica de qué
+// navegador se monta. Es fade-in puro, no un crossfade real con la fase
+// anterior desvaneciéndose en simultáneo (eso pediría mantener montados dos
+// árboles de navegación a la vez, mucho más riesgo/costo para un beneficio
+// cosmético menor) — la fase vieja se desmonta al instante, la nueva entra
+// con opacity 0→1.
+function PhaseFade({ phaseKey, children }) {
+  const opacity = useRef(new Animated.Value(1)).current;
+  const prevPhaseRef = useRef(phaseKey);
+
+  useEffect(() => {
+    if (prevPhaseRef.current === phaseKey) return;
+    prevPhaseRef.current = phaseKey;
+    opacity.setValue(0);
+    Animated.timing(opacity, { toValue: 1, duration: 220, useNativeDriver: true }).start();
+  }, [phaseKey, opacity]);
+
+  return <Animated.View style={[styles.phaseFade, { opacity }]}>{children}</Animated.View>;
+}
+
 // 4 — el árbol raíz decide qué navegador renderizar según el estado de sesión
 function RootNavigator() {
   const { booting, token, grupo } = useAuth();
 
-  if (booting) {
-    return <SplashScreen />;
-  }
-
-  if (!token) {
-    return <AuthNavigator />;
-  }
-
-  if (!grupo) {
-    return <OnboardingNavigator />;
-  }
+  const phase = booting ? 'boot' : !token ? 'auth' : !grupo ? 'onboarding' : 'main';
 
   return (
-    <FamilyProvider>
-      <MainTabs />
-    </FamilyProvider>
+    <PhaseFade phaseKey={phase}>
+      {phase === 'boot' && <SplashScreen />}
+      {phase === 'auth' && <AuthNavigator />}
+      {phase === 'onboarding' && <OnboardingNavigator />}
+      {phase === 'main' && (
+        <FamilyProvider>
+          <MainTabs />
+        </FamilyProvider>
+      )}
+    </PhaseFade>
   );
 }
 
@@ -148,5 +170,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.bg,
+  },
+  phaseFade: {
+    flex: 1,
   },
 });
