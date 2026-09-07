@@ -56,6 +56,10 @@ export default function WelcomeScreen({ navigation }) {
             variant="accent"
             fullWidth={false}
             onPress={() => navigation.navigate('Register')}
+            // Un poco más ancho/alto que "Iniciar sesión" (que abajo se queda
+            // con su tamaño default) — más peso visual para la acción
+            // primaria de esta pantalla, sin tocar color/tipografía/radius.
+            style={{ minWidth: 200, minHeight: 54 }}
           />
           <PrimaryButton
             title="Iniciar sesión"
