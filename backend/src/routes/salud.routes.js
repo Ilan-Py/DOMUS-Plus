@@ -8,6 +8,9 @@ const {
     registrarTratamiento, listarTratamientos, editarTratamiento, eliminarTratamiento,
     consultarHistorial
 } = require('../controllers/saludController');
+const {
+    crearProfesional, listarProfesionales, editarProfesional, eliminarProfesional
+} = require('../controllers/profesionalSaludController');
 
 router.use(verificarToken);
 
@@ -22,5 +25,10 @@ router.patch('/tratamientos/:id', editarTratamiento);
 router.delete('/tratamientos/:id', eliminarTratamiento);
 
 router.get('/historial',       consultarHistorial);
+
+router.post('/profesionales',      crearProfesional);
+router.get('/profesionales',       listarProfesionales);
+router.patch('/profesionales/:id', editarProfesional);
+router.delete('/profesionales/:id', eliminarProfesional);
 
 module.exports = router;

@@ -1,0 +1,67 @@
+services:
+  db:
+    # Postgres oficial — reemplaza MySQL (migración a Supabase/Postgres).
+    # Local dev sigue usando este contenedor (offline, sin depender de red
+    # ni de Supabase); Supabase se usa para staging/prod apuntando el mismo
+    # backend a otro DB_HOST/DB_PORT/DB_USER/DB_SSL, ver backend/.env.example.
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      # POSTGRES_DB precrea la base con este nombre antes de correr los
+      # scripts de init — a diferencia del 01_schema.sql de MySQL, los
+      # scripts Postgres (Scripts/postgres/*.sql) ya NO hacen su propio
+      # CREATE DATABASE (no hace falta: el propio init de la imagen la crea).
+      POSTGRES_DB: ${DB_NAME:-domus_db}
+      # trust en vez de una password real: mismo espíritu que
+      # MYSQL_ALLOW_EMPTY_PASSWORD de antes — conveniencia de dev local,
+      # nunca se usa este servicio en producción (ahí es Supabase, con TLS
+      # y password real vía DB_SSL=true + DB_PASSWORD).
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      # Nombre de volumen nuevo (domus_pg_data, no domus_db_data) a propósito
+      # — el volumen viejo tiene datos en formato MySQL; Postgres no puede
+      # arrancar sobre ese directorio. El volumen MySQL viejo queda
+      # huérfano pero intacto (se puede borrar a mano con `docker volume rm`
+      # si ya no hace falta).
+      - domus_pg_data:/var/lib/postgresql/data
+      - ./backend/Scripts/postgres/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./backend/Scripts/postgres/02_inserts.sql:/docker-entrypoint-initdb.d/02_inserts.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-}
+      DB_NAME: ${DB_NAME:-domus_db}
+      # false acá porque el Postgres local corre sin TLS (POSTGRES_HOST_AUTH_METHOD:
+      # trust, sin certificados) — Supabase sí lo exige, ver backend/.env.example.
+      DB_SSL: 'false'
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      PORT: 3000
+    volumes:
+      - ./backend/src:/app/src
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  domus_pg_data:

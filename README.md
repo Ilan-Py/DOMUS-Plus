@@ -28,7 +28,7 @@ El problema que busca resolver es la falta de organización en el seguimiento de
 |---|---|
 | Frontend / Mobile | React Native |
 | Backend | Node.js (CommonJS) |
-| Base de datos | MySQL |
+| Base de datos | PostgreSQL (Supabase en staging/prod, Postgres local en Docker para desarrollo) |
 | Autenticación | JWT |
 | Control de versiones | Git y GitHub |
 | Gestión de tareas | Jira |
@@ -88,30 +88,34 @@ Domus-Plus/
 ## Cómo levantar el backend
 
 ### Requisitos previos
-- Node.js instalado
-- MySQL / XAMPP corriendo
+- Docker y Docker Compose
 
-### Pasos
+### Pasos (Docker — recomendado)
 
 ```bash
 # 1. Clonar el repositorio
 git clone https://github.com/Ilan-Py/DOMUS-Plus
-cd Domus-Plus/backend
+cd Domus-Plus
 
-# 2. Instalar dependencias
-npm install
-
-# 3. Configurar variables de entorno
+# 2. Configurar variables de entorno
 cp .env.example .env
-# Completar DB_PASSWORD y JWT_SECRET en el archivo .env
+cp backend/.env.example backend/.env
+# Completar JWT_SECRET y las credenciales de Cloudinary
 
-# 4. Ejecutar los scripts SQL (en HeidiSQL o phpMyAdmin, en orden)
-#    backend/Scripts/01_schema.sql
-#    backend/Scripts/02_inserts.sql
-
-# 5. Levantar el servidor
-node src/app.js
+# 3. Levantar todo (Postgres + backend)
+docker compose up -d --build
 ```
+
+`docker-compose.yml` levanta un Postgres local (imagen oficial `postgres`) y
+aplica automáticamente `backend/Scripts/postgres/01_schema.sql` +
+`02_inserts.sql` (datos de prueba) la primera vez que se crea el volumen.
+No hace falta correr nada a mano.
+
+Para apuntar el backend a Supabase en vez del Postgres local (staging/prod),
+completar la sección "Supabase" de `backend/.env.example` con el connection
+string del **Session pooler** del dashboard de Supabase (Settings >
+Database > Connection Pooling) — el de conexión directa resuelve solo a
+IPv6 y falla en redes/Docker sin salida IPv6.
 
 Si todo está correctamente configurado, la consola debe mostrar:
 ```

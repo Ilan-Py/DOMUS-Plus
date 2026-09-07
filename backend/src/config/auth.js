@@ -19,8 +19,8 @@ function verificarToken(req, res, next) {
         req.usuario = payload; // { id, email }
         next();
     } catch (err) {
-        return res.status(403).json({
-            codigo: 403,
+        return res.status(401).json({
+            codigo: 401,
             estado: 'error',
             datos: 'Token inválido o expirado.'
         });
