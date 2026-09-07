@@ -84,3 +84,14 @@ export function toSentenceCase(text) {
   const lower = text.toLowerCase();
   return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
+
+// Iniciales para un avatar de texto (AccountScreen) — toma las partes del
+// nombre ya cargadas y devuelve a lo sumo 2 letras. Sin datos (usuario aún
+// no rehidratado) devuelve '' y el caller decide el fallback.
+export function iniciales(...partes) {
+  return partes
+    .map((parte) => String(parte ?? '').trim().charAt(0).toUpperCase())
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('');
+}

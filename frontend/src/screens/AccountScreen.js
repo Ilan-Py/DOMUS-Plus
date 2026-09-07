@@ -14,8 +14,45 @@ import Skeleton from '../components/Skeleton';
 import PressScale from '../components/PressScale';
 import FormField from '../components/FormField';
 import { confirmarDestructivo } from '../utils/confirm';
+import { iniciales } from '../utils/displayFormat';
+import { avatarTint } from '../theme/avatars';
 
 const ROL_LABEL = { 'dueño': 'Dueño', miembro: 'Miembro' };
+
+// Fila navegable con chip de ícono + chevron — el mismo affordance que ya
+// usan las cards de FamilyListScreen (avatar + texto + chevron), acá en
+// versión "opción de configuración". Sin `onPress` se renderiza igual pero
+// sin chevron ni feedback de presión: "Grupo familiar" es tocable sólo para
+// el dueño (es el único que puede renombrarlo), y una fila que se hunde al
+// tocarla sin hacer nada sería un affordance falso.
+function SettingRow({ icon, label, value, onPress, style, accessibilityLabel }) {
+  const contenido = (
+    <>
+      <View style={styles.rowIconChip}>
+        <Ionicons name={icon} size={17} color={colors.sageDeep} />
+      </View>
+      <View style={styles.rowTextWrap}>
+        <Text style={styles.rowLabel}>{label}</Text>
+        {!!value && <Text style={styles.rowValue}>{value}</Text>}
+      </View>
+      {!!onPress && <Ionicons name="chevron-forward" size={18} color={colors.textMutedLight} />}
+    </>
+  );
+
+  if (!onPress) {
+    return <View style={[styles.settingRow, style]}>{contenido}</View>;
+  }
+
+  return (
+    <PressScale
+      contentStyle={[styles.settingRow, style]}
+      onPress={onPress}
+      accessibilityLabel={accessibilityLabel || label}
+    >
+      {contenido}
+    </PressScale>
+  );
+}
 
 export default function AccountScreen() {
   const { usuario, grupo, logout, salirDelGrupo, actualizarPerfil, renombrarGrupo } = useAuth();
@@ -74,6 +111,14 @@ export default function AccountScreen() {
 
   const miMembresia = miembros.find((m) => m.usuario_id === usuario?.id);
   const esDueno = miMembresia?.rol === 'dueño';
+
+  // El usuario de la cuenta no es un `integrante` — no tiene el campo `tipo`
+  // (adulto/menor/mayor) ni fecha_nacimiento en /api/auth (ver AuthContext),
+  // así que no hay dato con qué elegir entre las familias de tinte: cae
+  // siempre en la de 'adulto'. Mismo mapa que usan las cards de
+  // FamilyListScreen (theme/avatars.js), no un color nuevo acá.
+  const tinteUsuario = avatarTint('adulto');
+  const inicialesUsuario = iniciales(usuario?.nombre, usuario?.apellido);
 
   function confirmLogout() {
     // react-native-web no implementa los botones/callbacks de Alert.alert
@@ -276,20 +321,6 @@ export default function AccountScreen() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.card}>
-          {!editandoPerfil && (
-            <View style={styles.profileHeaderRow}>
-              <PressScale
-                contentStyle={styles.editLinkBtn}
-                onPress={abrirEditarPerfil}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityLabel="Editar perfil"
-              >
-                <Ionicons name="pencil-outline" size={13} color={colors.textMuted} />
-                <Text style={styles.editLinkText}>Editar</Text>
-              </PressScale>
-            </View>
-          )}
-
           {editandoPerfil ? (
             <>
               <ErrorBanner message={perfilError} />
@@ -309,53 +340,58 @@ export default function AccountScreen() {
               </View>
             </>
           ) : (
-            <>
-              <View style={styles.field}>
-                <Text style={styles.label}>Nombre</Text>
-                <Text style={styles.value}>
+            <View style={styles.profileHeaderRow}>
+              <View style={[styles.avatar, { backgroundColor: tinteUsuario.bg }]}>
+                {inicialesUsuario ? (
+                  <Text style={[styles.avatarText, { color: tinteUsuario.text }]}>{inicialesUsuario}</Text>
+                ) : (
+                  <Ionicons name="person" size={22} color={tinteUsuario.text} />
+                )}
+              </View>
+              <View style={styles.profileInfo}>
+                <Text style={styles.profileNombre} numberOfLines={1}>
                   {usuario?.nombre} {usuario?.apellido}
                 </Text>
+                <Text style={styles.profileEmail} numberOfLines={1}>{usuario?.email}</Text>
               </View>
-              <View style={styles.field}>
-                <Text style={styles.label}>Correo electrónico</Text>
-                <Text style={styles.value}>{usuario?.email}</Text>
-              </View>
-            </>
+              <PressScale
+                contentStyle={styles.editLinkBtn}
+                onPress={abrirEditarPerfil}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel="Editar perfil"
+              >
+                <Ionicons name="pencil-outline" size={13} color={colors.textMuted} />
+                <Text style={styles.editLinkText}>Editar</Text>
+              </PressScale>
+            </View>
           )}
 
-          <View style={[styles.field, { paddingBottom: 0 }]}>
-            <View style={styles.grupoLabelRow}>
+          {editandoGrupo ? (
+            <View style={styles.grupoEditWrap}>
               <Text style={styles.label}>Grupo familiar</Text>
-              {esDueno && !editandoGrupo && (
-                <PressScale
-                  contentStyle={styles.editIconBtnSmall}
-                  onPress={abrirEditarGrupo}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  accessibilityLabel="Renombrar grupo"
-                >
-                  <Ionicons name="pencil-outline" size={13} color={colors.textMuted} />
-                </PressScale>
-              )}
+              <ErrorBanner message={grupoError} />
+              <FormField value={grupoNombreInput} onChangeText={setGrupoNombreInput} style={{ paddingBottom: 10 }} />
+              <View style={styles.formActions}>
+                <PrimaryButton title="Guardar" onPress={guardarGrupo} loading={guardandoGrupo} variant="success" fullWidth={false} />
+                <PrimaryButton title="Cancelar" onPress={cancelarEditarGrupo} variant="secondary" fullWidth={false} disabled={guardandoGrupo} />
+              </View>
             </View>
-            {editandoGrupo ? (
-              <>
-                <ErrorBanner message={grupoError} />
-                <FormField value={grupoNombreInput} onChangeText={setGrupoNombreInput} style={{ paddingBottom: 10 }} />
-                <View style={styles.formActions}>
-                  <PrimaryButton title="Guardar" onPress={guardarGrupo} loading={guardandoGrupo} variant="success" fullWidth={false} />
-                  <PrimaryButton title="Cancelar" onPress={cancelarEditarGrupo} variant="secondary" fullWidth={false} disabled={guardandoGrupo} />
-                </View>
-              </>
-            ) : (
-              <Text style={styles.value}>{grupo?.nombre}</Text>
-            )}
-          </View>
+          ) : (
+            <SettingRow
+              icon="home-outline"
+              label="Grupo familiar"
+              value={grupo?.nombre}
+              style={styles.settingRowDivided}
+              onPress={esDueno ? abrirEditarGrupo : null}
+              accessibilityLabel="Renombrar grupo"
+            />
+          )}
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Contraseña</Text>
+        <View style={mostrarPasswordForm ? styles.card : styles.cardTight}>
           {mostrarPasswordForm ? (
-            <View style={{ marginTop: 10 }}>
+            <View>
+              <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>Contraseña</Text>
               <ErrorBanner message={passwordError} />
               <FormField label="Contraseña actual" value={passActual} onChangeText={setPassActual} secureTextEntry />
               <FormField label="Nueva contraseña" value={passNueva} onChangeText={setPassNueva} secureTextEntry />
@@ -372,22 +408,29 @@ export default function AccountScreen() {
               </View>
             </View>
           ) : (
-            <View style={{ marginTop: 10 }}>
-              <PressScale
-                contentStyle={styles.passwordLinkBtn}
-                onPress={abrirPasswordForm}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityLabel="Cambiar contraseña"
-              >
-                <Ionicons name="key-outline" size={15} color={colors.textMuted} />
-                <Text style={styles.passwordLinkText}>Cambiar contraseña</Text>
-              </PressScale>
-            </View>
+            // Sin subtexto de "última modificación": /api/auth/password no
+            // devuelve esa fecha y el perfil tampoco la trae (ver
+            // AuthContext) — no se inventa un dato que no existe.
+            <SettingRow
+              icon="key-outline"
+              label="Cambiar contraseña"
+              onPress={abrirPasswordForm}
+            />
           )}
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Miembros del grupo</Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Miembros del grupo</Text>
+            {/* Sólo el total: no hay ningún límite de plan del lado del
+                backend (grupo_familiar no tiene columna de cupo, ver
+                familiaController) contra el cual mostrar "N de M". */}
+            {!loadingMiembros && !miembrosError && (
+              <View style={styles.countPill}>
+                <Text style={styles.countPillText}>{miembros.length}</Text>
+              </View>
+            )}
+          </View>
 
           {loadingMiembros ? (
             <>
@@ -456,16 +499,19 @@ export default function AccountScreen() {
                 title={codigoInvitacion ? 'Regenerar código de invitación' : 'Generar código de invitación'}
                 onPress={handleGenerarInvitacion}
                 loading={generandoCodigo}
-                variant="secondary"
+                // primary (relleno ink), no secondary (outline) — es la
+                // acción principal de esta card, no una alternativa a otra.
+                variant="primary"
               />
             </View>
           )}
         </View>
 
         {esDueno ? (
-          <Text style={styles.duenoNota}>
-            Como dueño del grupo no podés salir de él — por ahora, la única forma de dejar de administrarlo es eliminar el grupo completo (no disponible todavía desde la app).
-          </Text>
+          <ErrorBanner
+            variant="info"
+            message="Como dueño del grupo no podés salir de él — por ahora, la única forma de dejar de administrarlo es eliminar el grupo completo (no disponible todavía desde la app)."
+          />
         ) : (
           <>
             <ErrorBanner message={salirError} />
@@ -520,8 +566,17 @@ const styles = StyleSheet.create({
     paddingVertical: 22,
     ...shadow,
   },
-  field: {
-    paddingBottom: 16,
+  // Misma card, con el padding vertical reducido — una card que contiene una
+  // sola SettingRow (que ya trae sus propios 12px arriba y abajo) se ve
+  // desbalanceada con los 22 del padding normal.
+  cardTight: {
+    backgroundColor: colors.glassStrong,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radii.card,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    ...shadow,
   },
   label: {
     fontSize: 13,
@@ -529,10 +584,6 @@ const styles = StyleSheet.create({
     fontFamily: poppinsWeight('600'),
     color: colors.textMuted,
     marginBottom: 4,
-  },
-  value: {
-    fontSize: 15.5,
-    color: colors.navy,
   },
   sectionTitle: {
     fontSize: 15,
@@ -627,15 +678,105 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.glassStrong,
   },
-  duenoNota: {
-    fontSize: 12.5,
-    color: colors.textMuted,
-    lineHeight: 18,
-  },
   profileHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginBottom: 6,
+    alignItems: 'center',
+    gap: 13,
+  },
+  // Mismo tamaño/forma que el avatar de MemberCard (FamilyListScreen): 46px,
+  // radio 15. El tinte viene inline (ver tinteUsuario) — acá no queda ningún
+  // color fijo.
+  avatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 17,
+    fontWeight: '700',
+    fontFamily: poppinsWeight('700'),
+    letterSpacing: 0.5,
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileNombre: {
+    fontSize: 15.5,
+    fontWeight: '600',
+    fontFamily: poppinsWeight('600'),
+    color: colors.navy,
+  },
+  profileEmail: {
+    fontSize: 12.5,
+    fontWeight: '400',
+    fontFamily: poppinsWeight('400'),
+    color: colors.textMutedLight,
+    marginTop: 1,
+  },
+  // Fila navegable (ver SettingRow) — el chip de ícono reusa el par
+  // sage/sageDeep de reminderBadge.control, no una familia nueva.
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+  },
+  // Cuando la fila comparte card con el header de perfil, el hairline la
+  // separa de él (dentro de su propia card no hace falta).
+  settingRowDivided: {
+    marginTop: 12,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+  },
+  rowIconChip: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: colors.sage,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowTextWrap: {
+    flex: 1,
+  },
+  rowLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: poppinsWeight('600'),
+    color: colors.navy,
+  },
+  rowValue: {
+    fontSize: 12.5,
+    color: colors.textMutedLight,
+    marginTop: 1,
+  },
+  grupoEditWrap: {
+    marginTop: 12,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  countPill: {
+    minWidth: 22,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: radii.pill,
+    backgroundColor: colors.sage,
+    alignItems: 'center',
+  },
+  countPillText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    fontFamily: poppinsWeight('700'),
+    color: colors.sageDeep,
   },
   editLinkBtn: {
     flexDirection: 'row',
@@ -648,41 +789,22 @@ const styles = StyleSheet.create({
     fontFamily: poppinsWeight('600'),
     color: colors.textMuted,
   },
-  grupoLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  editIconBtnSmall: {
-    width: 22,
-    height: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   formActions: {
     flexDirection: 'row',
     gap: 10,
     marginTop: 4,
   },
-  passwordLinkBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    alignSelf: 'flex-start',
-  },
-  passwordLinkText: {
-    fontSize: 14,
-    fontWeight: '600',
-    fontFamily: poppinsWeight('600'),
-    color: colors.textMuted,
-  },
+  // marginTop propio (además del gap:16 del contentContainer) — cerrar
+  // sesión no pertenece al bloque de arriba (el aviso de dueño / el botón de
+  // salir del grupo) y quedaba leyéndose como parte de él.
   logoutLinkBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
     alignSelf: 'center',
-    paddingVertical: 8,
+    marginTop: 12,
+    paddingVertical: 10,
   },
   logoutLinkText: {
     fontSize: 14,
