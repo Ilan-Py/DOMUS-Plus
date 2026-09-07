@@ -46,19 +46,6 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Setup EAS auth
-        # No `eas-version` input here on purpose: this action's own eas-cli
-        # installer (a yarn-based "global install" into an empty temp dir)
-        # fails on current runners ("Usage Error: No project found" /
-        # "yarn failed with exit code 1"). Omitting eas-version makes it skip
-        # that step entirely (matches its own log: "Skipped installing
-        # expo-cli: 'expo-version' not provided") — this step then only
-        # exports EXPO_TOKEN so eas-cli (installed via plain npm below) is
-        # authenticated.
-        uses: expo/expo-github-action@v8
-        with:
-          token: ${{ secrets.EXPO_TOKEN }}
-
       - name: Install dependencies
         run: npm ci
 
@@ -66,11 +53,18 @@ jobs:
         run: npm install -g eas-cli
 
       - name: Publish update
-        # Manual dispatch lets you target preview/development too; a plain push to
-        # main always goes to production (main = production-ready code).
-        # The commit message is passed via env, not interpolated directly into the
-        # script, so it can't be used for shell injection (untrusted input).
+        # No expo/expo-github-action here on purpose: its bundled eas-cli
+        # installer (yarn-based) and its own post-install auth-validation
+        # step both failed on current runners ("yarn failed with exit code
+        # 1", then "Parameter 'commandLine' cannot be null or empty").
+        # eas-cli natively authenticates from a plain EXPO_TOKEN env var in
+        # CI (Expo's own documented method) — no wrapper action needed.
+        # Manual dispatch lets you target preview/development too; a plain
+        # push to main always goes to production (main = production-ready
+        # code). The commit message is passed via env, not interpolated
+        # directly into the script, so it can't be used for shell injection.
         env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           UPDATE_MESSAGE: ${{ github.event.head_commit.message || format('Manual update by {0}', github.actor) }}
           UPDATE_CHANNEL: ${{ github.event.inputs.channel || 'production' }}
         run: eas update --channel "$UPDATE_CHANNEL" --non-interactive --message "$UPDATE_MESSAGE"
