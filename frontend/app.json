@@ -5,7 +5,10 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
     "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
       "backgroundColor": "#F7F9FC"
     },
     "ios": {
@@ -15,6 +18,7 @@
     "android": {
       "package": "com.domusplus.app",
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F7F9FC"
       }
     },
@@ -23,9 +27,13 @@
       "expo-font"
     ],
     "extra": {
-      "apiUrlProd": "https://REPLACE_WITH_PROD_HOST",
+      "apiUrlProd": "https://domus-plus.onrender.com",
       "apiUrlLan": "http://192.168.0.8:3000",
-      "useLanIp": true
-    }
+      "useLanIp": true,
+      "eas": {
+        "projectId": "9e2a5935-9ac1-443f-9530-30c861eabecd"
+      }
+    },
+    "owner": "alan-acevedo"
   }
 }
