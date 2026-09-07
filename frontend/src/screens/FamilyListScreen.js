@@ -15,18 +15,9 @@ import Skeleton from '../components/Skeleton';
 import FadeSlideIn from '../components/FadeSlideIn';
 import FadeOutRow, { EXIT_DURATION } from '../components/FadeOutRow';
 import { confirmarDestructivo } from '../utils/confirm';
+import { avatarTint } from '../theme/avatars';
 
 const TIPO_LABELS = { adulto: 'Adulto', menor: 'Menor', mayor: 'Mayor' };
-
-// Tinte de avatar por tipo de integrante — tres familias distintas, una por
-// tipo. Las mascotas no tienen `tipo` adulto/menor/mayor — caen en
-// DEFAULT_AVATAR_TINT (mismo tono que 'menor', sage).
-const AVATAR_TINTS = {
-  adulto: { bg: colors.avatarAdultBg, text: colors.avatarAdultText },
-  mayor: { bg: colors.avatarSeniorBg, text: colors.avatarSeniorText },
-  menor: { bg: colors.sage, text: colors.sageDeep },
-};
-const DEFAULT_AVATAR_TINT = { bg: colors.sage, text: colors.sageDeep };
 
 // El backend guarda fecha_nacimiento, no una edad — se calcula acá para el
 // subtítulo ("Adulto · 41 años") que antes venía escrito a mano en el mock.
@@ -57,7 +48,7 @@ function calcularEdad(fechaNacimiento) {
 // externo, así que no compite con el long-press de "Editar/Eliminar" que ya
 // vive en la card.
 function MemberCard({ icon, nombre, subt, tipo, onPress, onLongPress, onEmergencyPress, disabled }) {
-  const tint = AVATAR_TINTS[tipo] || DEFAULT_AVATAR_TINT;
+  const tint = avatarTint(tipo);
   return (
     <PressScale
       contentStyle={styles.memberCard}
@@ -338,7 +329,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 15,
-    // backgroundColor viene inline por tipo (ver AVATAR_TINTS) — no queda
+    // backgroundColor viene inline por tipo (ver avatarTint en theme/avatars) — no queda
     // valor fijo acá.
     alignItems: 'center',
     justifyContent: 'center',

@@ -19,12 +19,11 @@ import { useFamily } from '../context/FamilyContext';
 import SegmentedControl from '../components/SegmentedControl';
 import ErrorBanner from '../components/ErrorBanner';
 import EmptyState from '../components/EmptyState';
-import BackgroundBlobs from '../components/BackgroundBlobs';
 import ScreenHeader from '../components/ScreenHeader';
 import RadialFab from '../components/RadialFab';
 import PressScale from '../components/PressScale';
 import Skeleton from '../components/Skeleton';
-import { formatLongDate, toSentenceCase } from '../utils/displayFormat';
+import { formatLongDate, parseApiDate, toSentenceCase } from '../utils/displayFormat';
 import { confirmarDestructivo } from '../utils/confirm';
 import FadeSlideIn from '../components/FadeSlideIn';
 import FadeOutRow, { EXIT_DURATION } from '../components/FadeOutRow';
@@ -89,16 +88,36 @@ function VaccineRow({ item, onEdit, onLongPress, disabled }) {
         <Text style={styles.recordMeta}>Próxima dosis: {formatLongDate(item.proxima_dosis)}</Text>
       )}
       {!!item.notas && <Text style={styles.recordNotes}>{item.notas}</Text>}
-      <AttachmentsSection parentType="vacuna" parentId={item.id} />
+      <AttachmentsSection parentType="vacuna" parentId={item.id} label="Adjuntos de esta vacuna" />
     </PressScale>
   );
 }
 
+// Un tratamiento sigue "activo" mientras no tenga fecha_fin, o mientras esa
+// fecha no haya pasado — el día de fin cuenta como activo. fecha_fin es una
+// columna DATE: se parsea con parseApiDate (no `new Date(str)`, que lee la
+// medianoche-UTC que agrega el driver y daría por terminado el tratamiento
+// el mismo día que termina, o un día antes según el huso — ver el comentario
+// largo en utils/displayFormat.js).
+function esTratamientoActivo(fechaFin) {
+  const fin = parseApiDate(fechaFin);
+  if (!fin) return true;
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  return fin.getTime() >= hoy.getTime();
+}
+
 function TreatmentRow({ item, onEdit, onLongPress, disabled }) {
+  const activo = esTratamientoActivo(item.fecha_fin);
   return (
     <PressScale contentStyle={styles.recordCard} onPress={() => {}} onLongPress={onLongPress} disabled={disabled}>
       <View style={styles.recordHeader}>
         <Text style={[styles.recordTitle, styles.recordTitleFlex]}>{toSentenceCase(item.descripcion)}</Text>
+        <View style={[styles.statusBadge, !activo && styles.statusBadgeInactive]}>
+          <Text style={[styles.statusBadgeText, !activo && styles.statusBadgeTextInactive]}>
+            {activo ? 'Activo' : 'Finalizado'}
+          </Text>
+        </View>
         <PressScale
           contentStyle={styles.recordEditBtn}
           onPress={onEdit}
@@ -114,7 +133,7 @@ function TreatmentRow({ item, onEdit, onLongPress, disabled }) {
         Desde {formatLongDate(item.fecha_inicio)}
         {item.fecha_fin ? ` hasta ${formatLongDate(item.fecha_fin)}` : ' · en curso'}
       </Text>
-      <AttachmentsSection parentType="tratamiento" parentId={item.id} />
+      <AttachmentsSection parentType="tratamiento" parentId={item.id} label="Adjuntos de este tratamiento" />
     </PressScale>
   );
 }
@@ -125,7 +144,7 @@ function HistorialRow({ item }) {
       <Text style={styles.recordTitle}>{item.evento}</Text>
       <Text style={styles.recordMeta}>{formatLongDate(item.fecha)}</Text>
       {!!item.descripcion && <Text style={styles.recordNotes}>{item.descripcion}</Text>}
-      <AttachmentsSection parentType="historial" parentId={item.id} />
+      <AttachmentsSection parentType="historial" parentId={item.id} label="Adjuntos de este evento" />
     </View>
   );
 }
@@ -319,8 +338,6 @@ export default function ProfileDetailScreen({ navigation, route }) {
 
   return (
     <View style={styles.root}>
-      <BackgroundBlobs />
-
       <ScreenHeader
         title={nombre}
         subtitle={TIPO_LABELS[tipo] ?? tipo}
@@ -338,13 +355,13 @@ export default function ProfileDetailScreen({ navigation, route }) {
               <Ionicons name="pencil-outline" size={18} color={colors.navy} />
             </PressScale>
             <PressScale
-              contentStyle={styles.topbarIconBtn}
+              contentStyle={styles.topbarIconBtnDanger}
               onPress={handleEliminar}
               disabled={deleting}
               hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
               accessibilityLabel="Eliminar"
             >
-              <Ionicons name="trash-outline" size={18} color={colors.danger} />
+              <Ionicons name="trash-outline" size={16} color={colors.danger} />
             </PressScale>
           </>
         }
@@ -386,7 +403,7 @@ export default function ProfileDetailScreen({ navigation, route }) {
             </PressScale>
           )}
 
-          <AttachmentsSection parentType={tipo} parentId={id} />
+          <AttachmentsSection parentType={tipo} parentId={id} label={`Documentos de ${nombre}`} />
           <ProfessionalContactsSection parentType={tipo} parentId={id} />
         </View>
 
@@ -529,6 +546,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Sólo el ícono, sin burbuja ni borde — misma caja de 40x40 (para no
+  // mover el layout del topbar ni achicar el área táctil), pero mucho menos
+  // peso visual que el botón de editar: una acción destructiva no debería
+  // pesar lo mismo que una de rutina. La confirmación real la sigue dando
+  // confirmarDestructivo (utils/confirm.js).
+  topbarIconBtnDanger: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   // Override de ScreenHeader.topbarSubt (default 12px/textMuted, sin
   // Poppins) — este screen ya usaba un subtítulo distinto (12.5px/400/
   // Poppins/textMutedLight) antes de migrar a ScreenHeader. Drift
@@ -575,6 +604,10 @@ const styles = StyleSheet.create({
     marginHorizontal: 18,
     marginTop: 16,
     marginBottom: 0,
+    // Sin override de borderRadius acá a propósito: el track de
+    // SegmentedControl ya usa 14 (no radii.pill), y su highlight interno
+    // está fijo en ese mismo 14 — subir sólo el radio externo desalinearía
+    // el pill del track sin arreglar ninguna inconsistencia real.
   },
   scroll: {
     flexGrow: 1,
@@ -619,6 +652,29 @@ const styles = StyleSheet.create({
   },
   recordTitleFlex: {
     flex: 1,
+  },
+  // Mismo patrón que rolPill/rolPillDueno en AccountScreen.js.
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: colors.sage,
+  },
+  statusBadgeInactive: {
+    backgroundColor: colors.glassStrong,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  statusBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    fontFamily: poppinsWeight('700'),
+    color: colors.sageDeep,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  statusBadgeTextInactive: {
+    color: colors.textMuted,
   },
   recordEditBtn: {
     width: 26,

@@ -28,7 +28,7 @@ const THUMB_SIZE = 72;
 // CAMPOS_PADRE en adjuntoController.js) — el componente arma
 // `${parentType}_id` para hablar con /api/adjuntos, mismo contrato en los 3
 // verbos (POST/GET/DELETE).
-export default function AttachmentsSection({ parentType, parentId }) {
+export default function AttachmentsSection({ parentType, parentId, label = 'Adjuntos' }) {
   const [adjuntos, setAdjuntos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -170,7 +170,7 @@ export default function AttachmentsSection({ parentType, parentId }) {
 
   return (
     <View style={styles.root}>
-      <Text style={styles.titulo}>Adjuntos</Text>
+      <Text style={styles.titulo}>{label}</Text>
       <ErrorBanner message={error} onDismiss={() => setError('')} />
 
       <View style={styles.grid}>
@@ -189,7 +189,7 @@ export default function AttachmentsSection({ parentType, parentId }) {
                   >
                     {item.tipo_archivo === 'pdf' ? (
                       <View style={styles.pdfTile}>
-                        <Ionicons name="document-text-outline" size={26} color={colors.textMuted} />
+                        <Ionicons name="document-text-outline" size={24} color={colors.textMuted} />
                       </View>
                     ) : (
                       <Image source={{ uri: item.url }} style={styles.thumbImage} />
@@ -203,11 +203,16 @@ export default function AttachmentsSection({ parentType, parentId }) {
                     accessibilityLabel="Eliminar adjunto"
                   >
                     {eliminandoId === item.id ? (
-                      <ActivityIndicator size="small" color={colors.onAccent} />
+                      <ActivityIndicator size="small" color={colors.danger} />
                     ) : (
-                      <Ionicons name="close" size={12} color={colors.onAccent} />
+                      <Ionicons name="close" size={12} color={colors.danger} />
                     )}
                   </PressScale>
+                  {item.tipo_archivo === 'pdf' && (
+                    <Text style={styles.thumbLabel} numberOfLines={2}>
+                      {item.nombre_original || 'PDF'}
+                    </Text>
+                  )}
                 </FadeOutRow>
               </FadeSlideIn>
             ))}
@@ -272,9 +277,10 @@ const styles = StyleSheet.create({
     width: THUMB_SIZE,
     height: THUMB_SIZE,
   },
+  // Sin height fija — cada slot ahora crece con el label del nombre de
+  // archivo debajo del thumb (antes coincidía 1:1 con THUMB_SIZE).
   slotWrap: {
     width: THUMB_SIZE,
-    height: THUMB_SIZE,
   },
   thumb: {
     width: THUMB_SIZE,
@@ -286,6 +292,16 @@ const styles = StyleSheet.create({
   thumbImage: {
     width: '100%',
     height: '100%',
+  },
+  // Sólo bajo el tile de PDF — un thumbnail de 72px de un documento de
+  // texto no es legible, así que lo que identifica al archivo es el nombre,
+  // no la miniatura.
+  thumbLabel: {
+    fontSize: 10.5,
+    lineHeight: 13,
+    color: colors.textMuted,
+    marginTop: 3,
+    textAlign: 'center',
   },
   pdfTile: {
     width: '100%',
@@ -311,6 +327,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0,
     elevation: 0,
   },
+  // Presente pero no dominante: el relleno danger sólido era el elemento de
+  // más peso visual de toda la grilla, compitiendo con el contenido del
+  // adjunto. Queda como una tilde blanca con el glifo en danger — el color
+  // semántico sigue estando, en el glifo y no en un disco lleno. El tamaño
+  // (20) ya era el correcto y no cambia; la confirmación real la sigue
+  // dando confirmarDestructivo, no el peso del botón.
   deleteBadge: {
     position: 'absolute',
     top: -6,
@@ -318,7 +340,9 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: colors.danger,
+    backgroundColor: colors.glassStrong,
+    borderWidth: 1,
+    borderColor: colors.line,
     alignItems: 'center',
     justifyContent: 'center',
   },
