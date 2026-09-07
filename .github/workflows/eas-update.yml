@@ -25,15 +25,19 @@ jobs:
       run:
         working-directory: frontend
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Check for EXPO_TOKEN
+        # Must run after checkout: this job sets a job-wide working-directory
+        # of "frontend", which doesn't exist on the runner until the repo is
+        # checked out — running this step first (before checkout existed)
+        # failed with "No such file or directory".
         run: |
           if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
             echo "You must provide an EXPO_TOKEN secret to run this workflow. Generate one at https://expo.dev/accounts/[account]/settings/access-tokens"
             exit 1
           fi
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
 
       - name: Setup Node
         uses: actions/setup-node@v4
