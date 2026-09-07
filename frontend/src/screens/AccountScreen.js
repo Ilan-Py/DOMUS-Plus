@@ -373,7 +373,15 @@ export default function AccountScreen() {
             </View>
           ) : (
             <View style={{ marginTop: 10 }}>
-              <PrimaryButton title="Cambiar contraseña" onPress={abrirPasswordForm} variant="secondary" />
+              <PressScale
+                contentStyle={styles.passwordLinkBtn}
+                onPress={abrirPasswordForm}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel="Cambiar contraseña"
+              >
+                <Ionicons name="key-outline" size={15} color={colors.textMuted} />
+                <Text style={styles.passwordLinkText}>Cambiar contraseña</Text>
+              </PressScale>
             </View>
           )}
         </View>
@@ -470,12 +478,22 @@ export default function AccountScreen() {
           </>
         )}
 
-        <PrimaryButton
-          title="Cerrar sesión"
+        <PressScale
+          contentStyle={styles.logoutLinkBtn}
           onPress={confirmLogout}
-          loading={loggingOut}
-          variant="danger"
-        />
+          disabled={loggingOut}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityLabel="Cerrar sesión"
+        >
+          {loggingOut ? (
+            <ActivityIndicator size="small" color={colors.limeDeep} />
+          ) : (
+            <>
+              <Ionicons name="log-out-outline" size={16} color={colors.limeDeep} />
+              <Text style={styles.logoutLinkText}>Cerrar sesión</Text>
+            </>
+          )}
+        </PressScale>
       </ScrollView>
     </View>
   );
@@ -645,5 +663,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginTop: 4,
+  },
+  passwordLinkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+  },
+  passwordLinkText: {
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: poppinsWeight('600'),
+    color: colors.textMuted,
+  },
+  logoutLinkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    alignSelf: 'center',
+    paddingVertical: 8,
+  },
+  logoutLinkText: {
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: poppinsWeight('600'),
+    color: colors.limeDeep,
   },
 });

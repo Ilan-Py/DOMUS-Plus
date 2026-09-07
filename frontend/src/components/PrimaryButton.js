@@ -66,6 +66,7 @@ export default function PrimaryButton({
   disabled,
   variant = 'primary',
   fullWidth = true,
+  style,
 }) {
   const variantStyle = VARIANTS[variant] || VARIANTS.primary;
   const isDisabled = !!disabled || !!loading || !!success;
@@ -81,6 +82,9 @@ export default function PrimaryButton({
         !fullWidth && styles.btnAuto,
         variantStyle.container,
         showDimmed && styles.btnDisabled,
+        // Override de tamaño puntual (ver WelcomeScreen "Crear cuenta") — sólo
+        // dimensiones, nunca color/borde/radius, que siguen viniendo de variantStyle.
+        style,
       ]}
       onPress={onPress}
       disabled={isDisabled}
