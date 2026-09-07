@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Platform, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, glassPanel } from '../theme/colors';
+import { colors, cardBase } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useFamily } from '../context/FamilyContext';
 import ErrorBanner from '../components/ErrorBanner';
 import EmptyState from '../components/EmptyState';
+import ScreenHeader from '../components/ScreenHeader';
 import RadialFab from '../components/RadialFab';
 import PressScale from '../components/PressScale';
 import Skeleton from '../components/Skeleton';
+import FadeSlideIn from '../components/FadeSlideIn';
+import FadeOutRow, { EXIT_DURATION } from '../components/FadeOutRow';
 import { confirmarDestructivo } from '../utils/confirm';
 
 const TIPO_LABELS = { adulto: 'Adulto', menor: 'Menor', mayor: 'Mayor' };
@@ -44,7 +47,16 @@ function calcularEdad(fechaNacimiento) {
 // propio color fijo (ver comentario que vivía acá antes) e ignoraba tint.text
 // por completo; Ionicons sí respeta `color`, así que el tinte por tipo
 // finalmente tiene efecto real en el ícono, no sólo en el fondo del avatar.
-function MemberCard({ icon, nombre, subt, tipo, onPress, onLongPress, disabled }) {
+// `onEmergencyPress`, cuando viene, agrega un badge terracota-danger aparte
+// del resto de la card — sólo integrantes lo reciben (FamilyListScreen más
+// abajo), la ficha de emergencia no aplica a mascotas (ver scope de la
+// feature). Nested PressScale dentro de la card entera (que ya tiene
+// onPress+onLongPress) es el mismo patrón ya probado en VaccineRow/
+// TreatmentRow (ProfileDetailScreen.js) para su botón de editar — el tap
+// dentro del hitbox del badge lo resuelve el Pressable interno, no llega al
+// externo, así que no compite con el long-press de "Editar/Eliminar" que ya
+// vive en la card.
+function MemberCard({ icon, nombre, subt, tipo, onPress, onLongPress, onEmergencyPress, disabled }) {
   const tint = AVATAR_TINTS[tipo] || DEFAULT_AVATAR_TINT;
   return (
     <PressScale
@@ -60,6 +72,17 @@ function MemberCard({ icon, nombre, subt, tipo, onPress, onLongPress, disabled }
         <Text style={styles.memberName}>{nombre}</Text>
         <Text style={styles.memberSubt}>{subt}</Text>
       </View>
+      {!!onEmergencyPress && (
+        <PressScale
+          contentStyle={styles.emergencyBadge}
+          onPress={onEmergencyPress}
+          disabled={disabled}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityLabel={`Ficha de emergencia de ${nombre}`}
+        >
+          <Ionicons name="medkit" size={15} color={colors.onAccent} />
+        </PressScale>
+      )}
       <Text style={styles.chevron}>›</Text>
     </PressScale>
   );
@@ -84,6 +107,16 @@ export default function FamilyListScreen({ navigation }) {
   const { integrantes, mascotas, loading, error, refresh } = useFamily();
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  // Clave `${tipo}-${id}` de la fila que se está borrando — dispara su
+  // fade-out (FadeOutRow) antes de que refresh() la saque del array.
+  const [exitingKey, setExitingKey] = useState(null);
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await refresh();
+    setRefreshing(false);
+  }
 
   function openProfile({ id, tipo, nombre, member }) {
     navigation.navigate('ProfileDetail', { id, tipo, nombre, member });
@@ -99,11 +132,17 @@ export default function FamilyListScreen({ navigation }) {
     try {
       const url = tipo === 'integrante' ? `/api/familia/integrantes/${item.id}` : `/api/familia/mascotas/${item.id}`;
       await api.delete(url);
+      // Fade-out de la fila (FadeOutRow) antes del refetch real — así el
+      // array pierde el ítem recién cuando ya está invisible, sin que la
+      // fila "salte" a desaparecer de golpe.
+      setExitingKey(`${tipo}-${item.id}`);
+      await new Promise((resolve) => setTimeout(resolve, EXIT_DURATION));
       await refresh();
     } catch (err) {
       setActionError(err.mensaje);
     } finally {
       setBusy(false);
+      setExitingKey(null);
     }
   }
 
@@ -141,12 +180,10 @@ export default function FamilyListScreen({ navigation }) {
 
   return (
     <View style={styles.root}>
-      <View style={styles.topbar}>
-        <Text style={styles.topbarTitle}>{grupo?.nombre}</Text>
-        <Text style={styles.topbarSubt}>
-          {integrantes.length} integrantes · {mascotas.length} mascota
-        </Text>
-      </View>
+      <ScreenHeader
+        title={grupo?.nombre}
+        subtitle={`${integrantes.length} integrante${integrantes.length === 1 ? '' : 's'} · ${mascotas.length} mascota${mascotas.length === 1 ? '' : 's'}`}
+      />
 
       {loading ? (
         <View style={styles.scroll}>
@@ -157,12 +194,18 @@ export default function FamilyListScreen({ navigation }) {
           <SkeletonMemberCard />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.navy} />
+          }
+        >
           {(!!error || !!actionError) && (
             <View style={styles.errorWrap}>
               <ErrorBanner
                 message={error || actionError}
                 onDismiss={error ? undefined : () => setActionError('')}
+                onRetry={error ? refresh : undefined}
               />
             </View>
           )}
@@ -171,27 +214,32 @@ export default function FamilyListScreen({ navigation }) {
           {integrantes.length === 0 ? (
             <EmptyState message="No hay integrantes registrados." />
           ) : (
-            integrantes.map((item) => {
+            integrantes.map((item, i) => {
               const edad = calcularEdad(item.fecha_nacimiento);
               const nombreCompleto = `${item.nombre} ${item.apellido}`;
+              const key = `integrante-${item.id}`;
               return (
-                <MemberCard
-                  key={`integrante-${item.id}`}
-                  icon="person-outline"
-                  nombre={nombreCompleto}
-                  subt={`${TIPO_LABELS[item.tipo] ?? item.tipo}${edad !== null ? ` · ${edad} años` : ''}`}
-                  tipo={item.tipo}
-                  disabled={busy}
-                  onPress={() =>
-                    openProfile({
-                      id: item.id,
-                      tipo: 'integrante',
-                      nombre: nombreCompleto,
-                      member: item,
-                    })
-                  }
-                  onLongPress={() => handleLongPress('integrante', item, nombreCompleto)}
-                />
+                <FadeSlideIn key={key} index={i}>
+                  <FadeOutRow exiting={exitingKey === key}>
+                    <MemberCard
+                      icon="person-outline"
+                      nombre={nombreCompleto}
+                      subt={`${TIPO_LABELS[item.tipo] ?? item.tipo}${edad !== null ? ` · ${edad} años` : ''}`}
+                      tipo={item.tipo}
+                      disabled={busy}
+                      onPress={() =>
+                        openProfile({
+                          id: item.id,
+                          tipo: 'integrante',
+                          nombre: nombreCompleto,
+                          member: item,
+                        })
+                      }
+                      onLongPress={() => handleLongPress('integrante', item, nombreCompleto)}
+                      onEmergencyPress={() => navigation.navigate('Emergency', { id: item.id, nombre: nombreCompleto })}
+                    />
+                  </FadeOutRow>
+                </FadeSlideIn>
               );
             })
           )}
@@ -200,17 +248,23 @@ export default function FamilyListScreen({ navigation }) {
           {mascotas.length === 0 ? (
             <EmptyState message="No hay mascotas registradas." />
           ) : (
-            mascotas.map((item) => (
-              <MemberCard
-                key={`mascota-${item.id}`}
-                icon="paw-outline"
-                nombre={item.nombre}
-                subt={item.raza ? `${item.especie} · ${item.raza}` : item.especie}
-                disabled={busy}
-                onPress={() => openProfile({ id: item.id, tipo: 'mascota', nombre: item.nombre, member: item })}
-                onLongPress={() => handleLongPress('mascota', item, item.nombre)}
-              />
-            ))
+            mascotas.map((item, i) => {
+              const key = `mascota-${item.id}`;
+              return (
+                <FadeSlideIn key={key} index={i}>
+                  <FadeOutRow exiting={exitingKey === key}>
+                    <MemberCard
+                      icon="paw-outline"
+                      nombre={item.nombre}
+                      subt={item.raza ? `${item.especie} · ${item.raza}` : item.especie}
+                      disabled={busy}
+                      onPress={() => openProfile({ id: item.id, tipo: 'mascota', nombre: item.nombre, member: item })}
+                      onLongPress={() => handleLongPress('mascota', item, item.nombre)}
+                    />
+                  </FadeOutRow>
+                </FadeSlideIn>
+              );
+            })
           )}
         </ScrollView>
       )}
@@ -246,28 +300,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bgBase,
   },
-  topbar: {
-    paddingTop: 54,
-    paddingHorizontal: 18,
-    paddingBottom: 16,
-    // bgBase (no colors.glass, que ahora es blanco puro) — el header debe
-    // leerse como parte de la página crema, no como blanco sin estilo. La
-    // separación visual la da el hairline de abajo, no un cambio de tono.
-    backgroundColor: colors.bgBase,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.glassBorderSoft,
-  },
-  topbarTitle: {
-    fontSize: 19,
-    fontWeight: '600',
-    fontFamily: poppinsWeight('600'),
-    color: colors.navy,
-  },
-  topbarSubt: {
-    fontSize: 12,
-    color: colors.textMuted,
-    marginTop: 1,
-  },
   scroll: {
     paddingBottom: 100,
   },
@@ -297,7 +329,10 @@ const styles = StyleSheet.create({
     minHeight: 48,
     // Sin BlurView acá a propósito — lista con scroll, blur real por fila
     // sería un riesgo de performance (vs. Login/Register, pantallas estáticas).
-    ...glassPanel,
+    // cardBase (no glassPanel) — auditoría de consolidación de cards:
+    // mismo bg/borde/radius/sombra que recordCard (ProfileDetailScreen) y
+    // row (CalendarScreen), antes repetidos a mano en los 3 lugares.
+    ...cardBase,
   },
   avatar: {
     width: 46,
@@ -327,6 +362,19 @@ const styles = StyleSheet.create({
   chevron: {
     fontSize: 20,
     color: colors.textMuted,
+  },
+  // Deliberadamente terracota-danger (no el tinte del avatar) — es el
+  // affordance de "acceso rápido para cuando realmente hace falta", tiene
+  // que leerse como distinto/urgente a simple vista, no como una acción más
+  // del mismo peso visual que el resto de la card.
+  emergencyBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 2,
   },
   // Sólo posición acá — RadialFab trae su propio tamaño/forma/sombra.
   fab: {

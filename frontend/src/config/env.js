@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import * as Device from 'expo-device';
 
 // Backend DOMUS+ corre en el puerto 3000 (backend/.env.example → PORT=3000)
 //
@@ -32,8 +33,11 @@ function resolveApiUrl() {
   if (USE_LAN_IP) return LAN_IP_URL;
 
   if (Platform.OS === 'android') {
-    // Emulador Android: 10.0.2.2 apunta al localhost de la máquina host
-    return 'http://10.0.2.2:3000';
+    // Dispositivo físico por USB (adb reverse tcp:3000 tcp:3000 reenvía este
+    // puerto a la PC) — 10.0.2.2 es un alias especial que sólo existe en la
+    // red virtual del emulador, no significa nada en hardware real. El
+    // emulador sigue usando 10.0.2.2, que sí apunta al localhost de la máquina host.
+    return Device.isDevice ? 'http://localhost:3000' : 'http://10.0.2.2:3000';
   }
   if (Platform.OS === 'ios') {
     // Simulador iOS comparte el localhost de la máquina host

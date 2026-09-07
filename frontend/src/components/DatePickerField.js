@@ -134,7 +134,11 @@ export default function DatePickerField({
             maximumDate={maximumDate}
           />
           {Platform.OS === 'ios' && (
-            <TouchableOpacity style={styles.doneBtn} onPress={() => setShowPicker(false)}>
+            <TouchableOpacity
+              style={styles.doneBtn}
+              onPress={() => setShowPicker(false)}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
               <Text style={styles.doneBtnText}>Listo</Text>
             </TouchableOpacity>
           )}

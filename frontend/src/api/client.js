@@ -29,8 +29,15 @@ api.interceptors.response.use(
   async (error) => {
     const status = error.response?.status;
 
-    // 401 = sin token, 403 = token inválido/expirado (config/auth.js) — ambos cierran sesión
-    if (status === 401 || status === 403) {
+    // 401 = sin token o token inválido/expirado (config/auth.js) → sesión
+    // muerta, hay que cerrarla. 403 = autenticado pero sin permiso para ESTA
+    // acción puntual (ej. un 'miembro' pegándole a un endpoint owner-only de
+    // grupo compartido) — la sesión sigue siendo válida, así que NO debe
+    // deslogear. Antes ambos códigos se trataban igual porque ningún
+    // endpoint emitía 403 todavía; ahora que los endpoints owner-only de
+    // grupo_miembro sí lo hacen, tratarlo como 401 desloguearía a un
+    // 'miembro' legítimo por intentar una acción que no le corresponde.
+    if (status === 401) {
       await clearSession();
       onUnauthorized();
     }

@@ -11,7 +11,16 @@ const PRESS_SCALE = 0.97;
 const PRESS_OPACITY = 0.85;
 const PRESS_DURATION = 100;
 
-export default function PressScale({ onPress, onLongPress, disabled, style, contentStyle, children, ...rest }) {
+export default function PressScale({
+  onPress,
+  onLongPress,
+  disabled,
+  style,
+  contentStyle,
+  children,
+  accessibilityRole = 'button',
+  ...rest
+}) {
   const anim = useRef(new Animated.Value(0)).current;
   // Pressable dispara onPress en el release incluso después de que
   // onLongPress ya calificó — sin este flag, soltar un long-press también
@@ -57,6 +66,7 @@ export default function PressScale({ onPress, onLongPress, disabled, style, cont
       onPressIn={handlePressIn}
       onPressOut={() => animateTo(0)}
       style={style}
+      accessibilityRole={accessibilityRole}
       {...rest}
     >
       <Animated.View style={[contentStyle, { transform: [{ scale }], opacity }]}>

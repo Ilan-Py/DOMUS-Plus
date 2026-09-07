@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,15 @@ import SegmentedControl from '../components/SegmentedControl';
 import ErrorBanner from '../components/ErrorBanner';
 import DatePickerField, { formatDateOnly } from '../components/DatePickerField';
 import PressScale from '../components/PressScale';
+import ScreenHeader from '../components/ScreenHeader';
 import { parseApiDate } from '../utils/displayFormat';
+import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
+
+function sameDate(a, b) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return a.getTime() === b.getTime();
+}
 
 const TIPOS_INTEGRANTE = ['Adulto', 'Menor', 'Mayor'];
 const TIPO_MIEMBRO_OPTIONS = [
@@ -66,6 +74,33 @@ export default function AddMemberScreen({ navigation, route }) {
 
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  // Snapshot de los valores iniciales (vacíos en alta, los de memberToEdit
+  // en edición) — capturado una sola vez al montar, para comparar contra el
+  // estado vigente y decidir si hay algo que se perdería al salir.
+  const initialRef = useRef({
+    tipoMiembro: tipoMiembroInicial,
+    nombre: memberToEdit?.nombre || '',
+    apellido: memberToEdit?.apellido || '',
+    fechaNacimiento: memberToEdit?.fecha_nacimiento ? parseApiDate(memberToEdit.fecha_nacimiento) : null,
+    tipoIntegrante: capitalizarTipo(memberToEdit?.tipo),
+    observaciones: memberToEdit?.observaciones || '',
+    especie: memberToEdit?.especie || '',
+    raza: memberToEdit?.raza || '',
+  });
+
+  const isDirty =
+    tipoMiembro !== initialRef.current.tipoMiembro ||
+    nombre !== initialRef.current.nombre ||
+    apellido !== initialRef.current.apellido ||
+    !sameDate(fechaNacimiento, initialRef.current.fechaNacimiento) ||
+    tipoIntegrante !== initialRef.current.tipoIntegrante ||
+    observaciones !== initialRef.current.observaciones ||
+    especie !== initialRef.current.especie ||
+    raza !== initialRef.current.raza;
+
+  const { allowNextRemove } = useUnsavedChangesGuard(navigation, isDirty);
 
   async function handleGuardar() {
     const faltaNombre = !nombre.trim();
@@ -109,7 +144,15 @@ export default function AddMemberScreen({ navigation, route }) {
       }
 
       await refresh();
-      navigation.goBack();
+      allowNextRemove();
+      // Beat breve de confirmación (checkmark en el botón) antes de salir en
+      // vez de un goBack() instantáneo y silencioso — ver PrimaryButton.
+      // ~380ms totales: alcanza para que el check haga su pop-in (spring
+      // ~200ms) y quede visible un instante, sin sentirse como que traba la
+      // salida.
+      setSaved(true);
+      setTimeout(() => navigation.goBack(), 380);
+      return;
     } catch (err) {
       if (err.status === 400 && /fecha de nacimiento/i.test(err.mensaje || '')) {
         setFechaNacimientoError(err.mensaje);
@@ -124,20 +167,12 @@ export default function AddMemberScreen({ navigation, route }) {
   return (
     <KeyboardAvoidingView
       style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.topbar}>
-        <PressScale
-          contentStyle={styles.backBtn}
-          onPress={() => navigation.goBack()}
-          accessibilityLabel="Volver"
-        >
-          <Text style={styles.backBtnIcon}>‹</Text>
-        </PressScale>
-        <Text style={styles.topbarTitle}>
-          {isEditing ? 'Editar' : 'Agregar a la familia'}
-        </Text>
-      </View>
+      <ScreenHeader
+        title={isEditing ? 'Editar' : 'Agregar a la familia'}
+        onBack={() => navigation.goBack()}
+      />
 
       <ScrollView contentContainerStyle={styles.scroll}>
         {isEditing ? (
@@ -200,6 +235,8 @@ export default function AddMemberScreen({ navigation, route }) {
                     key={tipo}
                     contentStyle={[styles.chip, tipoIntegrante === tipo && styles.chipActive]}
                     onPress={() => setTipoIntegrante(tipo)}
+                    hitSlop={{ top: 2, bottom: 2 }}
+                    accessibilityState={{ selected: tipoIntegrante === tipo }}
                   >
                     <Text
                       style={[
@@ -252,6 +289,7 @@ export default function AddMemberScreen({ navigation, route }) {
             title={isEditing ? 'Guardar cambios' : 'Guardar'}
             onPress={handleGuardar}
             loading={saving}
+            success={saved}
             variant="success"
           />
           <PrimaryButton
@@ -269,40 +307,6 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.bg,
-  },
-  topbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingTop: 54,
-    paddingHorizontal: 18,
-    paddingBottom: 16,
-    // bgBase (no colors.glass, que ahora es blanco puro) — mismo criterio
-    // que el resto de los headers, ver FamilyListScreen.js.
-    backgroundColor: colors.bgBase,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.glassBorderSoft,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.glassStrong,
-    borderWidth: 1,
-    borderColor: colors.glassBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: -6,
-  },
-  backBtnIcon: {
-    fontSize: 22,
-    color: colors.navy,
-  },
-  topbarTitle: {
-    fontSize: 19,
-    fontWeight: '600',
-    fontFamily: poppinsWeight('600'),
-    color: colors.navy,
   },
   // 100 (no 40) para despejar la tab bar flotante (position:'absolute' en
   // MainTabs) — mismo valor que CalendarScreen/FamilyListScreen.

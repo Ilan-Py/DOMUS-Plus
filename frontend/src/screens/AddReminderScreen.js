@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { colors } from '../theme/colors';
 import api from '../api/client';
@@ -10,6 +10,13 @@ import DatePickerField, { formatDateOnly, formatTimeOnly } from '../components/D
 import { HealthFormTopbar } from './healthFormShared';
 import { programarNotificacion, cancelarNotificacion } from '../utils/notifications';
 import { parseFechaHora } from '../utils/displayFormat';
+import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
+
+function sameDate(a, b) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return a.getTime() === b.getTime();
+}
 
 const TIPO_OPTIONS = [
   { label: 'Vacuna', value: 'vacuna' },
@@ -61,6 +68,24 @@ export default function AddReminderScreen({ navigation, route }) {
   const [fechaHoraError, setFechaHoraError] = useState('');
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const initialRef = useRef({
+    tipo: TIPOS_VALIDOS.includes(editando?.tipo) ? editando.tipo
+      : TIPOS_VALIDOS.includes(params.tipo) ? params.tipo
+      : 'control',
+    fecha: fechaHoraEditando,
+    hora: fechaHoraEditando,
+    descripcion: editando?.descripcion || '',
+  });
+
+  const isDirty =
+    tipo !== initialRef.current.tipo ||
+    !sameDate(fecha, initialRef.current.fecha) ||
+    !sameDate(hora, initialRef.current.hora) ||
+    descripcion !== initialRef.current.descripcion;
+
+  const { allowNextRemove } = useUnsavedChangesGuard(navigation, isDirty);
 
   async function handleGuardar() {
     const faltaFecha = !fecha;
@@ -118,7 +143,10 @@ export default function AddReminderScreen({ navigation, route }) {
         )
         .catch(() => {});
       // CalendarScreen refetch al recuperar el foco (useFocusEffect)
-      navigation.goBack();
+      allowNextRemove();
+      setSaved(true);
+      setTimeout(() => navigation.goBack(), 380);
+      return;
     } catch (err) {
       setFormError(err.mensaje);
     } finally {
@@ -129,7 +157,7 @@ export default function AddReminderScreen({ navigation, route }) {
   return (
     <KeyboardAvoidingView
       style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <HealthFormTopbar navigation={navigation} title={isEditing ? 'Editar recordatorio' : 'Nuevo recordatorio'} />
 
@@ -186,6 +214,7 @@ export default function AddReminderScreen({ navigation, route }) {
             title={isEditing ? 'Guardar cambios' : 'Guardar'}
             onPress={handleGuardar}
             loading={saving}
+            success={saved}
             variant="success"
           />
           <PrimaryButton

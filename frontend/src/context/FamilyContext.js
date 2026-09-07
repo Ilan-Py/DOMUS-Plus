@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { getList } from '../api/client';
 
 const FamilyContext = createContext(null);
@@ -10,9 +10,15 @@ export function FamilyProvider({ children }) {
   const [mascotas, setMascotas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // refresh() se llama después de cada alta/edición/baja (AddMemberScreen,
+  // handleEliminar acá abajo), no sólo al montar — sin este guard, cada una
+  // de esas mutaciones tapaba la lista ya visible con el skeleton completo
+  // de nuevo. Sólo el primer load real (o un refresh que falló y nunca
+  // llegó a tener datos) debe mostrar el skeleton entero.
+  const hasLoadedOnceRef = useRef(false);
 
   async function refresh() {
-    setLoading(true);
+    if (!hasLoadedOnceRef.current) setLoading(true);
     setError(null);
     try {
       const [datosIntegrantes, datosMascotas] = await Promise.all([
@@ -21,6 +27,7 @@ export function FamilyProvider({ children }) {
       ]);
       setIntegrantes(datosIntegrantes);
       setMascotas(datosMascotas);
+      hasLoadedOnceRef.current = true;
     } catch (err) {
       setError(err.mensaje);
     } finally {

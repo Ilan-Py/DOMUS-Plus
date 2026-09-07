@@ -28,17 +28,28 @@ export const colors = {
   // salvia profundo en sí (texto/íconos sobre el tinte), `sagePressed` =
   // estado presionado, más oscuro todavía.
   sage: '#D6E2D6',          // tinte claro — relleno de paneles/badges secundarios (era #D5E8D4)
-  sageDeep: '#4C6B4F',      // NUEVO valor — verde salvia profundo, el acento en sí (era #B9D8B6, tono liviano)
-  sagePressed: '#3D5940',   // NUEVO token — estado presionado del acento salvia
+  // #4C6B4F daba 4.46:1 sobre `sage` — falla AA normal-text (4.5:1) usado como
+  // texto del badge "Control" (11.5px/700). Oscurecido lo mínimo (misma
+  // familia, mismo hue/sat) para despejar 4.5:1 — ver auditoría WCAG.
+  sageDeep: '#4B694E',      // NUEVO valor — verde salvia profundo, el acento en sí (era #B9D8B6, tono liviano)
+  // sagePressed (estado presionado del acento salvia) existió acá sin
+  // ningún consumidor — auditoría de tokens (ver git history si hace falta
+  // el valor #3D5940) — eliminado. limeDeep es el patrón equivalente que sí
+  // se wireó; si se necesita un estado pressed para sage, replicar eso.
 
   // Acento primario — "urgente / necesita atención". Ocupa el lugar que
   // tenía el acento decorativo gold/tan; se mantienen los nombres viejos
   // (lime/limeDeep) para no romper imports, pero ahora son terracota.
   ink: '#2B2417',           // negro cálido — texto primario, FAB (era #000000 puro)
-  inkSoft: '#2B2417',       // mismo valor que ink — la migración 1 ya los usaba como alias entre sí (era #1C1C1C)
+  // inkSoft (alias de ink de la migración 1) existió acá sin ningún
+  // consumidor — auditoría de tokens, eliminado (ver git history si hace
+  // falta el valor).
   onAccent: '#FFFFFF',      // texto/ícono sobre un fill sólido de acento (ink/blueDeep/navy/etc.) — antes literal '#FFFFFF' repetido por call-site
   lime: '#D9603A',          // terracota — CTAs/estados activos/urgente (era gold/tan #D9B779, antes eso reemplazó al neón)
-  limeDeep: '#B4491F',      // estado presionado/hover del acento terracota (era gold/tan #B8935A)
+  // #B4491F daba 4.17:1 sobre el bg de reminderBadge.medicacion/vencido
+  // (#F7DED2) — falla AA normal-text (4.5:1) a 11.5px/700. Oscurecido lo
+  // mínimo para despejar 4.5:1 — ver auditoría WCAG.
+  limeDeep: '#AA451D',      // estado presionado/hover del acento terracota (era gold/tan #B8935A)
 
   // Tintes de avatar por tipo de integrante — gold suave para "adulto"
   // (dado explícito en el brief, no se deriva matemáticamente de terracota:
@@ -46,7 +57,10 @@ export const colors = {
   // se agrega token nuevo — reusar sage/sageDeep directamente, tal como
   // pide el criterio de "no inventar familias nuevas".
   avatarAdultBg: '#F0D9B5',   // NUEVO — fondo de avatar para integrantes tipo 'adulto'
-  avatarAdultText: '#8A5A20', // NUEVO — texto/ícono sobre avatarAdultBg
+  // #8A5A20 daba 4.29:1 sobre avatarAdultBg — falla AA normal-text (4.5:1)
+  // usado como texto del badge "Vacuna" (11.5px/700). Oscurecido lo mínimo
+  // para despejar 4.5:1 — ver auditoría WCAG.
+  avatarAdultText: '#85561F', // NUEVO — texto/ícono sobre avatarAdultBg
 
   // Tercera familia — 'mayor' (adulto mayor) ya no comparte la de 'adulto'.
   // Taupe/arcilla cálido: mismo lenguaje tierra que el resto de la paleta,
@@ -57,36 +71,59 @@ export const colors = {
   avatarSeniorText: '#6B5744', // NUEVO — texto/ícono sobre avatarSeniorBg
 
   // Superficies de card — de vidrio translúcido a blanco sólido plano.
-  // Los 4 nombres se mantienen (los importan Login/Register/FamilyListScreen
-  // y los inputs de FormField/DatePickerField) pero ya no llevan alpha.
-  glassFill: '#FFFFFF',        // era 'rgba(255,255,255,0.6)' — blanco sólido, no más translúcido
+  // Estos 3 nombres se mantienen (los importan Login/Register/
+  // FamilyListScreen y los inputs de FormField/DatePickerField) pero ya no
+  // llevan alpha. (Auditoría de tokens: el 4to de este grupo, `glassFill`,
+  // no tenía ningún consumidor real pese al comentario original — eliminado.)
   glassFillStrong: '#FFFFFF',  // era 'rgba(255,255,255,0.78)'
   glassBorderSoft: '#EFE6D5',  // hairline cálido sólido (era 'rgba(255,255,255,0.35)', invisible sobre blanco sólido)
   sageTranslucent: 'rgba(214,226,214,0.55)', // track de SegmentedControl — mismo rgb que el nuevo `sage`, alpha sin cambios
-  // Fix post-migración 2: el repunte anterior había igualado este valor a
-  // textMuted (#8A8171), perdiendo el contraste subtítulo-vs-nombre que ya
-  // usan ProfileDetailScreen/FamilyListScreen. ~15% más claro que textMuted
-  // hacia blanco (mismo tono cálido, no un gris distinto) — sigue siendo
-  // legible sobre el crema/blanco de card, pero se lee claramente más tenue
-  // que textMuted al lado de un nombre en bold.
-  textMutedLight: '#9C9486',
+  // Auditoría WCAG (contraste real, fórmula de luminancia relativa):
+  // el valor "más claro" original (#9C9486) daba sólo 2.79:1 sobre bgBase —
+  // falla incluso el umbral de texto grande (3:1), y sus dos usos reales
+  // (memberSubt en FamilyListScreen, topbarSubt en ProfileDetailScreen) son
+  // texto normal 12.5px/400, que necesita 4.5:1. "Más claro" empeora el
+  // contraste sobre un fondo claro, no lo mejora — así que la única
+  // dirección válida es oscurecer, igual que textMuted. Con el mismo target
+  // de contraste, este valor y el de textMuted convergen casi al mismo tono;
+  // se deja levemente MÁS oscuro que textMuted (no más claro, invierte el
+  // nombre) para mantener dos tokens distinguibles en vez de duplicar uno.
+  // La jerarquía subtítulo-vs-nombre que este token existía para proteger ya
+  // la da el tamaño/peso de fuente (14.5/600 nombre vs 12.5/400 subtítulo),
+  // no necesita cargarla también el color.
+  textMutedLight: '#726A5D',
 
   // --- tokens semánticos existentes, re-apuntados (NO renombrar — todas las pantallas los importan) ---
-  navy: '#2B2417',          // alias de ink/inkSoft (texto de cuerpo) — era #1C1C1C
-  navySoft: '#2E2E2E',      // sin uso confirmado por grep — no se re-apuntó, no estaba en el brief
+  navy: '#2B2417',          // alias de ink (texto de cuerpo) — era #1C1C1C
+  // navySoft (sin uso, sin re-apuntar durante la migración) y green ("éxito"
+  // = mismo verde salvia que el acento secundario) existían acá sin ningún
+  // consumidor real y sin un comentario que pidiera conservarlos — auditoría
+  // de tokens, eliminados. greenDeep sigue (lo consume buttonColors.success,
+  // que sí tiene consumidor real: PrimaryButton).
   blue: '#3B82F6',          // sin uso actual confirmado por grep; se mantiene por compat
   blueDeep: '#2B2417',      // FAB/spinners "negro" — re-apuntado junto con ink para que sigan siendo el mismo negro visual (era #000000 puro)
   blueLight: '#9CC9FF',     // sin consumidores — GroupSetupScreen.js migró su brandMark a colors.lime; se deja el token, no se borra
-  green: '#4C6B4F',         // "éxito" ahora es el mismo verde salvia profundo que el acento secundario (era #10B981) — ver resumen, es una inferencia
   greenDeep: '#3D5940',     // idem, estado presionado (era #059669)
   amber: '#F59E0B',         // sin consumidores tras repuntar reminderBadge.medicacion a terracota — se deja el valor viejo, no se borra el token
   bg: '#FBF6EE',            // alias de bgBase (era #F4F5F4)
   glass: '#FFFFFF',         // era 'rgba(255,255,255,0.6)'
   glassStrong: '#FFFFFF',   // era 'rgba(255,255,255,0.92)'
   glassBorder: '#E3D6BE',   // borde de inputs, cálido (era #E3E8EF, frío)
-  textMuted: '#8A8171',     // gris cálido (reemplaza el viejo #5A5F58) — más oscuro que textMutedLight, ver ese token
+  // Auditoría WCAG: #8A8171 daba 3.58:1 sobre bgBase — falla AA normal-text
+  // (4.5:1) en sus ~15 usos reales (subtítulos, labels, meta-texto, todos
+  // <16px). Oscurecido lo mínimo necesario para despejar 4.5:1, mismo hue/
+  // saturación cálida (no gris frío) — ver textMutedLight para el mismo
+  // ajuste en su token hermano.
+  textMuted: '#776F62',     // gris cálido (reemplaza el viejo #5A5F58) — más oscuro que textMutedLight, ver ese token
   line: '#E8DFCE',          // hairline cálido para el fondo crema (era #DDE3DC, frío)
-  error: '#DC2626',         // semántico, no se toca
+  // Auditoría WCAG: #DC2626 daba 4.41:1 sobre errorBg (y 4.49:1 sobre bgBase)
+  // — falla AA normal-text (4.5:1) por muy poco en ErrorBanner/fieldErrorText
+  // (12.5-13px/400-600). Oscurecido lo mínimo posible (mismo hue/saturación,
+  // sigue siendo EL rojo semántico de error de la app, no se corrió hacia
+  // naranja/rosa) para despejar 4.5:1 — ver auditoría WCAG. Sigue siendo
+  // semántico: cualquier cambio futuro debe mantener el hue y volver a
+  // verificar el contraste real contra errorBg, no ajustarse a ojo.
+  error: '#D92323',
   errorBg: '#FEF2F2',
 
   // Ícono de acción destructiva (ej. tacho de eliminar en ProfileDetailScreen)
@@ -119,17 +156,16 @@ export const buttonColors = {
 
 // Insignias de tipo de recordatorio (CalendarScreen) — mismo patrón que
 // error/errorBg: tono suave de fondo + el color fuerte correspondiente para
-// el texto. CalendarScreen sólo busca esto por `tipo` (reminderBadge[item.tipo],
-// con tipo ∈ {vacuna, control, medicacion}) — NO hay hoy un campo de estado
-// "vencido/atrasado" en ningún lado del modelo ni del componente. La clave
-// `vencido` de abajo es únicamente scaffolding de token para cuando se
-// agregue esa lógica (comparar fecha_hora contra "ahora" en CalendarScreen);
-// hasta que eso se escriba, esta clave no la lee nadie.
+// el texto. CalendarScreen busca esto por `tipo` (reminderBadge[item.tipo],
+// con tipo ∈ {vacuna, control, medicacion}) para el estado normal, y por la
+// clave `vencido` cuando el recordatorio está activo y su fecha_hora ya
+// pasó (ver TipoBadge y el cálculo `vencido` en el renderItem de
+// CalendarScreen.js) — ya wireado, no es scaffolding.
 export const reminderBadge = {
   vacuna: { bg: colors.avatarAdultBg, text: colors.avatarAdultText }, // era azul frío — reusa la familia gold de avatar en vez de inventar una tercera
   control: { bg: colors.sage, text: colors.sageDeep },                // ya usaba sage; texto actualizado de un verde hardcodeado a colors.sageDeep
   medicacion: { bg: '#F7DED2', text: colors.limeDeep },               // era ámbar — ahora familia terracota ("necesita atención")
-  vencido: { bg: '#F7DED2', text: colors.limeDeep },                  // NUEVO — no consumido todavía, ver nota arriba
+  vencido: { bg: '#F7DED2', text: colors.limeDeep },                  // consumido por TipoBadge en CalendarScreen.js
 };
 
 // "Muy sutil" per spec — el shadow anterior (opacity .1, radius 28, elevation 6)
@@ -152,18 +188,34 @@ export const glassShadow = {
   elevation: 2,
 };
 
-// Bundle de estilo reutilizable para el panel de vidrio (tarjetas
-// glassmorphism). Con la migración 2, `glass`/`glassBorderSoft` ya apuntan a
-// blanco sólido + hairline cálido, así que esto sigue funcionando para los
-// 3 consumidores que quedan (LoginScreen, RegisterScreen, FamilyListScreen —
-// confirmado por grep) pero ya no tiene sentido conceptual como "panel de
-// vidrio". Se mantiene exportado a propósito — esta pasada no toca screens,
-// así que borrarlo rompería esos 3 imports. Candidato a eliminarse en el
-// pase de wiring, cuando esas pantallas migren a card plana blanca.
+// Bundle de estilo reutilizable para el panel de vidrio de pantalla completa
+// (LoginScreen/RegisterScreen — el form flotando sobre authWrap). Con la
+// migración 2, `glass`/`glassBorderSoft` ya apuntan a blanco sólido + hairline
+// cálido, así que ya no tiene sentido conceptual como "panel de vidrio", pero
+// sigue teniendo un rol propio: un panel único de pantalla completa, no una
+// fila repetida en una lista (ver `cardBase` para eso). FamilyListScreen
+// migró a `cardBase` en la auditoría de consolidación de cards — ya no es
+// consumidor.
 export const glassPanel = {
   backgroundColor: colors.glass,
   borderRadius: radii.card,
   borderWidth: 1,
   borderColor: colors.glassBorderSoft,
+  ...glassShadow,
+};
+
+// Bundle compartido para una fila/card dentro de una lista (no un panel de
+// pantalla completa, ver `glassPanel` arriba). Antes de esta pasada,
+// `MemberCard` (FamilyListScreen), `recordCard` (ProfileDetailScreen) y `row`
+// (CalendarScreen) repetían exactamente el mismo
+// backgroundColor/borderWidth/borderColor/borderRadius/glassShadow a mano —
+// consolidado acá. Cada consumidor sigue agregando su propio layout
+// (flexDirection, padding, minHeight, marginHorizontal) encima, porque esa
+// parte sí varía legítimamente según el contenido de la fila.
+export const cardBase = {
+  backgroundColor: colors.glassStrong,
+  borderWidth: 1,
+  borderColor: colors.line,
+  borderRadius: radii.card,
   ...glassShadow,
 };

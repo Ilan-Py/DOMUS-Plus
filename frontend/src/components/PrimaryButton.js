@@ -1,8 +1,28 @@
-import React from 'react';
-import { Text, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Text, ActivityIndicator, StyleSheet, Animated } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, radii, shadow, buttonColors } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 import PressScale from './PressScale';
+
+// Mismo spring "con rebote" que RadialFab (bounciness 4, speed 20) — un
+// checkmark apareciendo es el mismo tipo de momento "algo aparece", no el
+// spring "sin overshoot" que usa SegmentedControl para deslizar texto.
+const CHECK_SPRING = { bounciness: 4, speed: 20, useNativeDriver: true };
+
+function SuccessCheck({ color }) {
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(anim, { toValue: 1, ...CHECK_SPRING }).start();
+  }, [anim]);
+
+  return (
+    <Animated.View style={{ transform: [{ scale: anim }] }}>
+      <Ionicons name="checkmark" size={22} color={color} />
+    </Animated.View>
+  );
+}
 
 // Unifica btnPrimary (Login/Register), btnSuccess (GroupSetup/AddMember) y
 // btnSecondary (AddMember "Cancelar") junto con el patrón saving/spinner
@@ -42,12 +62,17 @@ export default function PrimaryButton({
   title,
   onPress,
   loading,
+  success,
   disabled,
   variant = 'primary',
   fullWidth = true,
 }) {
   const variantStyle = VARIANTS[variant] || VARIANTS.primary;
-  const isDisabled = !!disabled || !!loading;
+  const isDisabled = !!disabled || !!loading || !!success;
+  // El dimming (opacity 0.6) es una señal de "no disponible todavía"
+  // (cargando/deshabilitado) — no aplica al estado de éxito, que debe verse
+  // a pleno mientras se muestra el check.
+  const showDimmed = (!!disabled || !!loading) && !success;
 
   return (
     <PressScale
@@ -55,12 +80,14 @@ export default function PrimaryButton({
         styles.btn,
         !fullWidth && styles.btnAuto,
         variantStyle.container,
-        isDisabled && styles.btnDisabled,
+        showDimmed && styles.btnDisabled,
       ]}
       onPress={onPress}
       disabled={isDisabled}
     >
-      {loading ? (
+      {success ? (
+        <SuccessCheck color={variantStyle.text.color} />
+      ) : loading ? (
         <ActivityIndicator color={variantStyle.text.color} />
       ) : (
         <Text style={[styles.btnText, variantStyle.text]}>{title}</Text>

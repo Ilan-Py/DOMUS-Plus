@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import api, { setUnauthorizedHandler } from '../api/client';
-import { saveSession, loadSession, clearSession } from '../api/session';
+import { saveSession, loadSession, clearSession, setToken as persistToken } from '../api/session';
 
 const AuthContext = createContext(null);
 
@@ -76,6 +76,15 @@ export function AuthProvider({ children }) {
   async function login(email, password) {
     const datos = await api.post('/api/auth/login', { email, password });
 
+    // Persistir el token ANTES de pedir el grupo — el interceptor de
+    // client.js lee el token desde SecureStore/AsyncStorage en cada
+    // request (getToken() -> readToken()), no de un estado en memoria.
+    // Pedir /api/familia/grupo antes de este await salía sin Authorization
+    // (nada persistido todavía) y el backend respondía 403 "Token no
+    // proporcionado" — silencioso porque grupoActual quedaba en null y el
+    // catch de abajo sólo logueaba un warning.
+    await persistToken(datos.token);
+
     let grupoActual = null;
     try {
       grupoActual = await api.get('/api/familia/grupo');
@@ -99,8 +108,9 @@ export function AuthProvider({ children }) {
     return login(payload.email, payload.password);
   }
 
-  // 409 = el usuario ya tiene un grupo (crearGrupo es UNIQUE por usuario_id) —
-  // se trata como éxito: se recupera el grupo existente en vez de mostrar un error.
+  // 409 = el usuario ya pertenece a un grupo (grupo_miembro es UNIQUE por
+  // usuario_id — un usuario a lo sumo en un grupo activo a la vez) — se
+  // trata como éxito: se recupera el grupo existente en vez de mostrar un error.
   async function crearGrupo(nombre) {
     try {
       const datos = await api.post('/api/familia/grupo', { nombre });
@@ -116,7 +126,52 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const value = { token, usuario, grupo, booting, login, register, crearGrupo, logout };
+  // Unirse no devuelve el grupo directo (POST /grupo/unirse sólo confirma la
+  // membresía) — se pide GET /grupo aparte para tener {id, nombre,
+  // created_at} y actualizar `grupo`, mismo shape que crearGrupo/login.
+  async function unirseGrupo(codigo) {
+    await api.post('/api/familia/grupo/unirse', { codigo });
+    const datosGrupo = await api.get('/api/familia/grupo');
+    setGrupo(datosGrupo);
+    return datosGrupo;
+  }
+
+  // Deja el grupo (no cierra sesión) — token/usuario se conservan, sólo
+  // `grupo` pasa a null. App.js reacciona igual que con crearGrupo/logout:
+  // al quedar sin `grupo`, RootNavigator vuelve a mostrar GroupSetupScreen
+  // (fase 'onboarding') en vez de MainTabs. Se persiste el `grupo: null`
+  // acá mismo — si no, un reinicio de la app antes del próximo login
+  // volvería a leer el grupo viejo desde AsyncStorage.
+  async function salirDelGrupo() {
+    await api.post('/api/familia/grupo/salir');
+    await saveSession({ token, usuario, grupo: null });
+    setGrupo(null);
+  }
+
+  // Actualiza `usuario` en memoria y en AsyncStorage — sin esto, el nombre
+  // nuevo se ve en pantalla hasta el próximo reinicio de la app pero un
+  // reload leería el valor viejo desde loadSession().
+  async function actualizarPerfil(payload) {
+    const datos = await api.patch('/api/auth/perfil', payload);
+    await saveSession({ token, usuario: datos, grupo });
+    setUsuario(datos);
+    return datos;
+  }
+
+  // Mismo motivo que actualizarPerfil: persistir el nuevo nombre de grupo,
+  // no sólo actualizar el estado en memoria.
+  async function renombrarGrupo(nombre) {
+    const datos = await api.patch('/api/familia/grupo', { nombre });
+    await saveSession({ token, usuario, grupo: datos });
+    setGrupo(datos);
+    return datos;
+  }
+
+  const value = {
+    token, usuario, grupo, booting,
+    login, register, crearGrupo, unirseGrupo, salirDelGrupo, logout,
+    actualizarPerfil, renombrarGrupo,
+  };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
