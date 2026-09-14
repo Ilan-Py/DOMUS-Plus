@@ -1,0 +1,1468 @@
+{
+  "info": {
+    "_postman_id": "e0887222-f0b1-499a-b1b4-936edba761e2",
+    "name": "DOMUS+ API",
+    "description": "Colección completa de endpoints DOMUS+. El token JWT se guarda automáticamente al hacer login.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "47962904",
+    "_collection_link": "https://go.postman.co/collection/47962904-e0887222-f0b1-499a-b1b4-936edba761e2?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "🔓 Auth",
+      "item": [
+        {
+          "name": "Ping",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/ping",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ping"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Registrar usuario",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Ilan\",\n  \"apellido\": \"Pitashny\",\n  \"email\": \"ilan@domus.test\",\n  \"password\": \"Admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/registrar",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "registrar"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login → guarda token automático",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.estado === 'ok' && res.datos?.token) {",
+                  "  pm.collectionVariables.set('token', res.datos.token);",
+                  "  console.log('Token guardado:', res.datos.token.substring(0, 30) + '...');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"ilan@domus.test\",\n  \"password\": \"Admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar perfil",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Ilan Actualizado\",\n  \"apellido\": \"Pitashny\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/perfil",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "perfil"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Cambiar contraseña",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"passwordActual\": \"Admin123\",\n  \"passwordNuevo\": \"NuevoPass456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/password",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "password"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "👨‍👩‍👧 Grupo Familiar",
+      "item": [
+        {
+          "name": "Crear grupo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.estado === 'ok') console.log('Grupo creado ID:', res.datos?.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Familia Pitashny\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/familia/grupo",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "grupo"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener grupo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/familia/grupo",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "grupo"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Renombrar grupo",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Familia Pitashny Actualizada\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/familia/grupo",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "grupo"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Generar código de invitación",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/familia/grupo/invitacion",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "grupo",
+                "invitacion"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Unirse a grupo con código",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"ABC123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/familia/grupo/unirse",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "grupo",
+                "unirse"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Listar miembros del grupo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/familia/grupo/miembros",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "grupo",
+                "miembros"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar miembro del grupo",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/familia/grupo/miembros/{{miembro_usuario_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "grupo",
+                "miembros",
+                "{{miembro_usuario_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Salir del grupo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/familia/grupo/salir",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "grupo",
+                "salir"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar grupo",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/familia/grupo",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "grupo"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "👤 Integrantes",
+      "item": [
+        {
+          "name": "Agregar integrante",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.estado === 'ok' && res.datos?.id) {",
+                  "  pm.collectionVariables.set('integrante_id', res.datos.id);",
+                  "  console.log('integrante_id guardado:', res.datos.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Carlos\",\n  \"apellido\": \"Pitashny\",\n  \"fecha_nacimiento\": \"1975-03-12\",\n  \"tipo\": \"adulto\",\n  \"observaciones\": \"Hipertenso\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/familia/integrantes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "integrantes"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Listar integrantes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/familia/integrantes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "integrantes"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Editar integrante",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"observaciones\": \"Hipertenso. Medicación diaria.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/familia/integrantes/{{integrante_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "integrantes",
+                "{{integrante_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Editar datos de emergencia",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"grupo_sanguineo\": \"A+\",\n  \"alergias\": \"Penicilina\",\n  \"condiciones\": \"Hipertensión\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/familia/integrantes/{{integrante_id}}/emergencia",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "integrantes",
+                "{{integrante_id}}",
+                "emergencia"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar integrante",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/familia/integrantes/{{integrante_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "integrantes",
+                "{{integrante_id}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🐾 Mascotas",
+      "item": [
+        {
+          "name": "Registrar mascota",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.estado === 'ok' && res.datos?.id) {",
+                  "  pm.collectionVariables.set('mascota_id', res.datos.id);",
+                  "  console.log('mascota_id guardado:', res.datos.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Rufus\",\n  \"especie\": \"Perro\",\n  \"raza\": \"Labrador\",\n  \"fecha_nacimiento\": \"2020-05-15\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/familia/mascotas",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "mascotas"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Listar mascotas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/familia/mascotas",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "mascotas"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Editar mascota",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"raza\": \"Labrador Retriever\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/familia/mascotas/{{mascota_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "mascotas",
+                "{{mascota_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar mascota",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/familia/mascotas/{{mascota_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "mascotas",
+                "{{mascota_id}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🚨 Contactos de Emergencia",
+      "item": [
+        {
+          "name": "Agregar contacto",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.estado === 'ok' && res.datos?.id) {",
+                  "  pm.collectionVariables.set('contacto_id', res.datos.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"María Pitashny\",\n  \"relacion\": \"Esposa\",\n  \"telefono\": \"3425551234\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/familia/integrantes/{{integrante_id}}/contactos-emergencia",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "integrantes",
+                "{{integrante_id}}",
+                "contactos-emergencia"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Listar contactos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/familia/integrantes/{{integrante_id}}/contactos-emergencia",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "integrantes",
+                "{{integrante_id}}",
+                "contactos-emergencia"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Editar contacto",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telefono\": \"3425559999\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/familia/contactos-emergencia/{{contacto_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "contactos-emergencia",
+                "{{contacto_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar contacto",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/familia/contactos-emergencia/{{contacto_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "familia",
+                "contactos-emergencia",
+                "{{contacto_id}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "💉 Vacunas",
+      "item": [
+        {
+          "name": "Registrar vacuna (integrante)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.estado === 'ok' && res.datos?.id) {",
+                  "  pm.collectionVariables.set('vacuna_id', res.datos.id);",
+                  "  console.log('vacuna_id guardado:', res.datos.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"integrante_id\": {{integrante_id}},\n  \"nombre\": \"Antigripal\",\n  \"fecha_aplicacion\": \"2025-04-10\",\n  \"proxima_dosis\": \"2026-04-10\",\n  \"notas\": \"Aplicada en centro de salud\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/salud/vacunas",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "salud",
+                "vacunas"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Registrar vacuna (mascota)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mascota_id\": {{mascota_id}},\n  \"nombre\": \"Antirrábica\",\n  \"fecha_aplicacion\": \"2025-03-01\",\n  \"proxima_dosis\": \"2026-03-01\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/salud/vacunas",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "salud",
+                "vacunas"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Listar vacunas (integrante)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "?integrante_id={{integrante_id}}",
+              "query": [
+                {
+                  "key": "integrante_id",
+                  "value": "{{integrante_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Listar vacunas (mascota)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "?mascota_id={{mascota_id}}",
+              "query": [
+                {
+                  "key": "mascota_id",
+                  "value": "{{mascota_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Editar vacuna",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notas\": \"Aplicada en hospital provincial\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/salud/vacunas/{{vacuna_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "salud",
+                "vacunas",
+                "{{vacuna_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar vacuna",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/salud/vacunas/{{vacuna_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "salud",
+                "vacunas",
+                "{{vacuna_id}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "💊 Tratamientos",
+      "item": [
+        {
+          "name": "Registrar tratamiento (integrante)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.estado === 'ok' && res.datos?.id) {",
+                  "  pm.collectionVariables.set('tratamiento_id', res.datos.id);",
+                  "  console.log('tratamiento_id guardado:', res.datos.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"integrante_id\": {{integrante_id}},\n  \"descripcion\": \"Control de hipertensión\",\n  \"medicacion\": \"Enalapril 10mg — 1 comprimido diario\",\n  \"fecha_inicio\": \"2025-01-15\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/salud/tratamientos",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "salud",
+                "tratamientos"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Registrar tratamiento (mascota)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mascota_id\": {{mascota_id}},\n  \"descripcion\": \"Infección respiratoria\",\n  \"medicacion\": \"Amoxicilina 50mg/ml — 7 días\",\n  \"fecha_inicio\": \"2025-05-01\",\n  \"fecha_fin\": \"2025-05-08\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/salud/tratamientos",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "salud",
+                "tratamientos"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Listar tratamientos (integrante)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "?integrante_id={{integrante_id}}",
+              "query": [
+                {
+                  "key": "integrante_id",
+                  "value": "{{integrante_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Editar tratamiento",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fecha_fin\": \"2025-12-31\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/salud/tratamientos/{{tratamiento_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "salud",
+                "tratamientos",
+                "{{tratamiento_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar tratamiento",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/salud/tratamientos/{{tratamiento_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "salud",
+                "tratamientos",
+                "{{tratamiento_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar historial (integrante)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "?integrante_id={{integrante_id}}",
+              "query": [
+                {
+                  "key": "integrante_id",
+                  "value": "{{integrante_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🩺 Profesionales de Salud",
+      "item": [
+        {
+          "name": "Agregar profesional",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.estado === 'ok' && res.datos?.id) {",
+                  "  pm.collectionVariables.set('profesional_id', res.datos.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Dr. García\",\n  \"especialidad\": \"Cardiología\",\n  \"telefono\": \"3425550001\",\n  \"direccion\": \"Av. San Martín 1234\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/salud/profesionales",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "salud",
+                "profesionales"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Listar profesionales",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/salud/profesionales",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "salud",
+                "profesionales"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Editar profesional",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telefono\": \"3425559001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/salud/profesionales/{{profesional_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "salud",
+                "profesionales",
+                "{{profesional_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar profesional",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/salud/profesionales/{{profesional_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "salud",
+                "profesionales",
+                "{{profesional_id}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🔔 Recordatorios",
+      "item": [
+        {
+          "name": "Crear recordatorio",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.estado === 'ok' && res.datos?.id) {",
+                  "  pm.collectionVariables.set('recordatorio_id', res.datos.id);",
+                  "  console.log('recordatorio_id guardado:', res.datos.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipo\": \"vacuna\",\n  \"fecha_hora\": \"2026-12-01T09:00:00\",\n  \"descripcion\": \"Antigripal anual\",\n  \"vacuna_id\": {{vacuna_id}}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/recordatorios",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "recordatorios"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Listar recordatorios",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/recordatorios",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "recordatorios"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Editar recordatorio",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"descripcion\": \"Antigripal — recordatorio actualizado\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/recordatorios/{{recordatorio_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "recordatorios",
+                "{{recordatorio_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Desactivar recordatorio",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/recordatorios/{{recordatorio_id}}/desactivar",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "recordatorios",
+                "{{recordatorio_id}}",
+                "desactivar"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar recordatorio",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/recordatorios/{{recordatorio_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "recordatorios",
+                "{{recordatorio_id}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📎 Adjuntos",
+      "item": [
+        {
+          "name": "Subir adjunto (foto/PDF)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "archivo",
+                  "type": "file",
+                  "value": ""
+                },
+                {
+                  "key": "integrante_id",
+                  "value": "{{integrante_id}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/adjuntos",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "adjuntos"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Listar adjuntos (integrante)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "?integrante_id={{integrante_id}}",
+              "query": [
+                {
+                  "key": "integrante_id",
+                  "value": "{{integrante_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar adjunto",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/adjuntos/{{adjunto_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "adjuntos",
+                "{{adjunto_id}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "integrante_id",
+      "value": "1"
+    },
+    {
+      "key": "mascota_id",
+      "value": "1"
+    },
+    {
+      "key": "vacuna_id",
+      "value": "1"
+    },
+    {
+      "key": "tratamiento_id",
+      "value": "1"
+    },
+    {
+      "key": "recordatorio_id",
+      "value": "1"
+    },
+    {
+      "key": "contacto_id",
+      "value": "1"
+    },
+    {
+      "key": "profesional_id",
+      "value": "1"
+    },
+    {
+      "key": "adjunto_id",
+      "value": "1"
+    },
+    {
+      "key": "miembro_usuario_id",
+      "value": "2"
+    }
+  ]
+}
