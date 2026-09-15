@@ -1,7 +1,7 @@
 // Controlador de adjuntos (fotos/PDF) — polimórfico de 5 padres posibles,
 // respaldados por Cloudinary. La lógica de Cloudinary no cambia; solo las
 // queries de BD se migran de db.query a Prisma.
-const prisma     = require('../config/db');
+const prisma     = require('../config/prisma');
 const cloudinary = require('../config/cloudinary');
 const { resolverGrupoId, verificarPertenenciaDirecta, extraerPadreUnico } = require('../utils/grupo');
 const {

@@ -2,7 +2,7 @@
 //1 — Controlador de autenticacion (CU1 y CU2)
 const bcrypt = require('bcryptjs');
 const jwt    = require('jsonwebtoken');
-const prisma = require('../config/db');
+const prisma = require('../config/prisma');
 
 //2 — Validacion de formato de contrasena: min 8 caracteres, 1 mayuscula, 1 numero
 function validarPassword(password) {

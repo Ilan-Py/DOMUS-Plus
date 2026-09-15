@@ -1,5 +1,5 @@
 //1 — Resolución de pertenencia a grupo — migrado a Prisma
-const prisma = require('../config/db');
+const prisma = require('../config/prisma');
 
 async function resolverGrupoId(usuarioId) {
     const membresia = await prisma.grupoMiembro.findUnique({

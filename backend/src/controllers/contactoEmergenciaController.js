@@ -1,6 +1,6 @@
 // Controlador de contactos de emergencia — uno-a-muchos por integrante.
 // No polimórfico: el único padre posible es integrante_id.
-const prisma = require('../config/db');
+const prisma = require('../config/prisma');
 const { verificarPertenenciaDirecta } = require('../utils/grupo');
 
 // POST /api/familia/integrantes/:id/contactos-emergencia
