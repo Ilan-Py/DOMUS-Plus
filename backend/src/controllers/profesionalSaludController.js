@@ -1,7 +1,7 @@
 // Controlador de profesionales de salud — polimórfico de 2 padres
 // (integrante o mascota). Reutiliza verificarPertenenciaDirecta y
 // extraerPadreUnico de utils/grupo.js.
-const prisma = require('../config/db');
+const prisma = require('../config/prisma');
 const { verificarPertenenciaDirecta, extraerPadreUnico } = require('../utils/grupo');
 
 const CAMPOS_PADRE = ['integrante', 'mascota'];

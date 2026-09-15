@@ -1,7 +1,7 @@
 // Controlador de recordatorios (CU8, CU9)
 // Recordatorio es compartido por grupo — grupo_id es el límite de pertenencia,
 // creado_por registra quién lo creó pero no filtra.
-const prisma = require('../config/db');
+const prisma = require('../config/prisma');
 const { resolverGrupoId } = require('../utils/grupo');
 
 const TIPOS_VALIDOS = ['vacuna', 'control', 'medicacion'];
