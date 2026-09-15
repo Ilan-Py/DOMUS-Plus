@@ -2,7 +2,7 @@
 //1 — Controlador de autenticacion (CU1 y CU2)
 const bcrypt = require('bcryptjs');
 const jwt    = require('jsonwebtoken');
-const db     = require('../config/db');
+const prisma = require('../config/db');
 
 //2 — Validacion de formato de contrasena: min 8 caracteres, 1 mayuscula, 1 numero
 function validarPassword(password) {
@@ -30,10 +30,10 @@ async function registrar(req, res) {
     }
 
     try {
-        const { rows: existente } = await db.query(
-            'SELECT id FROM usuario WHERE email = $1', [email]
-        );
-        if (existente.length > 0) {
+        const existente = await prisma.usuario.findUnique({
+            where: { email }
+        });
+        if (existente) {
             return res.status(409).json({
                 codigo: 409,
                 estado: 'error',
@@ -44,15 +44,14 @@ async function registrar(req, res) {
         const hash = await bcrypt.hash(password, 10);
         // RETURNING id — pg no tiene insertId como mysql2, hay que pedirlo
         // explícito en el INSERT.
-        const result = await db.query(
-            'INSERT INTO usuario (nombre, apellido, email, password_hash) VALUES ($1, $2, $3, $4) RETURNING id',
-            [nombre.trim(), apellido.trim(), email.trim().toLowerCase(), hash]
-        );
+          const nuevo = await prisma.usuario.create({
+            data: { nombre: nombre.trim(), apellido: apellido.trim(), email: email.trim().toLowerCase(), passwordHash: hash }
+        });
 
         return res.status(201).json({
             codigo: 201,
             estado: 'ok',
-            datos: { id: result.rows[0].id, nombre, apellido, email }
+            datos: { id: nuevo.id, nombre, apellido, email }
         });
 
     } catch (err) {
@@ -74,21 +73,13 @@ async function login(req, res) {
     }
 
     try {
-        const { rows } = await db.query(
-            'SELECT id, nombre, apellido, email, password_hash FROM usuario WHERE email = $1',
-            [email.trim().toLowerCase()]
-        );
+         const usuario = await prisma.usuario.findUnique({ where: { email: email.trim().toLowerCase() } });
 
-        if (rows.length === 0) {
-            return res.status(401).json({
-                codigo: 401,
-                estado: 'error',
-                datos: 'Credenciales incorrectas.'
-            });
+        if (!usuario) {
+            return res.status(401).json({ codigo: 401, estado: 'error', datos: 'Credenciales incorrectas.' });
         }
 
-        const usuario = rows[0];
-        const match = await bcrypt.compare(password, usuario.password_hash);
+        const match = await bcrypt.compare(password, usuario.passwordHash);
 
         if (!match) {
             return res.status(401).json({
@@ -142,10 +133,10 @@ async function actualizarPerfil(req, res) {
     try {
         // AND id != ? deja pasar el caso "no cambió el email" sin tratarlo
         // como colisión contra la propia fila del usuario.
-        const { rows: enUso } = await db.query(
-            'SELECT id FROM usuario WHERE email = $1 AND id != $2', [emailNormalizado, usuarioId]
-        );
-        if (enUso.length > 0) {
+        const enUso = await prisma.usuario.findUnique({
+            where: { email: emailNormalizado, id: { not: usuarioId } }
+        });
+        if (enUso) {
             return res.status(409).json({
                 codigo: 409,
                 estado: 'error',
@@ -153,10 +144,10 @@ async function actualizarPerfil(req, res) {
             });
         }
 
-        await db.query(
-            'UPDATE usuario SET nombre = $1, apellido = $2, email = $3 WHERE id = $4',
-            [nombre.trim(), apellido.trim(), emailNormalizado, usuarioId]
-        );
+        await prisma.usuario.update({
+            where: { id: usuarioId },
+            data: { nombre: nombre.trim(), apellido: apellido.trim(), email: emailNormalizado }
+        });
 
         return res.status(200).json({
             codigo: 200,
@@ -184,14 +175,12 @@ async function cambiarPassword(req, res) {
     }
 
     try {
-        const { rows } = await db.query(
-            'SELECT password_hash FROM usuario WHERE id = $1', [usuarioId]
-        );
-        if (rows.length === 0) {
+        const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId } });
+        if (!usuario) {
             return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Usuario no encontrado.' });
         }
 
-        const match = await bcrypt.compare(passwordActual, rows[0].password_hash);
+        const match = await bcrypt.compare(passwordActual, usuario.passwordHash);
         if (!match) {
             return res.status(401).json({
                 codigo: 401,
@@ -217,7 +206,10 @@ async function cambiarPassword(req, res) {
         }
 
         const hash = await bcrypt.hash(passwordNueva, 10);
-        await db.query('UPDATE usuario SET password_hash = $1 WHERE id = $2', [hash, usuarioId]);
+        await prisma.usuario.update({
+            where: { id: usuarioId },
+            data: { passwordHash: hash }
+        });
 
         return res.status(200).json({ codigo: 200, estado: 'ok', datos: 'Contraseña actualizada.' });
 
