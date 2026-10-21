@@ -70,6 +70,7 @@ export default function AddMemberScreen({ navigation, route }) {
 
   // Campos de mascota
   const [especie, setEspecie] = useState(() => memberToEdit?.especie || '');
+  const [especieError, setEspecieError] = useState('');
   const [raza, setRaza] = useState(() => memberToEdit?.raza || '');
 
   const [formError, setFormError] = useState('');
@@ -106,12 +107,14 @@ export default function AddMemberScreen({ navigation, route }) {
     const faltaNombre = !nombre.trim();
     const faltaApellido = tipoMiembro === 'integrante' && !apellido.trim();
     const faltaFechaNacimiento = tipoMiembro === 'integrante' && !fechaNacimiento;
+    const faltaEspecie = tipoMiembro === 'mascota' && !especie.trim();
     setNombreError(faltaNombre ? 'Este campo es obligatorio' : '');
     setApellidoError(faltaApellido ? 'Este campo es obligatorio' : '');
     setFechaNacimientoError(faltaFechaNacimiento ? 'Este campo es obligatorio' : '');
+    setEspecieError(faltaEspecie ? 'Este campo es obligatorio' : '');
     setFormError('');
 
-    if (faltaNombre || faltaApellido || faltaFechaNacimiento) return;
+    if (faltaNombre || faltaApellido || faltaFechaNacimiento || faltaEspecie) return;
 
     setSaving(true);
     try {
@@ -264,8 +267,12 @@ export default function AddMemberScreen({ navigation, route }) {
             <FormField
               label="Especie"
               value={especie}
-              onChangeText={setEspecie}
+              onChangeText={(text) => {
+                setEspecie(text);
+                if (text.trim()) setEspecieError('');
+              }}
               placeholder="Perro, gato, ave..."
+              error={especieError}
               style={styles.field}
             />
             <FormField

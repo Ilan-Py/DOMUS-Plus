@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { colors, radii, shadow } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 import { layout } from '../theme/spacing';
@@ -154,7 +154,19 @@ export default function GroupSetupScreen() {
           </View>
         </View>
 
-        <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
+        <TouchableOpacity
+          onPress={() =>
+            Alert.alert(
+              'Salir de la cuenta',
+              '¿Seguro que querés cerrar sesión?',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                { text: 'Salir', style: 'destructive', onPress: logout },
+              ]
+            )
+          }
+          style={styles.logoutBtn}
+        >
           <Text style={styles.logoutText}>Salir de la cuenta</Text>
         </TouchableOpacity>
       </ScrollView>
