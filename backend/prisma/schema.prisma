@@ -1,0 +1,309 @@
+// ============================================================
+// DOMUS+ | schema.prisma
+// Motor: PostgreSQL 15+ (local Docker o Supabase)
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------
+// Enums
+// Prisma declara los ENUMs acá y los genera como tipos Postgres
+// nativos al correr la migración — equivalente a los CREATE TYPE
+// del 01_schema.sql original.
+// ------------------------------------------------------------
+
+enum TipoIntegrante {
+  adulto
+  menor
+  mayor
+}
+
+enum RolMiembro {
+  dueno    // Prisma no admite ñ en nombres de enum — se mapea a 'dueño' en la BD con @map
+  miembro
+
+  @@map("rol_miembro")
+}
+
+enum TipoRecordatorio {
+  vacuna
+  control
+  medicacion
+}
+
+enum TipoArchivoAdjunto {
+  imagen
+  pdf
+}
+
+// ------------------------------------------------------------
+// 1. Usuario
+// ------------------------------------------------------------
+model Usuario {
+  id           Int      @id @default(autoincrement())
+  nombre       String   @db.VarChar(100)
+  apellido     String   @db.VarChar(100)
+  email        String   @unique @db.VarChar(150)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relaciones
+  membresia        GrupoMiembro?
+  recordatorios    Recordatorio[]
+  adjuntosSubidos  Adjunto[]      @relation("AdjuntoSubidoPor")
+
+  @@map("usuario")
+}
+
+// ------------------------------------------------------------
+// 2. GrupoFamiliar
+// Sin usuario_id directo — la pertenencia es siempre vía GrupoMiembro.
+// ------------------------------------------------------------
+model GrupoFamiliar {
+  id                Int      @id @default(autoincrement())
+  nombre            String   @db.VarChar(150)
+  codigoInvitacion  String?  @unique @map("codigo_invitacion") @db.VarChar(10)
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  // Relaciones
+  miembros      GrupoMiembro[]
+  integrantes   Integrante[]
+  mascotas      Mascota[]
+  recordatorios Recordatorio[]
+
+  @@map("grupo_familiar")
+}
+
+// ------------------------------------------------------------
+// 3. GrupoMiembro
+// Un usuario pertenece a lo sumo a un grupo (unique en usuario_id).
+// ------------------------------------------------------------
+model GrupoMiembro {
+  id        Int        @id @default(autoincrement())
+  grupoId   Int        @map("grupo_id")
+  usuarioId Int        @unique @map("usuario_id")
+  rol       RolMiembro @default(miembro)
+  joinedAt  DateTime   @default(now()) @map("joined_at")
+
+  // Relaciones
+  grupo   GrupoFamiliar @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+  usuario Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("grupo_miembro")
+}
+
+// ------------------------------------------------------------
+// 4. Integrante
+// Incluye campos de ficha de emergencia (alergias, tipo_sangre, notas_emergencia).
+// ------------------------------------------------------------
+model Integrante {
+  id               Int             @id @default(autoincrement())
+  grupoId          Int             @map("grupo_id")
+  nombre           String          @db.VarChar(100)
+  apellido         String          @db.VarChar(100)
+  fechaNacimiento  DateTime        @map("fecha_nacimiento") @db.Date
+  tipo             TipoIntegrante  @default(adulto)
+  observaciones    String?         @db.Text
+  alergias         String?         @db.Text
+  tipoSangre       String?         @map("tipo_sangre") @db.VarChar(10)
+  notasEmergencia  String?         @map("notas_emergencia") @db.Text
+
+  // Relaciones
+  grupo               GrupoFamiliar        @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+  vacunas             Vacuna[]
+  tratamientos        Tratamiento[]
+  historial           Historial[]
+  contactosEmergencia ContactoEmergencia[]
+  profesionales       ProfesionalSalud[]
+  adjuntos            Adjunto[]            @relation("AdjuntoIntegrante")
+
+  @@map("integrante")
+}
+
+// ------------------------------------------------------------
+// 5. Mascota
+// ------------------------------------------------------------
+model Mascota {
+  id               Int       @id @default(autoincrement())
+  grupoId          Int       @map("grupo_id")
+  nombre           String    @db.VarChar(100)
+  especie          String    @db.VarChar(50)
+  raza             String?   @db.VarChar(100)
+  fechaNacimiento  DateTime? @map("fecha_nacimiento") @db.Date
+
+  // Relaciones
+  grupo        GrupoFamiliar    @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+  vacunas      Vacuna[]
+  tratamientos Tratamiento[]
+  historial    Historial[]
+  profesionales ProfesionalSalud[]
+  adjuntos     Adjunto[]        @relation("AdjuntoMascota")
+
+  @@map("mascota")
+}
+
+// ------------------------------------------------------------
+// 6. Vacuna
+// Solo uno de (integranteId, mascotaId) poblado.
+// Prisma no soporta CHECK constraints — la validación
+// "exactamente uno de los dos" se mantiene en el controller,
+// igual que ya se hacía. La migración genera la tabla sin el CHECK;
+// si se necesita el CHECK en la BD se puede agregar con una
+// migración raw (ver docs de Prisma: prisma migrate dev + SQL manual).
+// ------------------------------------------------------------
+model Vacuna {
+  id               Int       @id @default(autoincrement())
+  integranteId     Int?      @map("integrante_id")
+  mascotaId        Int?      @map("mascota_id")
+  nombre           String    @db.VarChar(150)
+  fechaAplicacion  DateTime  @map("fecha_aplicacion") @db.Date
+  proximaDosis     DateTime? @map("proxima_dosis") @db.Date
+  notas            String?   @db.Text
+
+  // Relaciones
+  integrante    Integrante?    @relation(fields: [integranteId], references: [id], onDelete: Cascade)
+  mascota       Mascota?       @relation(fields: [mascotaId], references: [id], onDelete: Cascade)
+  recordatorios Recordatorio[]
+  adjuntos      Adjunto[]      @relation("AdjuntoVacuna")
+
+  @@map("vacuna")
+}
+
+// ------------------------------------------------------------
+// 7. Tratamiento
+// ------------------------------------------------------------
+model Tratamiento {
+  id            Int       @id @default(autoincrement())
+  integranteId  Int?      @map("integrante_id")
+  mascotaId     Int?      @map("mascota_id")
+  descripcion   String    @db.VarChar(255)
+  medicacion    String    @db.VarChar(200)
+  fechaInicio   DateTime  @map("fecha_inicio") @db.Date
+  fechaFin      DateTime? @map("fecha_fin") @db.Date
+
+  // Relaciones
+  integrante    Integrante?    @relation(fields: [integranteId], references: [id], onDelete: Cascade)
+  mascota       Mascota?       @relation(fields: [mascotaId], references: [id], onDelete: Cascade)
+  recordatorios Recordatorio[]
+  adjuntos      Adjunto[]      @relation("AdjuntoTratamiento")
+
+  @@map("tratamiento")
+}
+
+// ------------------------------------------------------------
+// 8. Historial
+// ------------------------------------------------------------
+model Historial {
+  id            Int       @id @default(autoincrement())
+  integranteId  Int?      @map("integrante_id")
+  mascotaId     Int?      @map("mascota_id")
+  evento        String    @db.VarChar(200)
+  fecha         DateTime  @db.Date
+  descripcion   String?   @db.Text
+
+  // Relaciones
+  integrante Integrante? @relation(fields: [integranteId], references: [id], onDelete: Cascade)
+  mascota    Mascota?    @relation(fields: [mascotaId], references: [id], onDelete: Cascade)
+  adjuntos   Adjunto[]   @relation("AdjuntoHistorial")
+
+  @@map("historial")
+}
+
+// ------------------------------------------------------------
+// 9. Recordatorio
+// Compartido por grupo. creado_por registra quién lo creó.
+// ------------------------------------------------------------
+model Recordatorio {
+  id             Int              @id @default(autoincrement())
+  grupoId        Int              @map("grupo_id")
+  creadoPor      Int              @map("creado_por")
+  vacunaId       Int?             @map("vacuna_id")
+  tratamientoId  Int?             @map("tratamiento_id")
+  tipo           TipoRecordatorio
+  fechaHora      DateTime         @map("fecha_hora")
+  descripcion    String?          @db.VarChar(255)
+  activo         Boolean          @default(true)
+
+  // Relaciones
+  grupo       GrupoFamiliar @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+  usuario     Usuario       @relation(fields: [creadoPor], references: [id], onDelete: Cascade)
+  vacuna      Vacuna?       @relation(fields: [vacunaId], references: [id], onDelete: SetNull)
+  tratamiento Tratamiento?  @relation(fields: [tratamientoId], references: [id], onDelete: SetNull)
+
+  @@map("recordatorio")
+}
+
+// ------------------------------------------------------------
+// 10. Adjunto
+// Polimórfica de 5 padres posibles — exactamente uno poblado.
+// Igual que Vacuna/Tratamiento/Historial: el CHECK "un solo padre"
+// no lo genera Prisma; se valida en el controller (adjuntoController.js).
+// ------------------------------------------------------------
+model Adjunto {
+  id             Int                @id @default(autoincrement())
+  vacunaId       Int?               @map("vacuna_id")
+  tratamientoId  Int?               @map("tratamiento_id")
+  historialId    Int?               @map("historial_id")
+  integranteId   Int?               @map("integrante_id")
+  mascotaId      Int?               @map("mascota_id")
+  tipoArchivo    TipoArchivoAdjunto @map("tipo_archivo")
+  url            String             @db.VarChar(500)
+  publicId       String             @map("public_id") @db.VarChar(255)
+  nombreOriginal String?            @map("nombre_original") @db.VarChar(255)
+  subidoPor      Int                @map("subido_por")
+  subidoEn       DateTime           @default(now()) @map("subido_en")
+
+  // Relaciones
+  vacuna      Vacuna?     @relation("AdjuntoVacuna",      fields: [vacunaId],      references: [id], onDelete: Cascade)
+  tratamiento Tratamiento? @relation("AdjuntoTratamiento", fields: [tratamientoId], references: [id], onDelete: Cascade)
+  historial   Historial?  @relation("AdjuntoHistorial",   fields: [historialId],   references: [id], onDelete: Cascade)
+  integrante  Integrante? @relation("AdjuntoIntegrante",  fields: [integranteId],  references: [id], onDelete: Cascade)
+  mascota     Mascota?    @relation("AdjuntoMascota",     fields: [mascotaId],     references: [id], onDelete: Cascade)
+  usuario     Usuario     @relation("AdjuntoSubidoPor",   fields: [subidoPor],     references: [id])
+
+  @@map("adjunto")
+}
+
+// ------------------------------------------------------------
+// 11. ContactoEmergencia
+// ------------------------------------------------------------
+model ContactoEmergencia {
+  id            Int        @id @default(autoincrement())
+  integranteId  Int        @map("integrante_id")
+  nombre        String     @db.VarChar(150)
+  telefono      String     @db.VarChar(30)
+  relacion      String?    @db.VarChar(100)
+
+  // Relaciones
+  integrante Integrante @relation(fields: [integranteId], references: [id], onDelete: Cascade)
+
+  @@map("contacto_emergencia")
+}
+
+// ------------------------------------------------------------
+// 12. ProfesionalSalud
+// Polimórfica de 2 padres — igual que Vacuna: validación en controller.
+// ------------------------------------------------------------
+model ProfesionalSalud {
+  id            Int     @id @default(autoincrement())
+  integranteId  Int?    @map("integrante_id")
+  mascotaId     Int?    @map("mascota_id")
+  nombre        String  @db.VarChar(150)
+  especialidad  String? @db.VarChar(100)
+  telefono      String? @db.VarChar(30)
+  direccion     String? @db.VarChar(255)
+  notas         String? @db.Text
+
+  // Relaciones
+  integrante Integrante? @relation(fields: [integranteId], references: [id], onDelete: Cascade)
+  mascota    Mascota?    @relation(fields: [mascotaId],    references: [id], onDelete: Cascade)
+
+  @@map("profesional_salud")
+}

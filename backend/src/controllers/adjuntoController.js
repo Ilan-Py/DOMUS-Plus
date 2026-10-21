@@ -1,7 +1,7 @@
-//Codigo por Claude
-//1 — Controlador de adjuntos (fotos/PDF en vacunas, tratamientos, historial,
-// integrantes y mascotas), respaldados por Cloudinary.
-const db = require('../config/db');
+// Controlador de adjuntos (fotos/PDF) — polimórfico de 5 padres posibles,
+// respaldados por Cloudinary. La lógica de Cloudinary no cambia; solo las
+// queries de BD se migran de db.query a Prisma.
+const prisma     = require('../config/prisma');
 const cloudinary = require('../config/cloudinary');
 const { resolverGrupoId, verificarPertenenciaDirecta, extraerPadreUnico } = require('../utils/grupo');
 const {
@@ -10,43 +10,27 @@ const {
     verificarPertenenciaHistorial,
 } = require('./saludController');
 
-// Único lugar donde se enumeran los 5 padres posibles — mismo orden/nombres
-// que las columnas de `adjunto` (Scripts/04_adjuntos.sql) y su CHECK
-// chk_adjunto_un_padre. Whitelist explícita: tipoPadre nunca puede ser otra
-// cosa que una de estas 5 strings literales, así que interpolarlo en
-// `${tipoPadre}_id` más abajo (nombre de columna, no puede ir parametrizado
-// como valor) es seguro — no hay forma de que llegue un valor arbitrario.
+// Whitelist de los 5 padres posibles — misma restricción que
+// chk_adjunto_un_padre en el schema. Interpolarlo en nombres de campo de
+// Prisma es seguro porque nunca llega un valor fuera de esta lista.
 const CAMPOS_PADRE = ['vacuna', 'tratamiento', 'historial', 'integrante', 'mascota'];
 
 function extraerPadre(origen) {
     return extraerPadreUnico(origen, CAMPOS_PADRE);
 }
 
-// Despacha al helper de pertenencia correcto según el tipo de padre.
-// vacuna/tratamiento/historial reusan los helpers de saludController.js
-// (mismo JOIN vía integrante/mascota -> grupo_miembro); integrante/mascota
-// son padres directos de grupo_id, así que verificarPertenenciaDirecta
-// (utils/grupo.js — compartida con profesionalSaludController.js) alcanza.
 async function verificarPertenenciaPadre(tipoPadre, padreId, usuarioId) {
     switch (tipoPadre) {
-        case 'vacuna':
-            return verificarPertenenciaVacuna(padreId, usuarioId);
-        case 'tratamiento':
-            return verificarPertenenciaTratamiento(padreId, usuarioId);
-        case 'historial':
-            return verificarPertenenciaHistorial(padreId, usuarioId);
-        case 'integrante':
-            return verificarPertenenciaDirecta('integrante', padreId, usuarioId);
-        case 'mascota':
-            return verificarPertenenciaDirecta('mascota', padreId, usuarioId);
-        default:
-            return false;
+        case 'vacuna':      return verificarPertenenciaVacuna(padreId, usuarioId);
+        case 'tratamiento': return verificarPertenenciaTratamiento(padreId, usuarioId);
+        case 'historial':   return verificarPertenenciaHistorial(padreId, usuarioId);
+        case 'integrante':  return verificarPertenenciaDirecta('integrante', padreId, usuarioId);
+        case 'mascota':     return verificarPertenenciaDirecta('mascota', padreId, usuarioId);
+        default:            return false;
     }
 }
 
-// Sube un Buffer (memoria, ver config/upload.js) a Cloudinary vía stream —
-// UploadStream es un Transform de Node, así que .end(buffer) alcanza, no
-// hace falta streamifier ni escribir a disco.
+// Sube un Buffer a Cloudinary vía stream — sin escribir a disco.
 function subirBuffer(buffer, options) {
     return new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(options, (err, resultado) => {
@@ -57,7 +41,7 @@ function subirBuffer(buffer, options) {
     });
 }
 
-//2 — POST /api/adjuntos
+// POST /api/adjuntos
 async function subirAdjunto(req, res) {
     const usuarioId = req.usuario.id;
     const { tipoPadre, padreId, error } = extraerPadre(req.body);
@@ -77,32 +61,31 @@ async function subirAdjunto(req, res) {
         }
 
         const tipoArchivo = req.file.mimetype === 'application/pdf' ? 'pdf' : 'imagen';
-        // Carpeta por grupo -> tipo/id de padre — navegable desde el
-        // dashboard de Cloudinary sin depender de mirar la base de datos:
-        // domus/grupo-7/vacuna-12/<public_id auto>.
-        const folder = `domus/grupo-${grupoId}/${tipoPadre}-${padreId}`;
+        const folder      = `domus/grupo-${grupoId}/${tipoPadre}-${padreId}`;
 
-        const resultado = await subirBuffer(req.file.buffer, {
-            folder,
-            resource_type: 'auto', // detecta imagen vs. pdf — Cloudinary guarda ambos como resource_type 'image' (confirmado en su doc de tipos de recurso)
+        const resultado = await subirBuffer(req.file.buffer, { folder, resource_type: 'auto' });
+
+        // Construye el data de Prisma dinámicamente — solo uno de los 5
+        // campos _id va poblado, igual que el CHECK del schema.
+        const dataAdjunto = {
+            tipoArchivo,
+            url:           resultado.secure_url,
+            publicId:      resultado.public_id,
+            nombreOriginal: req.file.originalname || null,
+            subidoPor:     usuarioId,
+            vacunaId:      tipoPadre === 'vacuna'      ? padreId : null,
+            tratamientoId: tipoPadre === 'tratamiento' ? padreId : null,
+            historialId:   tipoPadre === 'historial'   ? padreId : null,
+            integranteId:  tipoPadre === 'integrante'  ? padreId : null,
+            mascotaId:     tipoPadre === 'mascota'     ? padreId : null,
+        };
+
+        const nuevo = await prisma.adjunto.create({
+            data: dataAdjunto,
+            select: { id: true, tipoArchivo: true, url: true, nombreOriginal: true, subidoPor: true }
         });
 
-        const insertResult = await db.query(
-            `INSERT INTO adjunto (${tipoPadre}_id, tipo_archivo, url, public_id, nombre_original, subido_por) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-            [padreId, tipoArchivo, resultado.secure_url, resultado.public_id, req.file.originalname || null, usuarioId]
-        );
-
-        return res.status(201).json({
-            codigo: 201,
-            estado: 'ok',
-            datos: {
-                id: insertResult.rows[0].id,
-                tipo_archivo: tipoArchivo,
-                url: resultado.secure_url,
-                nombre_original: req.file.originalname || null,
-                subido_por: usuarioId,
-            },
-        });
+        return res.status(201).json({ codigo: 201, estado: 'ok', datos: nuevo });
 
     } catch (err) {
         console.error('subirAdjunto=', err.message);
@@ -110,7 +93,7 @@ async function subirAdjunto(req, res) {
     }
 }
 
-//3 — GET /api/adjuntos?vacuna_id=X (o cualquier otro ?<tipo>_id=X)
+// GET /api/adjuntos?vacuna_id=X (o cualquier otro ?<tipo>_id=X)
 async function listarAdjuntos(req, res) {
     const usuarioId = req.usuario.id;
     const { tipoPadre, padreId, error } = extraerPadre(req.query);
@@ -124,12 +107,23 @@ async function listarAdjuntos(req, res) {
             return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Registro no encontrado.' });
         }
 
-        const { rows } = await db.query(
-            `SELECT id, tipo_archivo, url, nombre_original, subido_por, subido_en
-             FROM adjunto WHERE ${tipoPadre}_id = $1 ORDER BY subido_en DESC`,
-            [padreId]
-        );
-        return res.status(200).json({ codigo: 200, estado: 'ok', datos: rows });
+        const where = {
+            vacunaId:      tipoPadre === 'vacuna'      ? padreId : null,
+            tratamientoId: tipoPadre === 'tratamiento' ? padreId : null,
+            historialId:   tipoPadre === 'historial'   ? padreId : null,
+            integranteId:  tipoPadre === 'integrante'  ? padreId : null,
+            mascotaId:     tipoPadre === 'mascota'     ? padreId : null,
+        };
+        // Filtramos las claves null para que Prisma no las incluya en el WHERE
+        Object.keys(where).forEach((k) => where[k] === null && delete where[k]);
+
+        const adjuntos = await prisma.adjunto.findMany({
+            where,
+            orderBy: { subidoEn: 'desc' },
+            select: { id: true, tipoArchivo: true, url: true, nombreOriginal: true, subidoPor: true, subidoEn: true }
+        });
+
+        return res.status(200).json({ codigo: 200, estado: 'ok', datos: adjuntos });
 
     } catch (err) {
         console.error('listarAdjuntos=', err.message);
@@ -137,41 +131,46 @@ async function listarAdjuntos(req, res) {
     }
 }
 
-//4 — DELETE /api/adjuntos/:id
-// Orden deliberado: Cloudinary primero, fila de la base después. Si el
-// borrado en Cloudinary falla, se corta ahí y la fila de `adjunto` NO se
-// toca — mejor un adjunto "vivo" que ya se intentó borrar (reintentable,
-// visible, sin costo real) que una fila borrada mientras el archivo real
-// sigue existiendo en Cloudinary sin ninguna referencia que permita
-// encontrarlo o limpiarlo después. `result: 'not found'` (ya no existe del
-// lado de Cloudinary) se trata como éxito — es idempotente, el estado final
-// deseado (nada en Cloudinary) ya se cumple.
+// DELETE /api/adjuntos/:id
+// Cloudinary primero, BD después — si falla Cloudinary no se toca la fila.
 async function eliminarAdjunto(req, res) {
     const usuarioId = req.usuario.id;
-    const { id } = req.params;
+    const id        = Number(req.params.id);
 
     try {
-        const { rows } = await db.query('SELECT * FROM adjunto WHERE id = $1', [id]);
-        if (rows.length === 0) {
+        const adjunto = await prisma.adjunto.findUnique({ where: { id } });
+        if (!adjunto) {
             return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Adjunto no encontrado.' });
         }
-        const adjunto = rows[0];
-        const tipoPadre = CAMPOS_PADRE.find((campo) => adjunto[`${campo}_id`] !== null);
-        const padreId = adjunto[`${tipoPadre}_id`];
+
+        const tipoPadre = CAMPOS_PADRE.find((campo) => {
+            const key = campo === 'vacuna'      ? 'vacunaId'
+                      : campo === 'tratamiento' ? 'tratamientoId'
+                      : campo === 'historial'   ? 'historialId'
+                      : campo === 'integrante'  ? 'integranteId'
+                      :                          'mascotaId';
+            return adjunto[key] !== null;
+        });
+        const key     = tipoPadre === 'vacuna'      ? 'vacunaId'
+                      : tipoPadre === 'tratamiento' ? 'tratamientoId'
+                      : tipoPadre === 'historial'   ? 'historialId'
+                      : tipoPadre === 'integrante'  ? 'integranteId'
+                      :                              'mascotaId';
+        const padreId = adjunto[key];
 
         const pertenece = await verificarPertenenciaPadre(tipoPadre, padreId, usuarioId);
         if (!pertenece) {
             return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Adjunto no encontrado.' });
         }
 
-        const resultadoCloudinary = await cloudinary.uploader.destroy(adjunto.public_id, { resource_type: 'image' });
+        const resultadoCloudinary = await cloudinary.uploader.destroy(adjunto.publicId, { resource_type: 'image' });
         if (resultadoCloudinary.result !== 'ok' && resultadoCloudinary.result !== 'not found') {
             console.error('eliminarAdjunto: Cloudinary destroy=', resultadoCloudinary);
             return res.status(502).json({ codigo: 502, estado: 'error', datos: 'No se pudo eliminar el archivo remoto. Intentá nuevamente.' });
         }
 
-        await db.query('DELETE FROM adjunto WHERE id = $1', [id]);
-        return res.status(200).json({ codigo: 200, estado: 'ok', datos: { id: Number(id) } });
+        await prisma.adjunto.delete({ where: { id } });
+        return res.status(200).json({ codigo: 200, estado: 'ok', datos: { id } });
 
     } catch (err) {
         console.error('eliminarAdjunto=', err.message);
