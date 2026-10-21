@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity } from 'react-native';
 import { colors, radii, shadow } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 import { layout } from '../theme/spacing';
@@ -15,7 +15,7 @@ const MODO_OPTIONS = [
 ];
 
 export default function GroupSetupScreen() {
-  const { crearGrupo, unirseGrupo } = useAuth();
+  const { crearGrupo, unirseGrupo, logout } = useAuth();
   const [modo, setModo] = useState('crear');
 
   const [nombre, setNombre] = useState('');
@@ -153,6 +153,10 @@ export default function GroupSetupScreen() {
             )}
           </View>
         </View>
+
+        <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
+          <Text style={styles.logoutText}>Salir de la cuenta</Text>
+        </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -225,5 +229,15 @@ const styles = StyleSheet.create({
   },
   formSubmit: {
     paddingTop: 6,
+  },
+  logoutBtn: {
+    marginTop: 28,
+    alignItems: 'center',
+    padding: 12,
+  },
+  logoutText: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontFamily: poppinsWeight('400'),
   },
 });

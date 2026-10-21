@@ -601,7 +601,11 @@ const styles = StyleSheet.create({
     color: colors.navy,
   },
   tabs: {
-    marginHorizontal: 18,
+    // marginHorizontal: 0 — el componente SegmentedControl ya tiene su propio
+    // marginHorizontal: 18 en styles.segmented. Pasarle 18 adicional acá
+    // achicaba el ancho disponible del BlurView, haciendo que "Tratamientos"
+    // (la etiqueta más larga) no tuviera espacio y el track colapsara.
+    marginHorizontal: 0,
     marginTop: 16,
     marginBottom: 0,
     // Sin override de borderRadius acá a propósito: el track de

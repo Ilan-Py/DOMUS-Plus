@@ -126,7 +126,7 @@ function RootNavigator() {
 }
 
 export default function App() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Poppins_400Regular,
     Poppins_600SemiBold,
     Poppins_700Bold,
@@ -148,7 +148,7 @@ export default function App() {
     return () => sub.remove();
   }, []);
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded && !fontError) {
     return <SplashScreen />;
   }
 
