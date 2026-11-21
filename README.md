@@ -61,10 +61,6 @@ Domus-Plus/
 │   │   ├── schema.prisma        # Esquema de la base de datos (fuente de verdad)
 │   │   ├── migrations/          # Historial de migraciones Prisma
 │   │   └── seed.js              # Datos de prueba
-│   ├── Scripts/
-│   │   └── postgres/
-│   │       ├── 01_schema.sql    # Schema SQL para inicialización del contenedor local
-│   │       └── 02_inserts.sql   # Datos de prueba para desarrollo local
 │   └── src/
 │       ├── app.js               # Servidor principal
 │       ├── config/
@@ -142,16 +138,22 @@ cp backend/.env.example backend/.env
 
 # 3. Levantar Postgres + backend
 docker compose up -d --build
+
+# 4. Aplicar migraciones y cargar datos de prueba (solo la primera vez)
+docker compose exec backend npx prisma migrate deploy
+docker compose exec backend npx prisma db seed
 ```
+
+Usuarios de prueba: `ilan@domus.test`, `agus@domus.test`, `alan@domus.test` — contraseña `Admin123`.
 
 El `docker-compose.yml` levanta dos servicios:
 
-- **db** — PostgreSQL 16 (imagen oficial). La primera vez que se crea el volumen aplica automáticamente `backend/Scripts/postgres/01_schema.sql` (schema completo) y `02_inserts.sql` (datos de prueba). No hace falta correr nada a mano.
+- **db** — PostgreSQL 16 (imagen oficial). Arranca con la base vacía: el schema y los datos de prueba se cargan con Prisma (ver paso 4).
 - **backend** — nodemon sobre Node 20. El `Dockerfile.dev` corre `prisma generate` al buildear para que el cliente Prisma esté disponible.
 
 Verificación: `GET http://localhost:3000/api/ping` debe devolver `{ "estado": "ok" }`.
 
-> **Nota:** el volumen de Postgres (`domus_pg_data`) persiste entre reinicios. Si necesitás resetear la base de datos a cero: `docker compose down -v && docker compose up -d --build`.
+> **Nota:** el volumen de Postgres (`domus_pg_data`) persiste entre reinicios. Si necesitás resetear la base de datos a cero: `docker compose down -v && docker compose up -d --build`, y volver a correr el paso 4.
 
 ### Apuntar al Supabase de staging/prod
 
