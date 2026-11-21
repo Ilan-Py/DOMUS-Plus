@@ -31,7 +31,7 @@ function extraerPadreUnico(origen, camposPadre) {
         return { error: `Debe indicar exactamente uno de: ${camposPadre.map((c) => `${c}_id`).join(', ')}.` };
     }
     const tipoPadre = presentes[0];
-    const padreId = origen[`${tipoPadre}_id`];
+    const padreId = Number(origen[`${tipoPadre}_id`]);
     return { tipoPadre, padreId };
 }
 
