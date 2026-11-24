@@ -77,8 +77,15 @@ return res.status(200).json({ codigo: 200, estado: 'ok', datos: resultado });
 - 400 validación · 401 sin token/token inválido (sólo `verificarToken`) · 403 autenticado sin
   permiso (p.ej. no es dueño del grupo) · 404 no existe **o no es de tu grupo** · 409 conflicto · 500 inesperado.
 - Cada handler: validar body/params → `try { ... } catch (err) { console.error('nombreHandler=', err.message); 500 }`.
-- Validar **antes** de llegar a Prisma: un enum inválido, una fecha inválida o un id `NaN` hacen
-  que Prisma tire y termine en 500. Ids: `Number(req.params.id)` + verificar `Number.isInteger`.
+- Validar **antes** de llegar a Prisma (`src/utils/validacion.js`):
+  - `:id` de la URL: `router.param('id', validarIdDeRuta)` en cada archivo de rutas → 400 si no es entero positivo.
+  - Body/query: cada controller define `REGLAS_*` (`texto` con `max` = largo del VarChar, `email`,
+    `fecha`, `fechaHora`, `id`, `enum`) y llama a `validarCampos(req.body, REGLAS_X)` al principio.
+    Sólo valida los campos que vienen; los obligatorios se siguen chequeando aparte con su mensaje.
+  - Ids sueltos: `esIdValido(valor)` (también rechaza números más grandes que un Int de Postgres).
+- `src/utils/errores.js`: `capturarErroresAsync(router)` en `app.js` hace que un error fuera del
+  `try` termine en `manejarErrores` (500 con el formato de la API) en vez de tirar abajo el proceso.
+  JSON mal formado en el body → 400.
 - `PrismaClient` es singleton en `src/config/prisma.js` — nunca instanciar otro.
 - Error de unique de Prisma = `err.code === 'P2002'`.
 - Prisma no genera CHECK constraints: las reglas "exactamente uno de N padres" viven en el

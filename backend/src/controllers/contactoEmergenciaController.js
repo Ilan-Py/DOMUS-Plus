@@ -2,12 +2,25 @@
 // No polimórfico: el único padre posible es integrante_id.
 const prisma = require('../config/prisma');
 const { verificarPertenenciaDirecta } = require('../utils/grupo');
+const { validarCampos } = require('../utils/validacion');
+
+// Tipo y largo de cada campo (ERR-011). Los obligatorios se chequean en cada función.
+const REGLAS_CONTACTO = {
+    nombre:   { tipo: 'texto', max: 150 },
+    telefono: { tipo: 'texto', max: 30, etiqueta: 'teléfono' },
+    relacion: { tipo: 'texto', max: 100, etiqueta: 'relación' }
+};
 
 // POST /api/familia/integrantes/:id/contactos-emergencia
 async function crearContacto(req, res) {
     const usuarioId    = req.usuario.id;
     const integranteId = Number(req.params.id);
     const { nombre, telefono, relacion } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_CONTACTO);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!nombre || !nombre.trim() || !telefono || !telefono.trim()) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre y telefono son obligatorios.' });
@@ -65,6 +78,11 @@ async function editarContacto(req, res) {
     const usuarioId = req.usuario.id;
     const id        = Number(req.params.id);
     const { nombre, telefono, relacion } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_CONTACTO);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!nombre || !nombre.trim() || !telefono || !telefono.trim()) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre y telefono son obligatorios.' });

@@ -2,6 +2,30 @@
 //1 — Controlador de grupo familiar, integrantes y mascotas (CU3, CU4, CU5) — migrado a Prisma
 const prisma = require('../config/prisma');
 const { resolverGrupoId, resolverMembresia } = require('../utils/grupo');
+const { validarCampos } = require('../utils/validacion');
+
+// Tipo, formato y largo de cada campo (ERR-011). Los obligatorios se chequean en cada función.
+const TIPOS_INTEGRANTE = ['adulto', 'menor', 'mayor'];
+const REGLAS_GRUPO      = { nombre: { tipo: 'texto', max: 150, etiqueta: 'nombre del grupo' } };
+const REGLAS_INVITACION = { codigo: { tipo: 'texto', max: 20, etiqueta: 'código de invitación' } };
+const REGLAS_INTEGRANTE = {
+    nombre:           { tipo: 'texto', max: 100 },
+    apellido:         { tipo: 'texto', max: 100 },
+    fecha_nacimiento: { tipo: 'fecha', etiqueta: 'fecha de nacimiento' },
+    tipo:             { tipo: 'enum', valores: TIPOS_INTEGRANTE },
+    observaciones:    { tipo: 'texto', max: 2000 }
+};
+const REGLAS_EMERGENCIA = {
+    alergias:         { tipo: 'texto', max: 2000 },
+    tipo_sangre:      { tipo: 'texto', max: 10, etiqueta: 'tipo de sangre' },
+    notas_emergencia: { tipo: 'texto', max: 2000, etiqueta: 'notas de emergencia' }
+};
+const REGLAS_MASCOTA = {
+    nombre:           { tipo: 'texto', max: 100 },
+    especie:          { tipo: 'texto', max: 50 },
+    raza:             { tipo: 'texto', max: 100 },
+    fecha_nacimiento: { tipo: 'fecha', etiqueta: 'fecha de nacimiento' }
+};
 
 //2 — Validacion: fecha no puede ser futura (CU4, CU5)
 function esFechaFutura(fechaStr) {
@@ -30,6 +54,11 @@ function generarCodigo() {
 async function crearGrupo(req, res) {
     const usuarioId = req.usuario.id;
     const { nombre } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_GRUPO);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!nombre || !nombre.trim()) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'El nombre del grupo es obligatorio.' });
@@ -82,6 +111,11 @@ async function obtenerGrupo(req, res) {
 async function renombrarGrupo(req, res) {
     const usuarioId = req.usuario.id;
     const { nombre } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_GRUPO);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!nombre || !nombre.trim()) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'El nombre del grupo es obligatorio.' });
@@ -147,6 +181,11 @@ async function generarInvitacion(req, res) {
 async function unirseGrupo(req, res) {
     const usuarioId = req.usuario.id;
     const { codigo } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_INVITACION);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!codigo || !codigo.trim()) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'El código de invitación es obligatorio.' });
@@ -287,6 +326,11 @@ async function agregarIntegrante(req, res) {
     const usuarioId = req.usuario.id;
     const { nombre, apellido, fecha_nacimiento, tipo, observaciones } = req.body;
 
+    const errorCampos = validarCampos(req.body, REGLAS_INTEGRANTE);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
+
     if (!nombre || !apellido || !fecha_nacimiento || !tipo) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre, apellido, fecha_nacimiento y tipo son obligatorios.' });
     }
@@ -341,6 +385,11 @@ async function editarIntegrante(req, res) {
     const usuarioId    = req.usuario.id;
     const integranteId = Number(req.params.id);
     const { nombre, apellido, fecha_nacimiento, tipo, observaciones } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_INTEGRANTE);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!nombre || !apellido || !fecha_nacimiento || !tipo) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre, apellido, fecha_nacimiento y tipo son obligatorios.' });
@@ -407,6 +456,11 @@ async function editarEmergenciaIntegrante(req, res) {
     const integranteId = Number(req.params.id);
     const { alergias, tipo_sangre, notas_emergencia } = req.body;
 
+    const errorCampos = validarCampos(req.body, REGLAS_EMERGENCIA);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
+
     try {
         const grupoId = await resolverGrupoId(usuarioId);
         if (!grupoId) {
@@ -442,6 +496,11 @@ async function editarEmergenciaIntegrante(req, res) {
 async function agregarMascota(req, res) {
     const usuarioId = req.usuario.id;
     const { nombre, especie, raza, fecha_nacimiento } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_MASCOTA);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!nombre || !especie) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre y especie son obligatorios.' });
@@ -495,6 +554,11 @@ async function editarMascota(req, res) {
     const usuarioId = req.usuario.id;
     const mascotaId = Number(req.params.id);
     const { nombre, especie, raza, fecha_nacimiento } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_MASCOTA);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!nombre || !especie) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre y especie son obligatorios.' });

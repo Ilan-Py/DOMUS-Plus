@@ -3,6 +3,7 @@
 const express        = require('express');
 const router         = express.Router();
 const { verificarToken } = require('../config/auth');
+const { validarIdDeRuta } = require('../utils/validacion');
 const {
     crearGrupo, obtenerGrupo, renombrarGrupo,
     generarInvitacion, unirseGrupo, listarMiembros, eliminarMiembro, salirGrupo, eliminarGrupo,
@@ -16,6 +17,10 @@ const {
 
 //2 — Todas requieren token JWT
 router.use(verificarToken);
+
+// Cualquier :id de la URL que no sea un entero positivo → 400 (ERR-011)
+router.param('id', validarIdDeRuta);
+router.param('usuarioId', validarIdDeRuta);
 
 router.post('/grupo',          crearGrupo);
 router.get('/grupo',           obtenerGrupo);
