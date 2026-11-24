@@ -41,6 +41,11 @@ const PATRON_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // apóstrofes y guiones. Tiene que empezar con una letra. Sin números ni símbolos.
 const PATRON_NOMBRE_PERSONA = /^\p{L}[\p{L}\p{M}\s'’-]*$/u;
 
+// ERR-012: teléfonos — dígitos, espacios, guiones, paréntesis y un + opcional
+// al principio. Entre 3 dígitos (911, 107) y 15 (máximo internacional).
+const PATRON_TELEFONO = /^\+?[\d\s()-]+$/;
+const DIGITOS_TELEFONO = { min: 3, max: 15 };
+
 //4 — Valida los campos de `origen` (req.body o req.query) según `reglas`.
 // Sólo revisa los campos que vienen con valor: los obligatorios los sigue
 // chequeando cada controller. Devuelve el primer mensaje de error, o null.
@@ -49,6 +54,7 @@ const PATRON_NOMBRE_PERSONA = /^\p{L}[\p{L}\p{M}\s'’-]*$/u;
 //   tipo 'texto'     → string, con largo máximo `max`
 //   tipo 'email'     → texto con formato de email
 //   tipo 'nombrePersona' → texto con sólo letras, espacios, apóstrofes y guiones
+//   tipo 'telefono'  → dígitos, espacios, guiones, paréntesis y + inicial (3 a 15 dígitos)
 //   tipo 'fecha'     → "AAAA-MM-DD"
 //   tipo 'fechaHora' → "AAAA-MM-DD HH:mm[:ss]" (o ISO)
 //   tipo 'id'        → entero positivo
@@ -64,6 +70,7 @@ function validarCampos(origen, reglas) {
             case 'texto':
             case 'email':
             case 'nombrePersona':
+            case 'telefono':
                 if (typeof valor !== 'string') return `El campo ${etiqueta} debe ser texto.`;
                 if (regla.max && valor.trim().length > regla.max) {
                     return `El campo ${etiqueta} admite como máximo ${regla.max} caracteres.`;
@@ -75,6 +82,17 @@ function validarCampos(origen, reglas) {
                     if (!valor.trim()) return `El campo ${etiqueta} no puede estar vacío.`;
                     if (!PATRON_NOMBRE_PERSONA.test(valor.trim())) {
                         return `El campo ${etiqueta} sólo puede tener letras, espacios, apóstrofes y guiones.`;
+                    }
+                }
+                if (regla.tipo === 'telefono') {
+                    const telefono = valor.trim();
+                    if (!telefono) return `El campo ${etiqueta} no puede estar vacío.`;
+                    if (!PATRON_TELEFONO.test(telefono)) {
+                        return `El campo ${etiqueta} sólo puede tener números, espacios, guiones, paréntesis y un + al principio.`;
+                    }
+                    const digitos = telefono.replace(/\D/g, '').length;
+                    if (digitos < DIGITOS_TELEFONO.min || digitos > DIGITOS_TELEFONO.max) {
+                        return `El campo ${etiqueta} debe tener entre ${DIGITOS_TELEFONO.min} y ${DIGITOS_TELEFONO.max} dígitos.`;
                     }
                 }
                 break;
