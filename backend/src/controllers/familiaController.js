@@ -9,8 +9,8 @@ const TIPOS_INTEGRANTE = ['adulto', 'menor', 'mayor'];
 const REGLAS_GRUPO      = { nombre: { tipo: 'texto', max: 150, etiqueta: 'nombre del grupo' } };
 const REGLAS_INVITACION = { codigo: { tipo: 'texto', max: 20, etiqueta: 'código de invitación' } };
 const REGLAS_INTEGRANTE = {
-    nombre:           { tipo: 'texto', max: 100 },
-    apellido:         { tipo: 'texto', max: 100 },
+    nombre:           { tipo: 'nombrePersona', max: 100 }, // ERR-008: sin números
+    apellido:         { tipo: 'nombrePersona', max: 100 },
     fecha_nacimiento: { tipo: 'fecha', etiqueta: 'fecha de nacimiento' },
     tipo:             { tipo: 'enum', valores: TIPOS_INTEGRANTE },
     observaciones:    { tipo: 'texto', max: 2000 }

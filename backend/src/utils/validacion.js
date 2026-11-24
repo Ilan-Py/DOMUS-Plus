@@ -37,6 +37,10 @@ function esFechaValida(valor) {
 
 const PATRON_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// ERR-008: nombres y apellidos de personas — letras (con tildes, ñ, ü), espacios,
+// apóstrofes y guiones. Tiene que empezar con una letra. Sin números ni símbolos.
+const PATRON_NOMBRE_PERSONA = /^\p{L}[\p{L}\p{M}\s'’-]*$/u;
+
 //4 — Valida los campos de `origen` (req.body o req.query) según `reglas`.
 // Sólo revisa los campos que vienen con valor: los obligatorios los sigue
 // chequeando cada controller. Devuelve el primer mensaje de error, o null.
@@ -44,6 +48,7 @@ const PATRON_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Reglas: { campo: { tipo, etiqueta?, max?, valores? } }
 //   tipo 'texto'     → string, con largo máximo `max`
 //   tipo 'email'     → texto con formato de email
+//   tipo 'nombrePersona' → texto con sólo letras, espacios, apóstrofes y guiones
 //   tipo 'fecha'     → "AAAA-MM-DD"
 //   tipo 'fechaHora' → "AAAA-MM-DD HH:mm[:ss]" (o ISO)
 //   tipo 'id'        → entero positivo
@@ -58,12 +63,19 @@ function validarCampos(origen, reglas) {
         switch (regla.tipo) {
             case 'texto':
             case 'email':
+            case 'nombrePersona':
                 if (typeof valor !== 'string') return `El campo ${etiqueta} debe ser texto.`;
                 if (regla.max && valor.trim().length > regla.max) {
                     return `El campo ${etiqueta} admite como máximo ${regla.max} caracteres.`;
                 }
                 if (regla.tipo === 'email' && !PATRON_EMAIL.test(valor.trim())) {
                     return 'El email no tiene un formato válido.';
+                }
+                if (regla.tipo === 'nombrePersona') {
+                    if (!valor.trim()) return `El campo ${etiqueta} no puede estar vacío.`;
+                    if (!PATRON_NOMBRE_PERSONA.test(valor.trim())) {
+                        return `El campo ${etiqueta} sólo puede tener letras, espacios, apóstrofes y guiones.`;
+                    }
                 }
                 break;
             case 'fecha':

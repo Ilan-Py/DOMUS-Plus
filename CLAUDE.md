@@ -80,7 +80,7 @@ return res.status(200).json({ codigo: 200, estado: 'ok', datos: resultado });
 - Validar **antes** de llegar a Prisma (`src/utils/validacion.js`):
   - `:id` de la URL: `router.param('id', validarIdDeRuta)` en cada archivo de rutas → 400 si no es entero positivo.
   - Body/query: cada controller define `REGLAS_*` (`texto` con `max` = largo del VarChar, `email`,
-    `fecha`, `fechaHora`, `id`, `enum`) y llama a `validarCampos(req.body, REGLAS_X)` al principio.
+    `nombrePersona` (sólo letras, espacios, apóstrofes y guiones), `fecha`, `fechaHora`, `id`, `enum`) y llama a `validarCampos(req.body, REGLAS_X)` al principio.
     Sólo valida los campos que vienen; los obligatorios se siguen chequeando aparte con su mensaje.
   - Ids sueltos: `esIdValido(valor)` (también rechaza números más grandes que un Int de Postgres).
 - `src/utils/errores.js`: `capturarErroresAsync(router)` en `app.js` hace que un error fuera del
