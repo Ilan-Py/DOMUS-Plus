@@ -90,6 +90,8 @@ return res.status(200).json({ codigo: 200, estado: 'ok', datos: resultado });
 - Error de unique de Prisma = `err.code === 'P2002'`.
 - Prisma no genera CHECK constraints: las reglas "exactamente uno de N padres" viven en el
   controller (`extraerPadreUnico` en `utils/grupo.js`).
+- El `tipo` de integrante (`adulto|menor|mayor`) **no se elige**: lo calcula el back con la fecha de
+  nacimiento (`tipoSegunEdad` en `familiaController`, menor < 18 ≤ adulto < 65 ≤ mayor) al guardar y al listar.
 - Enums de BD en minúscula: `adulto|menor|mayor`, `vacuna|control|medicacion`, `imagen|pdf`,
   rol `dueno|miembro` (sin ñ).
 - Los archivos llevan una cabecera de autoría (`//Codigo por ...`). Respetarla; no reescribirla.

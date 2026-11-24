@@ -5,14 +5,33 @@ const { resolverGrupoId, resolverMembresia } = require('../utils/grupo');
 const { validarCampos } = require('../utils/validacion');
 
 // Tipo, formato y largo de cada campo (ERR-011). Los obligatorios se chequean en cada función.
-const TIPOS_INTEGRANTE = ['adulto', 'menor', 'mayor'];
+// MEJ-004: el tipo de integrante ya no se elige — se calcula con la fecha de
+// nacimiento. Menor: hasta 17 años; adulto: de 18 a 64; mayor: desde 65.
+const EDAD_ADULTO = 18;
+const EDAD_MAYOR  = 65;
+
+// Años cumplidos a hoy. Se usa UTC en las dos fechas porque las columnas DATE
+// vuelven como medianoche UTC (y 'AAAA-MM-DD' se interpreta igual).
+function calcularEdad(fechaNacimiento, hoy = new Date()) {
+    const nacimiento = new Date(fechaNacimiento);
+    let edad = hoy.getUTCFullYear() - nacimiento.getUTCFullYear();
+    const mes = hoy.getUTCMonth() - nacimiento.getUTCMonth();
+    if (mes < 0 || (mes === 0 && hoy.getUTCDate() < nacimiento.getUTCDate())) edad--;
+    return edad;
+}
+
+function tipoSegunEdad(fechaNacimiento) {
+    const edad = calcularEdad(fechaNacimiento);
+    if (edad < EDAD_ADULTO) return 'menor';
+    if (edad < EDAD_MAYOR)  return 'adulto';
+    return 'mayor';
+}
 const REGLAS_GRUPO      = { nombre: { tipo: 'texto', max: 150, etiqueta: 'nombre del grupo' } };
 const REGLAS_INVITACION = { codigo: { tipo: 'texto', max: 20, etiqueta: 'código de invitación' } };
 const REGLAS_INTEGRANTE = {
     nombre:           { tipo: 'nombrePersona', max: 100 }, // ERR-008: sin números
     apellido:         { tipo: 'nombrePersona', max: 100 },
     fecha_nacimiento: { tipo: 'fecha', etiqueta: 'fecha de nacimiento' },
-    tipo:             { tipo: 'enum', valores: TIPOS_INTEGRANTE },
     observaciones:    { tipo: 'texto', max: 2000 }
 };
 // ERR-009: el tipo de sangre es uno de los 8 grupos. Antes se guardaba texto libre.
@@ -354,19 +373,21 @@ async function eliminarGrupo(req, res) {
 
 async function agregarIntegrante(req, res) {
     const usuarioId = req.usuario.id;
-    const { nombre, apellido, fecha_nacimiento, tipo, observaciones } = req.body;
+    // `tipo` se ignora si viene: se calcula con la fecha de nacimiento (MEJ-004)
+    const { nombre, apellido, fecha_nacimiento, observaciones } = req.body;
 
     const errorCampos = validarCampos(req.body, REGLAS_INTEGRANTE);
     if (errorCampos) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
     }
 
-    if (!nombre || !apellido || !fecha_nacimiento || !tipo) {
-        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre, apellido, fecha_nacimiento y tipo son obligatorios.' });
+    if (!nombre || !apellido || !fecha_nacimiento) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre, apellido y fecha_nacimiento son obligatorios.' });
     }
     if (esFechaFutura(fecha_nacimiento)) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'La fecha de nacimiento no puede ser una fecha futura.' });
     }
+    const tipo = tipoSegunEdad(fecha_nacimiento);
 
     try {
         const grupoId = await resolverGrupoId(usuarioId);
@@ -404,7 +425,10 @@ async function listarIntegrantes(req, res) {
             where: { grupoId },
             orderBy: { nombre: 'asc' }
         });
-        return res.status(200).json({ codigo: 200, estado: 'ok', datos: integrantes });
+        // El tipo se recalcula al listar: así un integrante que cumplió 18 (o 65)
+        // pasa a adulto (o mayor) sin que nadie tenga que editarlo (MEJ-004).
+        const conTipoActual = integrantes.map((i) => ({ ...i, tipo: tipoSegunEdad(i.fechaNacimiento) }));
+        return res.status(200).json({ codigo: 200, estado: 'ok', datos: conTipoActual });
     } catch (err) {
         console.error('listarIntegrantes=', err.message);
         return res.status(500).json({ codigo: 500, estado: 'error', datos: 'Error interno del servidor.' });
@@ -414,19 +438,21 @@ async function listarIntegrantes(req, res) {
 async function editarIntegrante(req, res) {
     const usuarioId    = req.usuario.id;
     const integranteId = Number(req.params.id);
-    const { nombre, apellido, fecha_nacimiento, tipo, observaciones } = req.body;
+    // `tipo` se ignora si viene: se calcula con la fecha de nacimiento (MEJ-004)
+    const { nombre, apellido, fecha_nacimiento, observaciones } = req.body;
 
     const errorCampos = validarCampos(req.body, REGLAS_INTEGRANTE);
     if (errorCampos) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
     }
 
-    if (!nombre || !apellido || !fecha_nacimiento || !tipo) {
-        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre, apellido, fecha_nacimiento y tipo son obligatorios.' });
+    if (!nombre || !apellido || !fecha_nacimiento) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre, apellido y fecha_nacimiento son obligatorios.' });
     }
     if (esFechaFutura(fecha_nacimiento)) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'La fecha de nacimiento no puede ser una fecha futura.' });
     }
+    const tipo = tipoSegunEdad(fecha_nacimiento);
 
     try {
         const grupoId = await resolverGrupoId(usuarioId);
