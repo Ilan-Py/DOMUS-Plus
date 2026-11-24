@@ -58,6 +58,7 @@ const DIGITOS_TELEFONO = { min: 3, max: 15 };
 //   tipo 'fecha'     → "AAAA-MM-DD"
 //   tipo 'fechaHora' → "AAAA-MM-DD HH:mm[:ss]" (o ISO)
 //   tipo 'id'        → entero positivo
+//   tipo 'entero'    → entero entre `min` y `max` (acepta 7 o "7")
 //   tipo 'enum'      → uno de `valores`
 function validarCampos(origen, reglas) {
     const datos = origen || {};
@@ -105,6 +106,13 @@ function validarCampos(origen, reglas) {
             case 'id':
                 if (!esIdValido(valor)) return `El campo ${etiqueta} debe ser un número entero positivo.`;
                 break;
+            case 'entero': {
+                const numero = typeof valor === 'string' && /^-?\d+$/.test(valor) ? Number(valor) : valor;
+                if (!Number.isInteger(numero) || numero < regla.min || numero > regla.max) {
+                    return `El campo ${etiqueta} debe ser un número entero entre ${regla.min} y ${regla.max}.`;
+                }
+                break;
+            }
             case 'enum':
                 if (!regla.valores.includes(valor)) return `El campo ${etiqueta} debe ser uno de: ${regla.valores.join(', ')}.`;
                 break;

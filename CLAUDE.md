@@ -119,6 +119,10 @@ return res.status(200).json({ codigo: 200, estado: 'ok', datos: resultado });
 - El interceptor de `client.js` devuelve directamente `datos`; los errores llegan como
   `{ status, mensaje }`. Para listas usar `getList(url)` (garantiza array).
 - `PATCH /api/recordatorios/:id/desactivar` devuelve un string en `datos`, no un objeto.
+- Recordatorios periódicos (MEJ-005): `POST /api/recordatorios` con `repetir_cada_dias` (1–365; "cada mes" = 30)
+  y `repetir_veces` (2–100, default 10) crea **una fila por repetición**, todas con el mismo `serie_id`.
+  `DELETE /api/recordatorios/:id?alcance=siguientes` borra esa y las posteriores de la serie; sin
+  `alcance`, sólo esa. Editar/desactivar afectan sólo a esa repetición.
 - `POST /api/auth/registrar` no devuelve token: hay que llamar a login después.
 
 ## Convenciones del frontend
