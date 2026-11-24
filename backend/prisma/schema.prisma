@@ -230,6 +230,10 @@ model Recordatorio {
   fechaHora      DateTime         @map("fecha_hora")
   descripcion    String?          @db.VarChar(255)
   activo         Boolean          @default(true)
+  // MEJ-005: recordatorios periódicos. Cada repetición es una fila propia; las de
+  // una misma serie comparten serie_id. repeticion_dias = cada cuántos días se repite.
+  serieId        String?          @map("serie_id") @db.Uuid
+  repeticionDias Int?             @map("repeticion_dias")
 
   // Relaciones
   grupo       GrupoFamiliar @relation(fields: [grupoId], references: [id], onDelete: Cascade)
@@ -237,6 +241,7 @@ model Recordatorio {
   vacuna      Vacuna?       @relation(fields: [vacunaId], references: [id], onDelete: SetNull)
   tratamiento Tratamiento?  @relation(fields: [tratamientoId], references: [id], onDelete: SetNull)
 
+  @@index([serieId])
   @@map("recordatorio")
 }
 
