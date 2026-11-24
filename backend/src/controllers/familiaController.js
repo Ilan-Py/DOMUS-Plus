@@ -46,6 +46,69 @@ function normalizarTipoSangre(valor) {
         .replace(/POSITIVO$/, '+').replace(/NEGATIVO$/, '-');
 }
 
+// ERR-010: alergias — las frecuentes de la lista y "Otras" escribiendo cuáles.
+// Llegan como texto ("penicilina, mani") o como lista (["Penicilina", "Maní"]) y
+// se guardan siempre como texto separado por comas, en la misma columna de antes.
+const ALERGIAS_FRECUENTES = [
+    'Penicilina', 'AINEs', 'Maní', 'Frutos secos', 'Mariscos', 'Lácteos',
+    'Huevo', 'Gluten', 'Polen', 'Ácaros', 'Látex', 'Picadura de abeja'
+];
+// Otras formas de escribir una de la lista (comparadas sin tildes ni mayúsculas)
+const ALIAS_ALERGIA = {
+    'antiinflamatorios': 'AINEs', 'cacahuete': 'Maní', 'cacahuate': 'Maní',
+    'leche': 'Lácteos', 'lactosa': 'Lácteos', 'nueces': 'Frutos secos',
+    'abeja': 'Picadura de abeja', 'picadura de abejas': 'Picadura de abeja'
+};
+const MAX_LARGO_ALERGIA = 60;
+const MAX_ALERGIAS      = 30;
+// Letras, números ("Vitamina B12"), espacios, apóstrofes, paréntesis, punto, barra y guion
+const PATRON_ALERGIA = /^[\p{L}\p{N}][\p{L}\p{M}\p{N}\s'’()./-]*$/u;
+
+function sinTildes(texto) {
+    return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+// Devuelve { alergias } con el texto normalizado (o null si no hay), o { error }.
+function normalizarAlergias(valor) {
+    if (valor === undefined || valor === null || valor === '') return { alergias: null };
+
+    let partes;
+    if (Array.isArray(valor)) {
+        if (!valor.every((v) => typeof v === 'string')) return { error: 'Cada alergia debe ser texto.' };
+        partes = valor;
+    } else if (typeof valor === 'string') {
+        partes = valor.split(/[,;\n]/);
+    } else {
+        return { error: 'El campo alergias debe ser texto o una lista.' };
+    }
+
+    const yaCargadas = new Set();
+    const resultado = [];
+    for (const parte of partes) {
+        const limpia = parte.trim().replace(/\s+/g, ' ');
+        if (!limpia) continue;
+        const clave = sinTildes(limpia);
+        if (['otra', 'otras', 'otro', 'otros'].includes(clave)) {
+            return { error: 'Si hay otras alergias, escribí cuáles (por ejemplo, Ibuprofeno).' };
+        }
+        if (limpia.length > MAX_LARGO_ALERGIA) {
+            return { error: `Cada alergia admite como máximo ${MAX_LARGO_ALERGIA} caracteres.` };
+        }
+        if (!PATRON_ALERGIA.test(limpia) || !/\p{L}/u.test(limpia)) {
+            return { error: `"${limpia}" no es una alergia válida: usá letras, números, espacios y guiones.` };
+        }
+        const nombre = ALERGIAS_FRECUENTES.find((a) => sinTildes(a) === clave)
+            || ALIAS_ALERGIA[clave]
+            || limpia.charAt(0).toUpperCase() + limpia.slice(1);
+        if (!yaCargadas.has(sinTildes(nombre))) {
+            yaCargadas.add(sinTildes(nombre));
+            resultado.push(nombre);
+        }
+    }
+    if (resultado.length > MAX_ALERGIAS) return { error: `Se pueden cargar hasta ${MAX_ALERGIAS} alergias.` };
+    return { alergias: resultado.length ? resultado.join(', ') : null };
+}
+
 const REGLAS_EMERGENCIA = {
     alergias:         { tipo: 'texto', max: 2000 },
     tipo_sangre:      { tipo: 'enum', valores: GRUPOS_SANGUINEOS, etiqueta: 'tipo de sangre' },
@@ -510,10 +573,14 @@ async function eliminarIntegrante(req, res) {
 async function editarEmergenciaIntegrante(req, res) {
     const usuarioId    = req.usuario.id;
     const integranteId = Number(req.params.id);
-    const { alergias, notas_emergencia } = req.body;
+    const { notas_emergencia } = req.body;
     const tipo_sangre = normalizarTipoSangre(req.body.tipo_sangre);
+    const { alergias, error: errorAlergias } = normalizarAlergias(req.body.alergias);
+    if (errorAlergias) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorAlergias });
+    }
 
-    const errorCampos = validarCampos({ ...req.body, tipo_sangre }, REGLAS_EMERGENCIA);
+    const errorCampos = validarCampos({ ...req.body, tipo_sangre, alergias }, REGLAS_EMERGENCIA);
     if (errorCampos) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
     }
