@@ -32,9 +32,27 @@ const REGLAS_EMERGENCIA = {
     tipo_sangre:      { tipo: 'enum', valores: GRUPOS_SANGUINEOS, etiqueta: 'tipo de sangre' },
     notas_emergencia: { tipo: 'texto', max: 2000, etiqueta: 'notas de emergencia' }
 };
+// MEJ-001: especie de la mascota — una de la lista, o "Otro" escribiendo cuál
+// (se guarda lo escrito, ej. "Conejo", no la palabra "Otro").
+const ESPECIES = ['Perro', 'Gato', 'Ave'];
+
+// "perro" / "PERRO " → "Perro"; una especie escrita a mano queda con la primera
+// letra en mayúscula y los espacios de más limpios ("pez  payaso" → "Pez payaso").
+function normalizarEspecie(valor) {
+    if (typeof valor !== 'string') return valor;
+    const limpia = valor.trim().replace(/\s+/g, ' ');
+    if (!limpia) return limpia;
+    const deLaLista = ESPECIES.find((e) => e.toLowerCase() === limpia.toLowerCase());
+    return deLaLista || limpia.charAt(0).toUpperCase() + limpia.slice(1).toLowerCase();
+}
+
+function esEspecieSinDetalle(especie) {
+    return typeof especie === 'string' && ['otro', 'otra'].includes(especie.toLowerCase());
+}
+
 const REGLAS_MASCOTA = {
     nombre:           { tipo: 'texto', max: 100 },
-    especie:          { tipo: 'texto', max: 50 },
+    especie:          { tipo: 'nombrePersona', max: 50 }, // MEJ-001: sólo letras (sin números ni símbolos)
     raza:             { tipo: 'texto', max: 100 },
     fecha_nacimiento: { tipo: 'fecha', etiqueta: 'fecha de nacimiento' }
 };
@@ -508,11 +526,15 @@ async function editarEmergenciaIntegrante(req, res) {
 
 async function agregarMascota(req, res) {
     const usuarioId = req.usuario.id;
-    const { nombre, especie, raza, fecha_nacimiento } = req.body;
+    const { nombre, raza, fecha_nacimiento } = req.body;
+    const especie = normalizarEspecie(req.body.especie);
 
-    const errorCampos = validarCampos(req.body, REGLAS_MASCOTA);
+    const errorCampos = validarCampos({ ...req.body, especie }, REGLAS_MASCOTA);
     if (errorCampos) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
+    if (esEspecieSinDetalle(especie)) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'Si la especie es "Otro", escribí cuál es (por ejemplo, Conejo).' });
     }
 
     if (!nombre || !especie) {
@@ -566,11 +588,15 @@ async function listarMascotas(req, res) {
 async function editarMascota(req, res) {
     const usuarioId = req.usuario.id;
     const mascotaId = Number(req.params.id);
-    const { nombre, especie, raza, fecha_nacimiento } = req.body;
+    const { nombre, raza, fecha_nacimiento } = req.body;
+    const especie = normalizarEspecie(req.body.especie);
 
-    const errorCampos = validarCampos(req.body, REGLAS_MASCOTA);
+    const errorCampos = validarCampos({ ...req.body, especie }, REGLAS_MASCOTA);
     if (errorCampos) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
+    if (esEspecieSinDetalle(especie)) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'Si la especie es "Otro", escribí cuál es (por ejemplo, Conejo).' });
     }
 
     if (!nombre || !especie) {
