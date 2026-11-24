@@ -10,6 +10,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Prisma responde en camelCase y el frontend lee snake_case — ver utils/respuestas.js
+const { respuestasEnSnakeCase } = require('./utils/respuestas');
+app.use(respuestasEnSnakeCase);
+
 //3 — Rutas
 const authRoutes          = require('./routes/auth.routes');
 const familiaRoutes       = require('./routes/familia.routes');

@@ -59,8 +59,9 @@ docker compose exec backend npx prisma studio      # (o correrlo local con DATAB
 cd frontend && npm install && npx expo start --web   # http://localhost:8081
 ```
 
-- `Dockerfile.dev` arranca con `nodemon` y **no** corre migraciones solo (el README dice lo
-  contrario — no confiar en eso). Después de cambiar `schema.prisma`, correr `migrate dev`.
+- `Dockerfile.dev` corre `prisma migrate deploy` y después `nodemon` en cada arranque: las
+  migraciones ya creadas se aplican solas. Para **crear** una migración nueva después de
+  cambiar `schema.prisma`, correr `migrate dev --name ...`.
 - `src/` del backend está montado como volumen → nodemon recarga solo. Cambios en
   `package.json` o `schema.prisma` requieren `docker compose up -d --build`.
 - No hay tests, linter ni TypeScript. Verificar a mano (Postman: `docs/DOMUS+ API.postman_collection.json`).
@@ -102,10 +103,10 @@ return res.status(200).json({ codigo: 200, estado: 'ok', datos: resultado });
 - El frontend envía **snake_case** (`fecha_nacimiento`, `tipo_sangre`, `fecha_hora`, `integrante_id`).
 - El frontend también **lee snake_case** de las respuestas (`item.fecha_hora`, `item.tipo_archivo`,
   `integrante.tipo_sangre`, `memberToEdit.fecha_nacimiento`).
-- ⚠️ Desde la migración a Prisma, muchos controllers devuelven el objeto de Prisma **tal cual, en
-  camelCase** (`fechaHora`, `tipoArchivo`, `tipoSangre`, `fechaNacimiento`). Antes de dar por
-  bueno un endpoint, verificar qué claves lee la pantalla que lo consume. Al tocar un controller,
-  devolver las claves que espera el frontend (snake_case) en vez de cambiar todas las pantallas.
+- Prisma devuelve los modelos en camelCase (`fechaHora`, `tipoSangre`...). El middleware
+  `respuestasEnSnakeCase` (`backend/src/utils/respuestas.js`, montado en `app.js`) convierte
+  todas las claves de `datos` a snake_case antes de responder. Los controllers pueden devolver
+  el objeto de Prisma tal cual; **no** mapear claves a mano ni leer camelCase en el frontend.
 - El interceptor de `client.js` devuelve directamente `datos`; los errores llegan como
   `{ status, mensaje }`. Para listas usar `getList(url)` (garantiza array).
 - `PATCH /api/recordatorios/:id/desactivar` devuelve un string en `datos`, no un objeto.
@@ -140,10 +141,9 @@ return res.status(200).json({ codigo: 200, estado: 'ok', datos: resultado });
 ## Documentación existente (y su estado)
 
 - `README.md` — setup, endpoints, despliegue (Render + Supabase, EAS). Mayormente al día; dice
-  Prisma 6 pero `package.json` usa `^5.22`, y lo de migraciones automáticas no es cierto.
+  Prisma 6 pero `package.json` usa `^5.22`.
 - `docs/API_NOTES.md` — contratos y trampas. **Parcialmente desactualizado:** menciona MySQL y
   formato DATETIME de MySQL, y que el JWT vencido da 403 (hoy da 401). El punto del IDOR sigue vigente.
 - `docs/SPRINT_STATUS.md`, `frontend/todo.md` — backlog del frontend con estado verificado por ítem.
 - `docs/QA_CHECKLIST.md` — checklist de pruebas manuales.
 - `docs/scripts-viejos/` — SQL previo a Prisma. Sólo referencia histórica; no usar.
-  (`docker-compose.yml` todavía monta `backend/Scripts/postgres/*.sql`, que ya no existe ahí.)

@@ -6,4 +6,5 @@ RUN npm ci
 COPY . .
 EXPOSE 3000
 RUN npx prisma generate
-CMD ["npx", "nodemon", "src/app.js"]
+# Aplica las migraciones pendientes antes de arrancar (no hace nada si no hay)
+CMD ["sh", "-c", "npx prisma migrate deploy && npx nodemon src/app.js"]
