@@ -3,6 +3,7 @@
 const express        = require('express');
 const router         = express.Router();
 const { verificarToken } = require('../config/auth');
+const { validarIdDeRuta } = require('../utils/validacion');
 const {
     registrarVacuna, listarVacunas, editarVacuna, eliminarVacuna,
     registrarTratamiento, listarTratamientos, editarTratamiento, eliminarTratamiento,
@@ -13,6 +14,9 @@ const {
 } = require('../controllers/profesionalSaludController');
 
 router.use(verificarToken);
+
+// Cualquier :id de la URL que no sea un entero positivo → 400 (ERR-011)
+router.param('id', validarIdDeRuta);
 
 router.post('/vacunas',        registrarVacuna);
 router.get('/vacunas',         listarVacunas);

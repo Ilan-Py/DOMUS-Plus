@@ -3,6 +3,21 @@
 const bcrypt = require('bcryptjs');
 const jwt    = require('jsonwebtoken');
 const prisma = require('../config/prisma');
+const { validarCampos } = require('../utils/validacion');
+
+// Tipo y largo de cada campo (ERR-011). Los obligatorios se chequean en cada función.
+const REGLAS_REGISTRO = {
+    nombre:   { tipo: 'texto', max: 100 },
+    apellido: { tipo: 'texto', max: 100 },
+    email:    { tipo: 'email', max: 150 },
+    password: { tipo: 'texto', max: 72, etiqueta: 'contraseña' } // bcrypt ignora lo que pase de 72
+};
+const REGLAS_LOGIN  = { email: { tipo: 'texto', max: 150 }, password: { tipo: 'texto', max: 200, etiqueta: 'contraseña' } };
+const REGLAS_PERFIL = { nombre: REGLAS_REGISTRO.nombre, apellido: REGLAS_REGISTRO.apellido, email: REGLAS_REGISTRO.email };
+const REGLAS_PASSWORD = {
+    passwordActual: { tipo: 'texto', max: 200, etiqueta: 'contraseña actual' },
+    passwordNueva:  { tipo: 'texto', max: 72,  etiqueta: 'contraseña nueva' }
+};
 
 //2 — Validacion de formato de contrasena: min 8 caracteres, 1 mayuscula, 1 numero
 function validarPassword(password) {
@@ -12,6 +27,11 @@ function validarPassword(password) {
 //3 — CU1: Registrar usuario
 async function registrar(req, res) {
     const { nombre, apellido, email, password } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_REGISTRO);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!nombre || !apellido || !email || !password) {
         return res.status(400).json({
@@ -63,6 +83,11 @@ async function registrar(req, res) {
 //4 — CU2: Iniciar sesion
 async function login(req, res) {
     const { email, password } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_LOGIN);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!email || !password) {
         return res.status(400).json({
@@ -120,6 +145,11 @@ async function actualizarPerfil(req, res) {
     const usuarioId = req.usuario.id;
     const { nombre, apellido, email } = req.body;
 
+    const errorCampos = validarCampos(req.body, REGLAS_PERFIL);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
+
     if (!nombre || !apellido || !email) {
         return res.status(400).json({
             codigo: 400,
@@ -165,6 +195,11 @@ async function actualizarPerfil(req, res) {
 async function cambiarPassword(req, res) {
     const usuarioId = req.usuario.id;
     const { passwordActual, passwordNueva } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_PASSWORD);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!passwordActual || !passwordNueva) {
         return res.status(400).json({

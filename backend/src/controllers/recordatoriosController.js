@@ -4,12 +4,26 @@
 const prisma = require('../config/prisma');
 const { resolverGrupoId } = require('../utils/grupo');
 const { verificarPertenenciaVacuna, verificarPertenenciaTratamiento } = require('./saludController');
+const { validarCampos } = require('../utils/validacion');
+
+// Tipo, formato y largo de cada campo (ERR-011). Los obligatorios se chequean en cada función.
+const REGLAS_RECORDATORIO = {
+    vacuna_id:      { tipo: 'id', etiqueta: 'vacuna_id' },
+    tratamiento_id: { tipo: 'id', etiqueta: 'tratamiento_id' },
+    fecha_hora:     { tipo: 'fechaHora', etiqueta: 'fecha y hora' },
+    descripcion:    { tipo: 'texto', max: 255, etiqueta: 'descripción' }
+};
 
 const TIPOS_VALIDOS = ['vacuna', 'control', 'medicacion'];
 
 async function crearRecordatorio(req, res) {
     const usuarioId = req.usuario.id;
     const { vacuna_id, tratamiento_id, tipo, fecha_hora, descripcion } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_RECORDATORIO);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!tipo || !fecha_hora) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'tipo y fecha_hora son obligatorios.' });
@@ -87,6 +101,11 @@ async function editarRecordatorio(req, res) {
     const usuarioId = req.usuario.id;
     const id = Number(req.params.id);
     const { tipo, fecha_hora, descripcion } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_RECORDATORIO);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!tipo || !fecha_hora) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'tipo y fecha_hora son obligatorios.' });

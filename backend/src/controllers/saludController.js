@@ -2,6 +2,27 @@
 //1 — Controlador de salud: vacunas y tratamientos (CU6, CU7, CU10) — migrado a Prisma
 const prisma = require('../config/prisma');
 const { verificarPertenenciaDirecta } = require('../utils/grupo');
+const { validarCampos, esIdValido } = require('../utils/validacion');
+
+// Tipo, formato y largo de cada campo (ERR-011). Los obligatorios se chequean en cada función.
+const REGLAS_PADRE = {
+    integrante_id: { tipo: 'id', etiqueta: 'integrante_id' },
+    mascota_id:    { tipo: 'id', etiqueta: 'mascota_id' }
+};
+const REGLAS_VACUNA = {
+    ...REGLAS_PADRE,
+    nombre:           { tipo: 'texto', max: 150 },
+    fecha_aplicacion: { tipo: 'fecha', etiqueta: 'fecha de aplicación' },
+    proxima_dosis:    { tipo: 'fecha', etiqueta: 'próxima dosis' },
+    notas:            { tipo: 'texto', max: 2000 }
+};
+const REGLAS_TRATAMIENTO = {
+    ...REGLAS_PADRE,
+    descripcion:  { tipo: 'texto', max: 255, etiqueta: 'descripción' },
+    medicacion:   { tipo: 'texto', max: 200, etiqueta: 'medicación' },
+    fecha_inicio: { tipo: 'fecha', etiqueta: 'fecha de inicio' },
+    fecha_fin:    { tipo: 'fecha', etiqueta: 'fecha de fin' }
+};
 
 //2 — Valida que proxima_dosis > fecha_aplicacion (CU7)
 function validarFechasVacuna(fecha_aplicacion, proxima_dosis) {
@@ -14,10 +35,10 @@ function validarFechasVacuna(fecha_aplicacion, proxima_dosis) {
 // tratamientos e historial de otra familia cambiando el id en la request.
 // Si vienen los dos, se usa integrante_id (mismo criterio que los listados).
 async function padreEsDelUsuario(integrante_id, mascota_id, usuarioId) {
-    const tipo = integrante_id ? 'integrante' : 'mascota';
-    const id   = Number(integrante_id || mascota_id);
-    if (!Number.isInteger(id) || id <= 0) return false;
-    return verificarPertenenciaDirecta(tipo, id, usuarioId);
+    const tipo  = integrante_id ? 'integrante' : 'mascota';
+    const valor = integrante_id || mascota_id;
+    if (!esIdValido(valor)) return false;
+    return verificarPertenenciaDirecta(tipo, Number(valor), usuarioId);
 }
 
 // ──────────────────────────────────────────────
@@ -72,6 +93,11 @@ async function verificarPertenenciaHistorial(historialId, usuarioId) {
 async function registrarVacuna(req, res) {
     const usuarioId = req.usuario.id;
     const { integrante_id, mascota_id, nombre, fecha_aplicacion, proxima_dosis, notas } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_VACUNA);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!nombre || !fecha_aplicacion) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre y fecha_aplicacion son obligatorios.' });
@@ -143,6 +169,11 @@ async function editarVacuna(req, res) {
     const vacunaId  = Number(req.params.id);
     const { nombre, fecha_aplicacion, proxima_dosis, notas } = req.body;
 
+    const errorCampos = validarCampos(req.body, REGLAS_VACUNA);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
+
     if (!nombre || !fecha_aplicacion) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre y fecha_aplicacion son obligatorios.' });
     }
@@ -199,6 +230,11 @@ async function eliminarVacuna(req, res) {
 async function registrarTratamiento(req, res) {
     const usuarioId = req.usuario.id;
     const { integrante_id, mascota_id, descripcion, medicacion, fecha_inicio, fecha_fin } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_TRATAMIENTO);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!descripcion || !medicacion || !fecha_inicio) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'descripcion, medicacion y fecha_inicio son obligatorios.' });
@@ -266,6 +302,11 @@ async function editarTratamiento(req, res) {
     const usuarioId      = req.usuario.id;
     const tratamientoId  = Number(req.params.id);
     const { descripcion, medicacion, fecha_inicio, fecha_fin } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_TRATAMIENTO);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!descripcion || !medicacion || !fecha_inicio) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'descripcion, medicacion y fecha_inicio son obligatorios.' });

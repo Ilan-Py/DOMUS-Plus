@@ -4,11 +4,15 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const { verificarToken } = require('../config/auth');
+const { validarIdDeRuta } = require('../utils/validacion');
 const upload = require('../config/upload');
 const { limitarSubidaAdjuntos } = require('../config/rateLimiter');
 const { subirAdjunto, listarAdjuntos, eliminarAdjunto } = require('../controllers/adjuntoController');
 
 router.use(verificarToken);
+
+// Cualquier :id de la URL que no sea un entero positivo → 400 (ERR-011)
+router.param('id', validarIdDeRuta);
 
 // upload.single(...) se invoca a mano (no como middleware directo de la
 // ruta) para poder devolver siempre el {codigo,estado,datos} de la API en

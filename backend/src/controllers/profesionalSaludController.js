@@ -3,6 +3,16 @@
 // extraerPadreUnico de utils/grupo.js.
 const prisma = require('../config/prisma');
 const { verificarPertenenciaDirecta, extraerPadreUnico } = require('../utils/grupo');
+const { validarCampos } = require('../utils/validacion');
+
+// Tipo y largo de cada campo (ERR-011). Los obligatorios se chequean en cada función.
+const REGLAS_PROFESIONAL = {
+    nombre:       { tipo: 'texto', max: 150 },
+    especialidad: { tipo: 'texto', max: 100 },
+    telefono:     { tipo: 'texto', max: 30, etiqueta: 'teléfono' },
+    direccion:    { tipo: 'texto', max: 255, etiqueta: 'dirección' },
+    notas:        { tipo: 'texto', max: 2000 }
+};
 
 const CAMPOS_PADRE = ['integrante', 'mascota'];
 
@@ -15,6 +25,11 @@ async function crearProfesional(req, res) {
     }
 
     const { nombre, especialidad, telefono, direccion, notas } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_PROFESIONAL);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
     if (!nombre || !nombre.trim()) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre es obligatorio.' });
     }
@@ -81,6 +96,11 @@ async function editarProfesional(req, res) {
     const usuarioId = req.usuario.id;
     const id        = Number(req.params.id);
     const { nombre, especialidad, telefono, direccion, notas } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_PROFESIONAL);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!nombre || !nombre.trim()) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre es obligatorio.' });
