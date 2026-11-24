@@ -1,11 +1,23 @@
 //Codigo por ILAN PITASHNY
 //1 — Controlador de salud: vacunas y tratamientos (CU6, CU7, CU10) — migrado a Prisma
 const prisma = require('../config/prisma');
+const { verificarPertenenciaDirecta } = require('../utils/grupo');
 
 //2 — Valida que proxima_dosis > fecha_aplicacion (CU7)
 function validarFechasVacuna(fecha_aplicacion, proxima_dosis) {
     if (!proxima_dosis) return true;
     return new Date(proxima_dosis) > new Date(fecha_aplicacion);
+}
+
+//3 — El integrante/mascota indicado tiene que ser del grupo del usuario.
+// Sin esto, cualquier usuario logueado podía leer o cargar vacunas,
+// tratamientos e historial de otra familia cambiando el id en la request.
+// Si vienen los dos, se usa integrante_id (mismo criterio que los listados).
+async function padreEsDelUsuario(integrante_id, mascota_id, usuarioId) {
+    const tipo = integrante_id ? 'integrante' : 'mascota';
+    const id   = Number(integrante_id || mascota_id);
+    if (!Number.isInteger(id) || id <= 0) return false;
+    return verificarPertenenciaDirecta(tipo, id, usuarioId);
 }
 
 // ──────────────────────────────────────────────
@@ -58,6 +70,7 @@ async function verificarPertenenciaHistorial(historialId, usuarioId) {
 // ──────────────────────────────────────────────
 
 async function registrarVacuna(req, res) {
+    const usuarioId = req.usuario.id;
     const { integrante_id, mascota_id, nombre, fecha_aplicacion, proxima_dosis, notas } = req.body;
 
     if (!nombre || !fecha_aplicacion) {
@@ -74,6 +87,10 @@ async function registrarVacuna(req, res) {
     }
 
     try {
+        if (!(await padreEsDelUsuario(integrante_id, mascota_id, usuarioId))) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Integrante o mascota no encontrado.' });
+        }
+
         const nueva = await prisma.vacuna.create({
             data: {
                 integranteId:    integrante_id ? Number(integrante_id) : null,
@@ -93,6 +110,7 @@ async function registrarVacuna(req, res) {
 }
 
 async function listarVacunas(req, res) {
+    const usuarioId = req.usuario.id;
     const { integrante_id, mascota_id } = req.query;
 
     if (!integrante_id && !mascota_id) {
@@ -100,6 +118,10 @@ async function listarVacunas(req, res) {
     }
 
     try {
+        if (!(await padreEsDelUsuario(integrante_id, mascota_id, usuarioId))) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Integrante o mascota no encontrado.' });
+        }
+
         const where = integrante_id
             ? { integranteId: Number(integrante_id) }
             : { mascotaId:    Number(mascota_id) };
@@ -175,6 +197,7 @@ async function eliminarVacuna(req, res) {
 // ──────────────────────────────────────────────
 
 async function registrarTratamiento(req, res) {
+    const usuarioId = req.usuario.id;
     const { integrante_id, mascota_id, descripcion, medicacion, fecha_inicio, fecha_fin } = req.body;
 
     if (!descripcion || !medicacion || !fecha_inicio) {
@@ -188,6 +211,10 @@ async function registrarTratamiento(req, res) {
     }
 
     try {
+        if (!(await padreEsDelUsuario(integrante_id, mascota_id, usuarioId))) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Integrante o mascota no encontrado.' });
+        }
+
         const nuevo = await prisma.tratamiento.create({
             data: {
                 integranteId: integrante_id ? Number(integrante_id) : null,
@@ -207,6 +234,7 @@ async function registrarTratamiento(req, res) {
 }
 
 async function listarTratamientos(req, res) {
+    const usuarioId = req.usuario.id;
     const { integrante_id, mascota_id } = req.query;
 
     if (!integrante_id && !mascota_id) {
@@ -214,6 +242,10 @@ async function listarTratamientos(req, res) {
     }
 
     try {
+        if (!(await padreEsDelUsuario(integrante_id, mascota_id, usuarioId))) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Integrante o mascota no encontrado.' });
+        }
+
         const where = integrante_id
             ? { integranteId: Number(integrante_id) }
             : { mascotaId:    Number(mascota_id) };
@@ -286,6 +318,7 @@ async function eliminarTratamiento(req, res) {
 // ──────────────────────────────────────────────
 
 async function consultarHistorial(req, res) {
+    const usuarioId = req.usuario.id;
     const { integrante_id, mascota_id } = req.query;
 
     if (!integrante_id && !mascota_id) {
@@ -293,6 +326,10 @@ async function consultarHistorial(req, res) {
     }
 
     try {
+        if (!(await padreEsDelUsuario(integrante_id, mascota_id, usuarioId))) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Integrante o mascota no encontrado.' });
+        }
+
         const where = integrante_id
             ? { integranteId: Number(integrante_id) }
             : { mascotaId:    Number(mascota_id) };
