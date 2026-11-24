@@ -158,7 +158,13 @@ docker compose up -d --build
 
 `docker-compose.yml` levanta un Postgres 16 local y el backend. En el primer
 arranque, Prisma ejecuta las migraciones automáticamente al iniciar el
-contenedor. No hace falta correr nada a mano.
+contenedor (`npx prisma migrate deploy` en `backend/Dockerfile.dev`). No hace
+falta correr nada a mano.
+
+> **Base creada antes de Prisma:** si tu volumen de Docker tiene tablas creadas
+> con los scripts SQL viejos, el backend no arranca y el log muestra un error de
+> que las tablas ya existen. Marcá la migración inicial como aplicada una vez:
+> `docker compose run --rm backend npx prisma migrate resolve --applied 20260914165731_init`
 
 Verificación rápida:
 
