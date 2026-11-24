@@ -3,6 +3,7 @@
 // creado_por registra quién lo creó pero no filtra.
 const prisma = require('../config/prisma');
 const { resolverGrupoId } = require('../utils/grupo');
+const { verificarPertenenciaVacuna, verificarPertenenciaTratamiento } = require('./saludController');
 
 const TIPOS_VALIDOS = ['vacuna', 'control', 'medicacion'];
 
@@ -24,6 +25,15 @@ async function crearRecordatorio(req, res) {
         const grupoId = await resolverGrupoId(usuarioId);
         if (!grupoId) {
             return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Debe pertenecer a un grupo familiar primero.' });
+        }
+
+        // La vacuna/tratamiento vinculado tiene que ser de este grupo — sin esto
+        // se podía colgar un recordatorio de la vacuna de otra familia.
+        if (vacuna_id && !(await verificarPertenenciaVacuna(vacuna_id, usuarioId))) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Vacuna no encontrada.' });
+        }
+        if (tratamiento_id && !(await verificarPertenenciaTratamiento(tratamiento_id, usuarioId))) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Tratamiento no encontrado.' });
         }
 
         const nuevo = await prisma.recordatorio.create({

@@ -94,9 +94,9 @@ return res.status(200).json({ codigo: 200, estado: 'ok', datos: resultado });
   devolver 404 si `count === 0` (no revelar si el registro existe en otro grupo).
 - Para registros hijos (vacuna, tratamiento, historial, adjunto, contacto, profesional) usar
   `verificarPertenenciaDirecta` / `verificarPertenencia{Vacuna,Tratamiento,Historial}`.
-- ⚠️ Pendiente conocido: en `saludController`, `registrar/listar` de vacunas y tratamientos y
-  `consultarHistorial` **no verifican pertenencia** del `integrante_id`/`mascota_id` (IDOR).
-  Cualquier endpoint nuevo debe verificar.
+- Endpoints que reciben `integrante_id`/`mascota_id` (o `vacuna_id`/`tratamiento_id`) por body o
+  query verifican que ese registro sea del grupo **antes** de leer o escribir. Ver
+  `padreEsDelUsuario` en `saludController`. Cualquier endpoint nuevo debe hacer lo mismo.
 
 ## Contrato API ↔ frontend (cuidado)
 
