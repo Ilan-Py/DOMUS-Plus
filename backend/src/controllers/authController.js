@@ -7,8 +7,8 @@ const { validarCampos } = require('../utils/validacion');
 
 // Tipo y largo de cada campo (ERR-011). Los obligatorios se chequean en cada función.
 const REGLAS_REGISTRO = {
-    nombre:   { tipo: 'texto', max: 100 },
-    apellido: { tipo: 'texto', max: 100 },
+    nombre:   { tipo: 'nombrePersona', max: 100 }, // ERR-008: sin números
+    apellido: { tipo: 'nombrePersona', max: 100 },
     email:    { tipo: 'email', max: 150 },
     password: { tipo: 'texto', max: 72, etiqueta: 'contraseña' } // bcrypt ignora lo que pase de 72
 };
