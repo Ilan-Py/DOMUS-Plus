@@ -15,9 +15,21 @@ const REGLAS_INTEGRANTE = {
     tipo:             { tipo: 'enum', valores: TIPOS_INTEGRANTE },
     observaciones:    { tipo: 'texto', max: 2000 }
 };
+// ERR-009: el tipo de sangre es uno de los 8 grupos. Antes se guardaba texto libre.
+const GRUPOS_SANGUINEOS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+// Corrige lo que se suele tipear distinto: minúsculas, espacios ("o +"), un
+// cero en vez de la letra O ("0+"), un guion largo/signo menos ("A–") o el
+// factor en palabras ("0 positivo", "AB negativo").
+function normalizarTipoSangre(valor) {
+    if (typeof valor !== 'string') return valor;
+    return valor.toUpperCase().replace(/\s+/g, '').replace(/^0/, 'O').replace(/[–—−]/g, '-')
+        .replace(/POSITIVO$/, '+').replace(/NEGATIVO$/, '-');
+}
+
 const REGLAS_EMERGENCIA = {
     alergias:         { tipo: 'texto', max: 2000 },
-    tipo_sangre:      { tipo: 'texto', max: 10, etiqueta: 'tipo de sangre' },
+    tipo_sangre:      { tipo: 'enum', valores: GRUPOS_SANGUINEOS, etiqueta: 'tipo de sangre' },
     notas_emergencia: { tipo: 'texto', max: 2000, etiqueta: 'notas de emergencia' }
 };
 const REGLAS_MASCOTA = {
@@ -454,9 +466,10 @@ async function eliminarIntegrante(req, res) {
 async function editarEmergenciaIntegrante(req, res) {
     const usuarioId    = req.usuario.id;
     const integranteId = Number(req.params.id);
-    const { alergias, tipo_sangre, notas_emergencia } = req.body;
+    const { alergias, notas_emergencia } = req.body;
+    const tipo_sangre = normalizarTipoSangre(req.body.tipo_sangre);
 
-    const errorCampos = validarCampos(req.body, REGLAS_EMERGENCIA);
+    const errorCampos = validarCampos({ ...req.body, tipo_sangre }, REGLAS_EMERGENCIA);
     if (errorCampos) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
     }
