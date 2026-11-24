@@ -6,8 +6,8 @@ const { validarCampos } = require('../utils/validacion');
 
 // Tipo y largo de cada campo (ERR-011). Los obligatorios se chequean en cada función.
 const REGLAS_CONTACTO = {
-    nombre:   { tipo: 'texto', max: 150 },
-    telefono: { tipo: 'texto', max: 30, etiqueta: 'teléfono' },
+    nombre:   { tipo: 'nombrePersona', max: 150 },               // ERR-012: sin números
+    telefono: { tipo: 'telefono', max: 30, etiqueta: 'teléfono' }, // ERR-012: formato de teléfono
     relacion: { tipo: 'texto', max: 100, etiqueta: 'relación' }
 };
 
