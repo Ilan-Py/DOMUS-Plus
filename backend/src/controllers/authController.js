@@ -161,10 +161,12 @@ async function actualizarPerfil(req, res) {
     const emailNormalizado = email.trim().toLowerCase();
 
     try {
-        // AND id != ? deja pasar el caso "no cambió el email" sin tratarlo
-        // como colisión contra la propia fila del usuario.
-        const enUso = await prisma.usuario.findUnique({
-            where: { email: emailNormalizado, id: { not: usuarioId } }
+        // Busca otro usuario con ese email: NOT deja pasar el caso "no cambió el
+        // email" sin tratarlo como colisión contra la propia fila del usuario.
+        // findFirst y no findUnique: findUnique no acepta filtros como { not }
+        // sobre el id y fallaba siempre con un 500.
+        const enUso = await prisma.usuario.findFirst({
+            where: { email: emailNormalizado, NOT: { id: usuarioId } }
         });
         if (enUso) {
             return res.status(409).json({
