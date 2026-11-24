@@ -49,9 +49,15 @@ async function registrar(req, res) {
         });
     }
 
+    // Se busca y se guarda siempre el mismo email normalizado: antes se buscaba
+    // tal cual llegaba ("ILAN@domus.test") pero se guardaba en minúsculas, así
+    // que un email repetido con otras mayúsculas pasaba el chequeo y fallaba
+    // en el insert con un 500 en vez de un 409.
+    const emailNormalizado = email.trim().toLowerCase();
+
     try {
         const existente = await prisma.usuario.findUnique({
-            where: { email }
+            where: { email: emailNormalizado }
         });
         if (existente) {
             return res.status(409).json({
@@ -65,16 +71,20 @@ async function registrar(req, res) {
         // RETURNING id — pg no tiene insertId como mysql2, hay que pedirlo
         // explícito en el INSERT.
           const nuevo = await prisma.usuario.create({
-            data: { nombre: nombre.trim(), apellido: apellido.trim(), email: email.trim().toLowerCase(), passwordHash: hash }
+            data: { nombre: nombre.trim(), apellido: apellido.trim(), email: emailNormalizado, passwordHash: hash }
         });
 
         return res.status(201).json({
             codigo: 201,
             estado: 'ok',
-            datos: { id: nuevo.id, nombre, apellido, email }
+            datos: { id: nuevo.id, nombre: nuevo.nombre, apellido: nuevo.apellido, email: nuevo.email }
         });
 
     } catch (err) {
+        // P2002 = email repetido: dos registros casi simultáneos con el mismo email
+        if (err.code === 'P2002') {
+            return res.status(409).json({ codigo: 409, estado: 'error', datos: 'El email ya está registrado.' });
+        }
         console.error('registrar=', err.message);
         return res.status(500).json({ codigo: 500, estado: 'error', datos: 'Error interno del servidor.' });
     }
