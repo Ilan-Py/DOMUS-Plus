@@ -342,11 +342,14 @@ async function listarMiembros(req, res) {
             orderBy: [{ joinedAt: 'asc' }]
         });
 
+        // En la BD el rol es 'dueno' (Prisma no admite ñ en un enum), pero la API
+        // siempre devolvió 'dueño' y la pantalla Cuenta compara contra eso para
+        // mostrar invitar, renombrar y quitar miembros. Se traduce acá.
         const datos = miembros.map((m) => ({
             usuario_id: m.usuario.id,
             nombre:     m.usuario.nombre,
             apellido:   m.usuario.apellido,
-            rol:        m.rol,
+            rol:        m.rol === 'dueno' ? 'dueño' : m.rol,
             joined_at:  m.joinedAt
         }));
 
