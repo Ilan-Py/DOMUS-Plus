@@ -26,7 +26,7 @@ enum TipoIntegrante {
 }
 
 enum RolMiembro {
-  dueno    // Prisma no admite ñ en nombres de enum — se mapea a 'dueño' en la BD con @map
+  dueno    // Prisma no admite ñ en nombres de enum: en la BD queda 'dueno'; la API lo devuelve como 'dueño' (listarMiembros)
   miembro
 
   @@map("rol_miembro")

@@ -12,10 +12,11 @@
 //     alan@domus.test  → Familia Acevedo
 //
 //   Familias para la demo:
-//     laura@domus.test (dueña) + martin@domus.test → Familia Romero
-//       5 integrantes de todas las edades, 2 mascotas y datos en todas las secciones
+//     monica@domus.test (dueña) + jose@domus.test → Familia Argento
+//       5 integrantes de todas las edades (Alfio y la abuela María Elena no tienen
+//       cuenta: se cargan igual), 3 mascotas y datos en todas las secciones
 //     pablo@domus.test (dueño) + valeria@domus.test → Familia Herrera
-//     sofia@domus.test → sin grupo: para mostrar la invitación con código
+//     paola@domus.test → sin grupo: para mostrar la invitación con código
 //
 // Las fechas de recordatorios, vacunas y tratamientos están armadas alrededor
 // del día de la presentación: martes 1 de diciembre de 2026 (FECHA_DEMO).
@@ -164,125 +165,140 @@ async function main() {
   });
 
   // ============================================================
-  // FAMILIA ROMERO — la familia de la demo
-  // Dos adultos que usan la app (Laura y Martín), dos hijos, la abuela y dos mascotas.
+  // FAMILIA ARGENTO — la familia de la demo
+  // Dos adultos que usan la app (Mónica y José), dos hijos, la abuela y tres mascotas.
+  // Integrantes y cuentas son cosas distintas: Alfio (9) y la abuela María Elena
+  // no tienen cuenta, y su salud se registra igual.
   // ============================================================
-  const laura  = await usuario('Laura', 'Romero', 'laura@domus.test');
-  const martin = await usuario('Martín', 'Romero', 'martin@domus.test');
-  // Sofía es la hija mayor: tiene cuenta pero todavía no está en ningún grupo.
-  // En la demo, Laura le pasa el código de invitación y ella se suma en vivo.
-  await usuario('Sofía', 'Romero', 'sofia@domus.test');
+  const monica = await usuario('Mónica', 'Argento', 'monica@domus.test');
+  const jose   = await usuario('José', 'Argento', 'jose@domus.test');
+  // Paola es la hija mayor: tiene cuenta pero todavía no está en ningún grupo.
+  // En la demo, Mónica le pasa el código de invitación y ella se suma en vivo.
+  await usuario('Paola', 'Argento', 'paola@domus.test');
 
-  const grupoRomero = await prisma.grupoFamiliar.create({
+  const grupoArgento = await prisma.grupoFamiliar.create({
     data: {
-      nombre: 'Familia Romero',
-      miembros: { create: [{ usuarioId: laura.id, rol: 'dueno' }, { usuarioId: martin.id, rol: 'miembro' }] }
+      nombre: 'Familia Argento',
+      miembros: { create: [{ usuarioId: monica.id, rol: 'dueno' }, { usuarioId: jose.id, rol: 'miembro' }] }
     }
   });
 
-  const lauraI = await integrante(grupoRomero.id, {
-    nombre: 'Laura', apellido: 'Romero', fechaNacimiento: '1985-04-18',
+  const monicaI = await integrante(grupoArgento.id, {
+    nombre: 'Mónica', apellido: 'Argento', fechaNacimiento: '1985-04-18',
     tipoSangre: 'A+', alergias: null, observaciones: 'Hipotiroidismo controlado.'
   });
-  await integrante(grupoRomero.id, {
-    nombre: 'Martín', apellido: 'Romero', fechaNacimiento: '1982-09-02',
+  await integrante(grupoArgento.id, {
+    nombre: 'José', apellido: 'Argento', fechaNacimiento: '1982-09-02',
     tipoSangre: 'O+', alergias: 'Polen', observaciones: null
   });
-  const sofiaI = await integrante(grupoRomero.id, {
-    nombre: 'Sofía', apellido: 'Romero', fechaNacimiento: '2007-06-10',
+  const paolaI = await integrante(grupoArgento.id, {
+    nombre: 'Paola', apellido: 'Argento', fechaNacimiento: '2007-06-10',
     tipoSangre: 'A+', alergias: null, observaciones: 'Estudia en otra ciudad.'
   });
-  const tomas = await integrante(grupoRomero.id, {
-    nombre: 'Tomás', apellido: 'Romero', fechaNacimiento: '2017-02-21',
+  const alfio = await integrante(grupoArgento.id, {
+    nombre: 'Alfio', apellido: 'Argento', fechaNacimiento: '2017-02-21',
     tipoSangre: 'O-', alergias: 'Maní, Picadura de abeja',
     notasEmergencia: 'Lleva un autoinyector de adrenalina en la mochila.',
     observaciones: 'Asma leve. Usa aerosol en invierno.'
   });
-  const elsa = await integrante(grupoRomero.id, {
-    nombre: 'Elsa', apellido: 'Fernández', fechaNacimiento: '1947-11-05',
+  const mariaElena = await integrante(grupoArgento.id, {
+    nombre: 'María Elena', apellido: 'Argento', fechaNacimiento: '1947-11-05',
     tipoSangre: 'A+', alergias: 'Penicilina, AINEs',
     notasEmergencia: 'Tiene marcapasos desde 2021. Usa audífono en el oído izquierdo.',
-    observaciones: 'Abuela materna. Vive con la familia.'
+    observaciones: 'Abuela paterna. Vive con la familia.'
   });
 
-  const coco = await prisma.mascota.create({
-    data: { grupoId: grupoRomero.id, nombre: 'Coco', especie: 'Perro', raza: 'Caniche', fechaNacimiento: new Date('2019-12-01') }
+  const fatiga = await prisma.mascota.create({
+    data: { grupoId: grupoArgento.id, nombre: 'Fatiga', especie: 'Perro', raza: 'Mestizo', fechaNacimiento: new Date('2019-12-01') }
   });
-  const pancho = await prisma.mascota.create({
-    data: { grupoId: grupoRomero.id, nombre: 'Pancho', especie: 'Conejo', raza: null, fechaNacimiento: new Date('2023-03-15') }
+  const dardo = await prisma.mascota.create({
+    data: { grupoId: grupoArgento.id, nombre: 'Dardo', especie: 'Gato', raza: null, fechaNacimiento: new Date('2023-03-15') }
+  });
+  // Conejo = especie fuera de la lista (Perro / Gato / Ave): se carga como «Otro» (MEJ-001)
+  const pelusa = await prisma.mascota.create({
+    data: { grupoId: grupoArgento.id, nombre: 'Pelusa', especie: 'Conejo', raza: 'Cabeza de león', fechaNacimiento: new Date('2024-02-10') }
   });
 
   await prisma.contactoEmergencia.createMany({
     data: [
-      { integranteId: elsa.id,  nombre: 'Laura Romero',  telefono: '+54 9 11 5555-1201', relacion: 'Hija' },
-      { integranteId: elsa.id,  nombre: 'SAME',          telefono: '107',                relacion: 'Emergencias' },
-      { integranteId: tomas.id, nombre: 'Martín Romero', telefono: '+54 9 11 5555-1202', relacion: 'Padre' },
-      { integranteId: tomas.id, nombre: 'Enfermería escolar', telefono: '(011) 4555-3300', relacion: 'Escuela' },
+      { integranteId: mariaElena.id,  nombre: 'Mónica Argento', telefono: '+54 9 11 5555-1201', relacion: 'Hija' },
+      { integranteId: mariaElena.id,  nombre: 'SAME',          telefono: '107',                relacion: 'Emergencias' },
+      { integranteId: alfio.id, nombre: 'José Argento',   telefono: '+54 9 11 5555-1202', relacion: 'Padre' },
+      { integranteId: alfio.id, nombre: 'Enfermería escolar', telefono: '(011) 4555-3300', relacion: 'Escuela' },
+      // Dato viejo a propósito: en la demo se borra (la vecina se mudó)
+      { integranteId: mariaElena.id, nombre: 'Rosa Benítez', telefono: '(011) 4555-0099', relacion: 'Vecina (se mudó)' },
     ]
   });
 
   await prisma.profesionalSalud.createMany({
     data: [
-      { integranteId: elsa.id,  nombre: 'Dra. Marta Ruiz',     especialidad: 'Cardiología',   telefono: '(011) 4800-2210', direccion: 'Av. Santa Fe 2450, CABA', notas: 'Control del marcapasos cada 6 meses.' },
-      { integranteId: tomas.id, nombre: 'Dr. Andrés Paz',      especialidad: 'Pediatría',     telefono: '(011) 4700-1180', direccion: 'Cabildo 1900, CABA', notas: null },
-      { integranteId: lauraI.id, nombre: 'Dra. Paula Ibarra',  especialidad: 'Medicina general', telefono: '(011) 4600-5520', direccion: null, notas: null },
-      { mascotaId: coco.id,     nombre: 'Veterinaria Patitas', especialidad: 'Veterinario',   telefono: '(011) 4300-7788', direccion: 'Cramer 3300, CABA', notas: 'Atiende también exóticos (Pancho).' },
+      { integranteId: mariaElena.id,  nombre: 'Dra. Marta Ruiz',     especialidad: 'Cardiología',   telefono: '(011) 4800-2210', direccion: 'Av. Santa Fe 2450, CABA', notas: 'Control del marcapasos cada 6 meses.' },
+      { integranteId: alfio.id, nombre: 'Dr. Andrés Paz',      especialidad: 'Pediatría',     telefono: '(011) 4700-1180', direccion: 'Cabildo 1900, CABA', notas: null },
+      { integranteId: monicaI.id, nombre: 'Dra. Paula Ibarra',  especialidad: 'Medicina general', telefono: '(011) 4600-5520', direccion: null, notas: null },
+      { mascotaId: fatiga.id,     nombre: 'Veterinaria Patitas', especialidad: 'Veterinario',   telefono: '(011) 4300-7788', direccion: 'Cramer 3300, CABA', notas: 'Atiende también a Dardo y a Pelusa (exóticos).' },
     ]
   });
 
   const tripleViral = await prisma.vacuna.create({
-    data: { integranteId: tomas.id, nombre: 'Triple viral (refuerzo)', fechaAplicacion: diaRelativo(-1100), proximaDosis: diaRelativo(20), notas: 'Refuerzo de ingreso escolar.' }
+    data: { integranteId: alfio.id, nombre: 'Triple viral (refuerzo)', fechaAplicacion: diaRelativo(-1100), proximaDosis: diaRelativo(20), notas: 'Refuerzo de ingreso escolar.' }
   });
   await prisma.vacuna.create({
-    data: { integranteId: elsa.id, nombre: 'Antigripal', fechaAplicacion: diaRelativo(-230), proximaDosis: diaRelativo(135), notas: 'Vacunatorio del barrio.' }
+    data: { integranteId: mariaElena.id, nombre: 'Antigripal', fechaAplicacion: diaRelativo(-230), proximaDosis: diaRelativo(135), notas: 'Vacunatorio del barrio.' }
   });
   await prisma.vacuna.create({
-    data: { integranteId: elsa.id, nombre: 'Neumococo (VNC20)', fechaAplicacion: diaRelativo(-400), notas: 'Dosis única.' }
+    data: { integranteId: mariaElena.id, nombre: 'Neumococo (VNC20)', fechaAplicacion: diaRelativo(-400), notas: 'Dosis única.' }
   });
   await prisma.vacuna.create({
-    data: { integranteId: sofiaI.id, nombre: 'Hepatitis B', fechaAplicacion: diaRelativo(-60), proximaDosis: diaRelativo(120), notas: 'Segunda dosis del esquema.' }
+    data: { integranteId: paolaI.id, nombre: 'Hepatitis B', fechaAplicacion: diaRelativo(-60), proximaDosis: diaRelativo(120), notas: 'Segunda dosis del esquema.' }
   });
-  const antirrabicaCoco = await prisma.vacuna.create({
-    data: { mascotaId: coco.id, nombre: 'Antirrábica', fechaAplicacion: diaRelativo(-320), proximaDosis: diaRelativo(45) }
+  // Error de tipeo a propósito ("felna"): en la demo se corrige editando la vacuna
+  await prisma.vacuna.create({
+    data: { mascotaId: dardo.id, nombre: 'Triple felna', fechaAplicacion: diaRelativo(-90), proximaDosis: diaRelativo(275) }
+  });
+  const antirrabicaFatiga = await prisma.vacuna.create({
+    data: { mascotaId: fatiga.id, nombre: 'Antirrábica', fechaAplicacion: diaRelativo(-320), proximaDosis: diaRelativo(45) }
   });
 
   const losartan = await prisma.tratamiento.create({
-    data: { integranteId: elsa.id, descripcion: 'Control de presión arterial', medicacion: 'Losartán 50 mg — 1 comprimido por la mañana', fechaInicio: new Date('2022-03-01') }
+    data: { integranteId: mariaElena.id, descripcion: 'Control de presión arterial', medicacion: 'Losartán 50 mg — 1 comprimido por la mañana', fechaInicio: new Date('2022-03-01') }
   });
   const amoxicilina = await prisma.tratamiento.create({
-    data: { integranteId: tomas.id, descripcion: 'Otitis media', medicacion: 'Amoxicilina 500 mg — cada 8 horas', fechaInicio: diaRelativo(-3), fechaFin: diaRelativo(4) }
+    data: { integranteId: alfio.id, descripcion: 'Otitis media', medicacion: 'Amoxicilina 500 mg — cada 8 horas', fechaInicio: diaRelativo(-3), fechaFin: diaRelativo(4) }
   });
   await prisma.tratamiento.create({
-    data: { integranteId: lauraI.id, descripcion: 'Hipotiroidismo', medicacion: 'Levotiroxina 50 mcg — en ayunas', fechaInicio: new Date('2019-08-01') }
+    data: { integranteId: monicaI.id, descripcion: 'Hipotiroidismo', medicacion: 'Levotiroxina 50 mcg — en ayunas', fechaInicio: new Date('2019-08-01') }
   });
   await prisma.tratamiento.create({
-    data: { mascotaId: pancho.id, descripcion: 'Control de dientes', medicacion: 'Heno sin límite y revisión mensual', fechaInicio: diaRelativo(-30) }
+    data: { mascotaId: dardo.id, descripcion: 'Control de peso', medicacion: 'Alimento light — 60 g por día', fechaInicio: diaRelativo(-30) }
+  });
+  await prisma.tratamiento.create({
+    data: { mascotaId: pelusa.id, descripcion: 'Control de dientes', medicacion: 'Heno sin límite y revisión mensual', fechaInicio: diaRelativo(-20) }
   });
 
   await prisma.historial.createMany({
     data: [
-      { integranteId: elsa.id,  evento: 'Control cardiológico',   fecha: diaRelativo(-60),  descripcion: 'Marcapasos funcionando bien. Presión 135/80.' },
-      { integranteId: elsa.id,  evento: 'Colocación de marcapasos', fecha: new Date('2021-05-12'), descripcion: 'Hospital Fernández. Alta a los 3 días.' },
-      { integranteId: elsa.id,  evento: 'Análisis de sangre',     fecha: diaRelativo(-120), descripcion: 'Colesterol levemente alto. Se indica dieta.' },
-      { integranteId: tomas.id, evento: 'Consulta por otitis',    fecha: diaRelativo(-3),   descripcion: 'Dolor de oído derecho. Se indica amoxicilina 7 días.' },
-      { integranteId: tomas.id, evento: 'Control pediátrico',     fecha: diaRelativo(-150), descripcion: 'Peso y talla normales. Se recuerda refuerzo de triple viral.' },
-      { mascotaId: coco.id,     evento: 'Castración',             fecha: new Date('2021-02-10'), descripcion: 'Sin complicaciones.' },
+      { integranteId: mariaElena.id,  evento: 'Control cardiológico',   fecha: diaRelativo(-60),  descripcion: 'Marcapasos funcionando bien. Presión 135/80.' },
+      { integranteId: mariaElena.id,  evento: 'Colocación de marcapasos', fecha: new Date('2021-05-12'), descripcion: 'Hospital Fernández. Alta a los 3 días.' },
+      { integranteId: mariaElena.id,  evento: 'Análisis de sangre',     fecha: diaRelativo(-120), descripcion: 'Colesterol levemente alto. Se indica dieta.' },
+      { integranteId: alfio.id, evento: 'Consulta por otitis',    fecha: diaRelativo(-3),   descripcion: 'Dolor de oído derecho. Se indica amoxicilina 7 días.' },
+      { integranteId: alfio.id, evento: 'Control pediátrico',     fecha: diaRelativo(-150), descripcion: 'Peso y talla normales. Se recuerda refuerzo de triple viral.' },
+      { mascotaId: fatiga.id,     evento: 'Castración',             fecha: new Date('2021-02-10'), descripcion: 'Sin complicaciones.' },
     ]
   });
 
   await prisma.recordatorio.createMany({
     data: [
       // Puntuales
-      { grupoId: grupoRomero.id, creadoPor: laura.id,  tipo: 'control', fechaHora: enDias(3, '16:30'), descripcion: 'Turno con la cardióloga — Elsa' },
-      { grupoId: grupoRomero.id, creadoPor: martin.id, vacunaId: tripleViral.id, tipo: 'vacuna', fechaHora: enDias(20, '10:00'), descripcion: 'Refuerzo triple viral — Tomás' },
-      { grupoId: grupoRomero.id, creadoPor: laura.id,  vacunaId: antirrabicaCoco.id, tipo: 'vacuna', fechaHora: enDias(45, '18:00'), descripcion: 'Antirrábica de Coco' },
-      { grupoId: grupoRomero.id, creadoPor: martin.id, tipo: 'control', fechaHora: enDias(14, '11:00'), descripcion: 'Control pediátrico — Tomás' },
-      { grupoId: grupoRomero.id, creadoPor: laura.id,  tipo: 'control', fechaHora: enDias(8, '09:30'), descripcion: 'Análisis de sangre en ayunas — Laura', activo: false },
+      { grupoId: grupoArgento.id, creadoPor: monica.id,  tipo: 'control', fechaHora: enDias(3, '16:30'), descripcion: 'Turno con la cardióloga — María Elena' },
+      { grupoId: grupoArgento.id, creadoPor: jose.id, vacunaId: tripleViral.id, tipo: 'vacuna', fechaHora: enDias(20, '10:00'), descripcion: 'Refuerzo triple viral — Alfio' },
+      { grupoId: grupoArgento.id, creadoPor: monica.id,  vacunaId: antirrabicaFatiga.id, tipo: 'vacuna', fechaHora: enDias(45, '18:00'), descripcion: 'Antirrábica de Fatiga' },
+      { grupoId: grupoArgento.id, creadoPor: jose.id, tipo: 'control', fechaHora: enDias(14, '11:00'), descripcion: 'Control pediátrico — Alfio' },
+      { grupoId: grupoArgento.id, creadoPor: monica.id,  tipo: 'control', fechaHora: enDias(8, '09:30'), descripcion: 'Análisis de sangre en ayunas — Mónica', activo: false },
       // Periódicos (MEJ-005)
-      ...serie({ grupoId: grupoRomero.id, creadoPor: martin.id, tratamientoId: amoxicilina.id, tipo: 'medicacion',
-                 descripcion: 'Amoxicilina de Tomás', desdeDias: 0, hora: '20:00', cadaDias: 1, veces: 5 }),
-      ...serie({ grupoId: grupoRomero.id, creadoPor: laura.id, tratamientoId: losartan.id, tipo: 'control',
-                 descripcion: 'Tomar la presión a Elsa', desdeDias: 1, hora: '09:00', cadaDias: 7, veces: 8 }),
+      ...serie({ grupoId: grupoArgento.id, creadoPor: jose.id, tratamientoId: amoxicilina.id, tipo: 'medicacion',
+                 descripcion: 'Amoxicilina de Alfio', desdeDias: 0, hora: '20:00', cadaDias: 1, veces: 5 }),
+      ...serie({ grupoId: grupoArgento.id, creadoPor: monica.id, tratamientoId: losartan.id, tipo: 'control',
+                 descripcion: 'Tomar la presión a María Elena', desdeDias: 1, hora: '09:00', cadaDias: 7, veces: 8 }),
     ]
   });
 
