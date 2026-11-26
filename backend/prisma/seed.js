@@ -18,6 +18,12 @@
 //     pablo@domus.test (dueño) + valeria@domus.test → Familia Herrera
 //     paola@domus.test → sin grupo: para mostrar la invitación con código
 //
+//   Administrador del sistema (rol 'admin', sin familia):
+//     admin@domus.test → ve el registro de actividad y las estadísticas generales,
+//       nunca los datos médicos de las familias. Panel en http://localhost:3000/admin
+//   El registro de actividad trae ingresos y altas del 24 al 30/11 (y el alta de Paola
+//   el 1/12) para que el panel no arranque vacío.
+//
 // Las fechas de recordatorios, vacunas y tratamientos están armadas alrededor
 // del día de la presentación: martes 1 de diciembre de 2026 (FECHA_DEMO).
 // Ese día hay recordatorios próximos, tratamientos en curso y vacunas por
@@ -79,15 +85,16 @@ async function main() {
   console.log('Sembrando datos de prueba...');
 
   const hash = await bcrypt.hash('Admin123', 10);
-  const usuario = (nombre, apellido, email) =>
-    prisma.usuario.create({ data: { nombre, apellido, email, passwordHash: hash } });
+  // creadoEn: fecha de alta de la cuenta, para las estadísticas del admin (nuevos usuarios del mes)
+  const usuario = (nombre, apellido, email, creadoEn) =>
+    prisma.usuario.create({ data: { nombre, apellido, email, passwordHash: hash, createdAt: creadoEn } });
 
   // ============================================================
   // FAMILIAS DEL EQUIPO (igual que antes, recordatorios con fechas de hoy en adelante)
   // ============================================================
-  const ilan = await usuario('Ilan', 'Pitashny', 'ilan@domus.test');
-  const agus = await usuario('Agustina', 'Di Pasquale', 'agus@domus.test');
-  const alan = await usuario('Alan', 'Acevedo', 'alan@domus.test');
+  const ilan = await usuario('Ilan', 'Pitashny', 'ilan@domus.test', enDias(-82, '10:00'));
+  const agus = await usuario('Agustina', 'Di Pasquale', 'agus@domus.test', enDias(-82, '10:20'));
+  const alan = await usuario('Alan', 'Acevedo', 'alan@domus.test', enDias(-81, '18:45'));
 
   const grupoPitashny = await prisma.grupoFamiliar.create({
     data: { nombre: 'Familia Pitashny', miembros: { create: { usuarioId: ilan.id, rol: 'dueno' } } }
@@ -120,6 +127,15 @@ async function main() {
   });
   await prisma.mascota.create({
     data: { grupoId: grupoAcevedo.id, nombre: 'Bruno', especie: 'Perro', raza: 'Border Collie', fechaNacimiento: new Date('2021-02-20') }
+  });
+  // Especies escritas a mano con "Otro", con y sin acento: en las estadísticas del
+  // admin cuentan como una sola especie ("Hámster").
+  await prisma.mascota.createMany({
+    data: [
+      { grupoId: grupoPitashny.id, nombre: 'Copito', especie: 'Hámster', raza: null, fechaNacimiento: new Date('2025-08-01') },
+      { grupoId: grupoDiPasquale.id, nombre: 'Tito', especie: 'Hamster', raza: null, fechaNacimiento: new Date('2025-03-12') },
+      { grupoId: grupoAcevedo.id, nombre: 'Pancha', especie: 'Tortuga', raza: 'Tortuga de tierra', fechaNacimiento: null }
+    ]
   });
 
   await prisma.vacuna.create({
@@ -170,11 +186,12 @@ async function main() {
   // Integrantes y cuentas son cosas distintas: Alfio (9) y la abuela María Elena
   // no tienen cuenta, y su salud se registra igual.
   // ============================================================
-  const monica = await usuario('Mónica', 'Argento', 'monica@domus.test');
-  const jose   = await usuario('José', 'Argento', 'jose@domus.test');
+  const monica = await usuario('Mónica', 'Argento', 'monica@domus.test', enDias(-28, '21:10'));
+  const jose   = await usuario('José', 'Argento', 'jose@domus.test', enDias(-27, '08:05'));
   // Paola es la hija mayor: tiene cuenta pero todavía no está en ningún grupo.
   // En la demo, Mónica le pasa el código de invitación y ella se suma en vivo.
-  await usuario('Paola', 'Argento', 'paola@domus.test');
+  // Creó la cuenta la mañana de la demo: es la "nueva usuaria del mes" del panel del admin.
+  const paola = await usuario('Paola', 'Argento', 'paola@domus.test', enDias(0, '08:30'));
 
   const grupoArgento = await prisma.grupoFamiliar.create({
     data: {
@@ -306,8 +323,8 @@ async function main() {
   // FAMILIA HERRERA — segunda familia con dos usuarios
   // Sirve para mostrar que una familia no ve los datos de otra.
   // ============================================================
-  const pablo   = await usuario('Pablo', 'Herrera', 'pablo@domus.test');
-  const valeria = await usuario('Valeria', 'Herrera', 'valeria@domus.test');
+  const pablo   = await usuario('Pablo', 'Herrera', 'pablo@domus.test', enDias(-45, '19:30'));
+  const valeria = await usuario('Valeria', 'Herrera', 'valeria@domus.test', enDias(-44, '12:15'));
 
   const grupoHerrera = await prisma.grupoFamiliar.create({
     data: {
@@ -338,6 +355,73 @@ async function main() {
       { grupoId: grupoHerrera.id, creadoPor: pablo.id, tipo: 'control', fechaHora: enDias(7, '17:00'), descripcion: 'Pediatra — control de Lucas' },
     ]
   });
+
+  // ============================================================
+  // ADMINISTRADOR DEL SISTEMA (sin familia; va al final para no correr los ids del resto)
+  // ============================================================
+  await prisma.usuario.create({
+    data: { nombre: 'Admin', apellido: 'DOMUS', email: 'admin@domus.test', passwordHash: hash, rol: 'admin', createdAt: enDias(-90, '09:00') }
+  });
+
+  // ============================================================
+  // ACTIVIDAD DE LA SEMANA PREVIA A LA DEMO (registro de actividad del admin)
+  // Para que el panel no arranque vacío: ingresos y altas del 24 al 30 de noviembre.
+  // Las altas apuntan a registros reales de este seed; nunca se guarda su contenido.
+  // ============================================================
+  const actividad = [];
+  const registrar = (usuarioId, accion, fecha, entidad = null, entidadId = null) =>
+    actividad.push({ usuarioId, accion, fecha, entidad, entidadId });
+
+  // Ingresos: cada usuario con los días (antes de la demo) en que entró
+  const ingresos = [
+    [monica, [7, 6, 5, 4, 3, 2, 1]], [jose, [7, 5, 4, 2, 1]],
+    [pablo, [6, 3, 1]], [valeria, [4]],
+    [ilan, [5, 2]], [agus, [3]], [alan, [6]]
+  ];
+  ingresos.forEach(([u, dias], i) => dias.forEach((d) =>
+    registrar(u.id, 'login', enDias(-d, `${8 + i}:${String((d * 7) % 60).padStart(2, '0')}`))));
+
+  // Altas: lo que cada familia "cargó" esa semana, repartido entre sus cuentas
+  async function altasDeFamilia(grupo, autores) {
+    const g = grupo.id;
+    const deFamilia = { OR: [{ integrante: { grupoId: g } }, { mascota: { grupoId: g } }] };
+    const soloId = { select: { id: true }, orderBy: { id: 'asc' } };
+    const listas = [
+      ['integrante', await prisma.integrante.findMany({ where: { grupoId: g }, ...soloId })],
+      ['mascota', await prisma.mascota.findMany({ where: { grupoId: g }, ...soloId })],
+      ['contacto_emergencia', await prisma.contactoEmergencia.findMany({ where: { integrante: { grupoId: g } }, ...soloId })],
+      ['profesional', await prisma.profesionalSalud.findMany({ where: deFamilia, ...soloId })],
+      ['vacuna', await prisma.vacuna.findMany({ where: deFamilia, ...soloId })],
+      ['tratamiento', await prisma.tratamiento.findMany({ where: deFamilia, ...soloId })]
+    ];
+    // Una serie de recordatorios se crea con un solo pedido: cuenta como una sola alta
+    const recordatorios = await prisma.recordatorio.findMany({
+      where: { grupoId: g }, select: { id: true, serieId: true, creadoPor: true }, orderBy: { id: 'asc' }
+    });
+    const series = new Set();
+    const primeros = recordatorios.filter((r) => !r.serieId || (!series.has(r.serieId) && series.add(r.serieId)));
+
+    const items = listas.flatMap(([entidad, filas]) => filas.map((f) => ({ entidad, id: f.id })));
+    primeros.forEach((r) => items.push({ entidad: 'recordatorio', id: r.id, autor: r.creadoPor }));
+    items.forEach((it, k) => {
+      const dia = 7 - Math.floor((k * 7) / items.length); // del 7 al 1 antes de la demo
+      const hora = `${10 + (k % 11)}:${String((k * 13) % 60).padStart(2, '0')}`;
+      registrar(it.autor || autores[k % autores.length].id, 'alta', enDias(-dia, hora), it.entidad, it.id);
+    });
+  }
+  await altasDeFamilia(grupoArgento, [monica, jose]);
+  await altasDeFamilia(grupoHerrera, [pablo, valeria]);
+
+  // Algunas modificaciones y bajas
+  registrar(monica.id, 'modificacion', enDias(-5, '22:40'), 'perfil');
+  registrar(monica.id, 'modificacion', enDias(-3, '19:05'), 'ficha_emergencia', alfio.id);
+  registrar(jose.id, 'modificacion', enDias(-2, '13:20'), 'mascota', dardo.id);
+  registrar(pablo.id, 'modificacion', enDias(-3, '20:10'), 'integrante', lucas.id);
+  registrar(jose.id, 'eliminacion', enDias(-4, '09:35'), 'recordatorio');
+  registrar(monica.id, 'eliminacion', enDias(-1, '18:50'), 'contacto_emergencia');
+  registrar(paola.id, 'alta', enDias(0, '08:30'), 'usuario', paola.id);
+
+  await prisma.registroActividad.createMany({ data: actividad });
 
   console.log('Datos de prueba cargados correctamente.');
 }

@@ -2,6 +2,7 @@
 //1 — Controlador de autenticacion (CU1 y CU2)
 const bcrypt = require('bcryptjs');
 const jwt    = require('jsonwebtoken');
+const { registrarAccion } = require('../utils/actividad');
 const prisma = require('../config/prisma');
 const { validarCampos } = require('../utils/validacion');
 
@@ -124,6 +125,8 @@ async function login(req, res) {
             });
         }
 
+        registrarAccion(usuario.id, 'login');
+
         const token = jwt.sign(
             { id: usuario.id, email: usuario.email },
             process.env.JWT_SECRET,
@@ -139,7 +142,8 @@ async function login(req, res) {
                     id:       usuario.id,
                     nombre:   usuario.nombre,
                     apellido: usuario.apellido,
-                    email:    usuario.email
+                    email:    usuario.email,
+                    rol:      usuario.rol // 'usuario' | 'admin'
                 }
             }
         });

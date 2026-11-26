@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DOMUS+ | Panel de administración</title>
+<link rel="icon" href="data:,">
+<!--
+  Panel rudimentario del administrador, servido por el backend en /admin.
+  Sólo usa la API (/api/auth/login y /api/admin/*); se va a reemplazar en el revamp del front.
+-->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: #f4f6f8; color: #1f2933; }
+  header { background: #1f3a5f; color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 16px; }
+  header h1 { font-size: 18px; margin: 0; flex: 1; }
+  header button { background: transparent; color: #fff; border: 1px solid #ffffff88; }
+  main { max-width: 1100px; margin: 0 auto; padding: 20px 24px 40px; }
+  button { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid #c3ccd5; background: #fff; cursor: pointer; }
+  button.principal { background: #1f3a5f; color: #fff; border-color: #1f3a5f; }
+  button:disabled { opacity: .5; cursor: default; }
+  input, select { font: inherit; padding: 7px 9px; border: 1px solid #c3ccd5; border-radius: 6px; background: #fff; }
+  .oculto { display: none !important; }
+  .error { color: #b42318; margin: 8px 0; min-height: 1.2em; }
+  .nota { color: #5f6b7a; font-size: 13px; }
+
+  #login { max-width: 360px; margin: 80px auto; background: #fff; padding: 28px; border-radius: 10px; box-shadow: 0 1px 4px #0001; }
+  #login h2 { margin: 0 0 16px; font-size: 20px; }
+  #login label { display: block; font-size: 13px; margin: 12px 0 4px; }
+  #login input { width: 100%; }
+  #login button { width: 100%; margin-top: 18px; }
+
+  .pestanas { display: flex; gap: 8px; margin-bottom: 18px; align-items: center; }
+  .pestanas button.activa { background: #1f3a5f; color: #fff; border-color: #1f3a5f; }
+  .pestanas .derecha { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+  .tarjetas { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .tarjeta { background: #fff; border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 3px #0001; }
+  .tarjeta .valor { font-size: 28px; font-weight: 700; color: #1f3a5f; }
+  .tarjeta .nombre { font-size: 13px; color: #5f6b7a; }
+
+  .graficos { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 1px 3px #0001; }
+  .panel h3 { margin: 0 0 12px; font-size: 15px; }
+  .barra { display: grid; grid-template-columns: 120px 1fr 40px; align-items: center; gap: 8px; margin: 6px 0; font-size: 14px; }
+  .barra .pista { background: #edf1f5; border-radius: 4px; height: 18px; overflow: hidden; }
+  .barra .relleno { background: #3b6ea5; height: 100%; }
+  .barra .cantidad { text-align: right; font-variant-numeric: tabular-nums; }
+  .columnas { display: flex; align-items: flex-end; gap: 6px; height: 170px; padding-top: 16px; }
+  .columna { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; font-size: 12px; min-width: 0; }
+  .columna .relleno { width: 100%; max-width: 46px; background: #3b6ea5; border-radius: 4px 4px 0 0; }
+  .columna .fecha { color: #5f6b7a; margin-top: 4px; white-space: nowrap; }
+  .vacio { color: #5f6b7a; font-size: 14px; }
+
+  .filtros { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin-bottom: 12px; }
+  .filtros label { font-size: 12px; color: #5f6b7a; display: flex; flex-direction: column; gap: 3px; }
+  table { width: 100%; border-collapse: collapse; background: #fff; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e4e8ec; }
+  th { background: #e7f1fb; font-weight: 600; }
+  td button { padding: 3px 9px; font-size: 13px; }
+  .paginado { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>DOMUS+ · Panel de administración</h1>
+  <span id="quien" class="oculto"></span>
+  <button id="salir" class="oculto" type="button">Salir</button>
+</header>
+
+<main>
+  <!-- Ingreso -->
+  <form id="login">
+    <h2>Ingreso de administrador</h2>
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="username" required>
+    <label for="password">Contraseña</label>
+    <input id="password" type="password" autocomplete="current-password" required>
+    <button class="principal" type="submit">Ingresar</button>
+    <p class="error" id="errorLogin"></p>
+  </form>
+
+  <section id="panel" class="oculto">
+    <div class="pestanas">
+      <button type="button" data-pestana="estadisticas" class="activa">Estadísticas</button>
+      <button type="button" data-pestana="historial">Historial de actividad</button>
+      <div class="derecha" id="selectorPeriodo">
+        <label class="nota" for="dias">Período</label>
+        <select id="dias">
+          <option value="7">Últimos 7 días</option>
+          <option value="30">Últimos 30 días</option>
+          <option value="90">Últimos 90 días</option>
+        </select>
+      </div>
+    </div>
+    <p class="error" id="errorPanel"></p>
+
+    <!-- Estadísticas (sólo valores globales) -->
+    <div id="estadisticas">
+      <div class="tarjetas" id="tarjetas"></div>
+      <div class="graficos">
+        <div class="panel"><h3 id="tituloActividad">Acciones por día</h3><div id="graficoDias"></div></div>
+        <div class="panel"><h3>Acciones por categoría</h3><div id="graficoCategorias"></div></div>
+        <div class="panel"><h3>Integrantes por categoría</h3><div id="graficoIntegrantes"></div></div>
+        <div class="panel"><h3>Mascotas por especie</h3><div id="graficoMascotas"></div></div>
+      </div>
+      <p class="nota" id="pieEstadisticas"></p>
+    </div>
+
+    <!-- Historial individual (separado de las estadísticas) -->
+    <div id="historial" class="oculto">
+      <form class="filtros" id="filtros">
+        <label>Cuenta (id)<input name="usuario_id" type="number" min="1" style="width:90px"></label>
+        <label>Acción
+          <select name="accion">
+            <option value="">Todas</option>
+            <option value="login">Inicio de sesión</option>
+            <option value="alta">Alta</option>
+            <option value="modificacion">Modificación</option>
+            <option value="eliminacion">Eliminación</option>
+            <option value="consulta">Identificación de cuenta</option>
+          </select>
+        </label>
+        <label>Desde<input name="desde" type="date"></label>
+        <label>Hasta<input name="hasta" type="date"></label>
+        <button class="principal" type="submit">Filtrar</button>
+        <button type="reset">Limpiar</button>
+      </form>
+      <table>
+        <thead><tr><th>Fecha</th><th>Cuenta</th><th>Acción</th><th>Sobre qué</th><th>Detalle</th><th></th></tr></thead>
+        <tbody id="filas"></tbody>
+      </table>
+      <div class="paginado">
+        <button type="button" id="anterior">Anterior</button>
+        <span id="pagina" class="nota"></span>
+        <button type="button" id="siguiente">Siguiente</button>
+      </div>
+      <p class="nota">Las cuentas se muestran por id. «Identificar» muestra el nombre y el email y pide un motivo, que queda registrado.</p>
+    </div>
+  </section>
+</main>
+
+<script>
+const API = '/api';
+const NOMBRE_ACCION = { login: 'Inicio de sesión', alta: 'Alta', modificacion: 'Modificación', eliminacion: 'Eliminación', consulta: 'Identificación de cuenta' };
+const NOMBRE_ENTIDAD = {
+  usuario: 'cuenta', perfil: 'perfil', 'contraseña': 'contraseña', grupo: 'grupo', invitacion: 'invitación',
+  miembro: 'miembro del grupo', integrante: 'integrante', ficha_emergencia: 'ficha de emergencia',
+  contacto_emergencia: 'contacto de emergencia', mascota: 'mascota', vacuna: 'vacuna', tratamiento: 'tratamiento',
+  profesional: 'profesional', recordatorio: 'recordatorio', adjunto: 'adjunto'
+};
+
+// El token vive sólo en esta pestaña (sessionStorage puede no estar disponible)
+let token = null;
+try { token = sessionStorage.getItem('domusAdminToken'); } catch (e) {}
+function guardarToken(t) { token = t; try { t ? sessionStorage.setItem('domusAdminToken', t) : sessionStorage.removeItem('domusAdminToken'); } catch (e) {} }
+
+const $ = (id) => document.getElementById(id);
+function texto(valor) { const span = document.createElement('span'); span.textContent = valor; return span.innerHTML; }
+
+async function pedir(ruta) {
+  const r = await fetch(API + ruta, { headers: { Authorization: 'Bearer ' + token } });
+  const cuerpo = await r.json().catch(() => ({}));
+  if (r.status === 401 || r.status === 403) { salir(); throw new Error('Tu sesión no es de administrador o venció.'); }
+  if (!r.ok) throw new Error(cuerpo.datos || 'Error ' + r.status);
+  return cuerpo.datos;
+}
+
+// ---------- ingreso
+$('login').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('errorLogin').textContent = '';
+  try {
+    const r = await fetch(API + '/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: $('email').value, password: $('password').value })
+    });
+    const cuerpo = await r.json();
+    if (!r.ok) throw new Error(cuerpo.datos || 'No se pudo ingresar.');
+    if (cuerpo.datos.usuario.rol !== 'admin') throw new Error('Esta cuenta no es de administrador.');
+    guardarToken(cuerpo.datos.token);
+    $('password').value = '';
+    mostrarPanel(cuerpo.datos.usuario.email);
+  } catch (err) { $('errorLogin').textContent = err.message; }
+});
+
+function mostrarPanel(email) {
+  $('login').classList.add('oculto');
+  $('panel').classList.remove('oculto');
+  $('salir').classList.remove('oculto');
+  if (email) { $('quien').textContent = email; $('quien').classList.remove('oculto'); }
+  cargarEstadisticas();
+}
+function salir() {
+  guardarToken(null);
+  $('panel').classList.add('oculto');
+  $('salir').classList.add('oculto');
+  $('quien').classList.add('oculto');
+  $('login').classList.remove('oculto');
+}
+$('salir').addEventListener('click', salir);
+
+// ---------- pestañas
+document.querySelectorAll('[data-pestana]').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-pestana]').forEach((x) => x.classList.toggle('activa', x === b));
+  const esHistorial = b.dataset.pestana === 'historial';
+  $('estadisticas').classList.toggle('oculto', esHistorial);
+  $('historial').classList.toggle('oculto', !esHistorial);
+  $('selectorPeriodo').classList.toggle('oculto', esHistorial);
+  $('errorPanel').textContent = '';
+  esHistorial ? cargarHistorial(1) : cargarEstadisticas();
+}));
+
+// ---------- estadísticas
+function barras(contenedor, filas) {
+  const max = Math.max(1, ...filas.map((f) => f.cantidad));
+  contenedor.innerHTML = filas.length ? filas.map((f) => `
+    <div class="barra"><span>${texto(f.nombre)}</span>
+      <div class="pista"><div class="relleno" style="width:${(f.cantidad / max) * 100}%"></div></div>
+      <span class="cantidad">${f.cantidad}</span></div>`).join('') : '<p class="vacio">Sin datos.</p>';
+}
+function columnas(contenedor, dias) {
+  const max = Math.max(1, ...dias.map((d) => d.cantidad));
+  const cadaCuanto = dias.length > 31 ? 7 : dias.length > 10 ? 3 : 1; // etiquetas legibles en 30 y 90 días
+  contenedor.innerHTML = '<div class="columnas">' + dias.map((d, i) => {
+    const [, mes, dia] = d.fecha.split('-');
+    return `<div class="columna" title="${dia}/${mes}: ${d.cantidad} acciones">
+      <span>${dias.length <= 10 ? d.cantidad : ''}</span>
+      <div class="relleno" style="height:${(d.cantidad / max) * 100}%"></div>
+      <span class="fecha">${i % cadaCuanto === 0 ? dia + '/' + mes : '&nbsp;'}</span></div>`;
+  }).join('') + '</div>';
+}
+
+async function cargarEstadisticas() {
+  $('errorPanel').textContent = '';
+  try {
+    const e = await pedir('/admin/estadisticas?dias=' + $('dias').value);
+    const tarjetas = [
+      ['Usuarios registrados', e.usuarios.total],
+      ['Activos últimos 7 días', e.usuarios.activos_ultimos_7_dias],
+      ['Nuevos del mes', e.usuarios.nuevos_mes],
+      ['Grupos familiares', e.grupos.total],
+      ['Cuentas por grupo (prom.)', e.grupos.promedio_cuentas_por_grupo.toLocaleString('es-AR')],
+      ['Adjuntos', e.adjuntos.total]
+    ];
+    $('tarjetas').innerHTML = tarjetas.map(([n, v]) => `<div class="tarjeta"><div class="valor">${v}</div><div class="nombre">${n}</div></div>`).join('');
+
+    $('tituloActividad').textContent = `Acciones por día (últimos ${e.actividad.dias} días)`;
+    columnas($('graficoDias'), e.actividad.acciones_por_dia);
+    const c = e.actividad.acciones_por_categoria;
+    barras($('graficoCategorias'), [
+      { nombre: 'Inicios de sesión', cantidad: c.login }, { nombre: 'Altas', cantidad: c.alta },
+      { nombre: 'Modificaciones', cantidad: c.modificacion }, { nombre: 'Eliminaciones', cantidad: c.eliminacion }
+    ]);
+    barras($('graficoIntegrantes'), [
+      { nombre: 'Menores', cantidad: e.integrantes.menores }, { nombre: 'Adultos', cantidad: e.integrantes.adultos },
+      { nombre: 'Mayores', cantidad: e.integrantes.mayores }
+    ]);
+    barras($('graficoMascotas'), e.mascotas.por_especie.map((m) => ({ nombre: m.especie, cantidad: m.cantidad })));
+    $('pieEstadisticas').textContent = `Valores globales de toda la plataforma, sin datos de familias en particular. Actualizado: ${new Date().toLocaleString('es-AR')}.`;
+  } catch (err) { $('errorPanel').textContent = err.message; }
+}
+$('dias').addEventListener('change', cargarEstadisticas);
+
+// ---------- historial
+let paginaActual = 1;
+async function cargarHistorial(pagina) {
+  $('errorPanel').textContent = '';
+  const params = new URLSearchParams({ pagina, por_pagina: 25 });
+  new FormData($('filtros')).forEach((v, k) => { if (v) params.set(k, v); });
+  try {
+    const d = await pedir('/admin/actividad?' + params);
+    paginaActual = d.pagina;
+    $('filas').innerHTML = d.registros.length ? d.registros.map((r) => `
+      <tr>
+        <td>${new Date(r.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</td>
+        <td>Cuenta #${r.usuario_id ?? '—'}</td>
+        <td>${NOMBRE_ACCION[r.accion] || r.accion}</td>
+        <td>${r.entidad ? texto(NOMBRE_ENTIDAD[r.entidad] || r.entidad) + (r.entidad_id ? ' #' + r.entidad_id : '') : '—'}</td>
+        <td>${r.detalle ? texto(r.detalle) : ''}</td>
+        <td>${r.usuario_id ? `<button type="button" data-identificar="${r.usuario_id}">Identificar</button>` : ''}</td>
+      </tr>`).join('') : '<tr><td colspan="6" class="vacio">No hay actividad con esos filtros.</td></tr>';
+    const paginas = Math.max(1, Math.ceil(d.total / d.por_pagina));
+    $('pagina').textContent = `Página ${d.pagina} de ${paginas} · ${d.total} registros`;
+    $('anterior').disabled = d.pagina <= 1;
+    $('siguiente').disabled = d.pagina >= paginas;
+  } catch (err) { $('errorPanel').textContent = err.message; }
+}
+$('filtros').addEventListener('submit', (e) => { e.preventDefault(); cargarHistorial(1); });
+$('filtros').addEventListener('reset', () => setTimeout(() => cargarHistorial(1), 0));
+$('anterior').addEventListener('click', () => cargarHistorial(paginaActual - 1));
+$('siguiente').addEventListener('click', () => cargarHistorial(paginaActual + 1));
+
+$('filas').addEventListener('click', async (e) => {
+  const id = e.target.dataset && e.target.dataset.identificar;
+  if (!id) return;
+  const motivo = prompt(`¿Por qué necesitás identificar la cuenta #${id}? El motivo queda registrado.`);
+  if (!motivo || !motivo.trim()) return;
+  try {
+    const u = await pedir(`/admin/usuarios/${id}?motivo=${encodeURIComponent(motivo.trim())}`);
+    alert(`Cuenta #${u.id}: ${u.nombre} ${u.apellido} · ${u.email}`);
+    cargarHistorial(paginaActual);
+  } catch (err) { $('errorPanel').textContent = err.message; }
+});
+
+if (token) mostrarPanel();
+</script>
+</body>
+</html>

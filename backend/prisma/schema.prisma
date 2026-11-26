@@ -32,6 +32,27 @@ enum RolMiembro {
   @@map("rol_miembro")
 }
 
+// Rol en el sistema (no en la familia): 'admin' ve el registro de actividad y las
+// estadísticas generales. Sólo se asigna desde el seed o la base, nunca desde la API.
+enum RolSistema {
+  usuario
+  admin
+
+  @@map("rol_sistema")
+}
+
+// Tipos de acción del registro de actividad. 'consulta' la usa sólo el admin al
+// identificar una cuenta (queda registrado quién la identificó y por qué).
+enum AccionRegistro {
+  login
+  alta
+  modificacion
+  eliminacion
+  consulta
+
+  @@map("accion_registro")
+}
+
 enum TipoRecordatorio {
   vacuna
   control
@@ -52,12 +73,14 @@ model Usuario {
   apellido     String   @db.VarChar(100)
   email        String   @unique @db.VarChar(150)
   passwordHash String   @map("password_hash") @db.VarChar(255)
+  rol          RolSistema @default(usuario)
   createdAt    DateTime @default(now()) @map("created_at")
 
   // Relaciones
   membresia        GrupoMiembro?
   recordatorios    Recordatorio[]
   adjuntosSubidos  Adjunto[]      @relation("AdjuntoSubidoPor")
+  actividad        RegistroActividad[]
 
   @@map("usuario")
 }
@@ -311,4 +334,28 @@ model ProfesionalSalud {
   mascota    Mascota?    @relation(fields: [mascotaId],    references: [id], onDelete: Cascade)
 
   @@map("profesional_salud")
+}
+
+// ------------------------------------------------------------
+// Registro de actividad (auditoría)
+// Quién hizo qué tipo de acción, sobre qué tipo de dato y cuándo. Nunca guarda el
+// contenido (ni contraseñas, ni datos médicos, ni lo que se cargó en el formulario):
+// sólo la acción, el nombre de la entidad y su id. Lo lee sólo el admin.
+// Se borra lo que tiene más de RETENCION_ACTIVIDAD_DIAS días (ver utils/actividad.js).
+// ------------------------------------------------------------
+model RegistroActividad {
+  id        Int            @id @default(autoincrement())
+  usuarioId Int?           @map("usuario_id")
+  accion    AccionRegistro
+  entidad   String?        @db.VarChar(40)  // 'vacuna', 'integrante', 'perfil'...
+  entidadId Int?           @map("entidad_id")
+  detalle   String?        @db.VarChar(200) // sólo el motivo del admin al identificar una cuenta
+  fecha     DateTime       @default(now())
+
+  // Relaciones
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([fecha])
+  @@index([usuarioId])
+  @@map("registro_actividad")
 }

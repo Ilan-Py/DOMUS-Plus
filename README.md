@@ -212,14 +212,19 @@ siguientes son instantáneas.
 Después de ejecutar `npx prisma db seed`, los siguientes usuarios están
 disponibles para hacer demostraciones:
 
-| Nombre | Email | Contraseña |
-|---|---|---|
-| Ilan Pitashny | `ilan@domus.test` | `Admin123` |
-| Agustina Di Pasquale | `agus@domus.test` | `Admin123` |
-| Alan Acevedo | `alan@domus.test` | `Admin123` |
+La contraseña de todos es `Admin123`.
 
-Los tres usuarios pertenecen al mismo grupo familiar y tienen integrantes,
-vacunas, tratamientos y recordatorios de ejemplo cargados.
+| Usuario | Email | Para qué |
+|---|---|---|
+| Mónica Argento | `monica@domus.test` | Dueña de la Familia Argento (familia completa de la demo) |
+| José Argento | `jose@domus.test` | Miembro de la Familia Argento |
+| Paola Argento | `paola@domus.test` | Sin grupo: para probar la invitación con código |
+| Pablo Herrera | `pablo@domus.test` | Dueño de la Familia Herrera |
+| Valeria Herrera | `valeria@domus.test` | Miembro de la Familia Herrera |
+| Ilan, Agustina, Alan | `ilan@` / `agus@` / `alan@domus.test` | Una familia cada uno, con datos mínimos |
+| Admin DOMUS | `admin@domus.test` | Administrador del sistema (sin familia): registro de actividad y estadísticas |
+
+El detalle de qué trae cargado cada familia está al principio de `backend/prisma/seed.js`.
 
 ---
 
@@ -248,6 +253,10 @@ URL actual: `https://domus-plus.onrender.com` — `GET /api/ping` para
 verificar que está arriba (nota: el plan free de Render apaga el servicio
 tras ~15 min de inactividad, así que el primer request después de un rato
 puede tardar ~50s en responder mientras arranca de nuevo).
+
+En Render conviene agregar también `TZ=America/Argentina/Buenos_Aires` (en
+Docker ya está en `docker-compose.yml`): sin eso el servidor calcula en UTC los
+días de las estadísticas y las fechas que arma con hora local.
 
 ### App mobile (EAS Build + EAS Update)
 
@@ -352,6 +361,23 @@ puede tardar ~50s en responder mientras arranca de nuevo).
 | POST | `/api/adjuntos` | Subir un adjunto (foto/PDF, máx. 10MB) a Cloudinary |
 | GET | `/api/adjuntos` | Listar adjuntos de un perfil o registro de salud |
 | DELETE | `/api/adjuntos/:id` | Eliminar adjunto |
+
+### Administrador (requieren token JWT de una cuenta con rol `admin`)
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/admin/estadisticas?dias=7` | Estadísticas globales: usuarios, grupos, integrantes por categoría, mascotas por especie, adjuntos y actividad del período (1 a 90 días) |
+| GET | `/api/admin/actividad` | Historial de actividad paginado (`pagina`, `por_pagina`, `usuario_id`, `accion`, `desde`, `hasta`) |
+| GET | `/api/admin/usuarios/:id?motivo=...` | Identifica una cuenta (nombre y email). El motivo es obligatorio y queda registrado |
+
+El panel del administrador está en **`http://localhost:3000/admin`** (ingresar con
+`admin@domus.test`). Es una página simple servida por el backend que usa estos
+endpoints; se va a reemplazar en el revamp del front.
+
+**Registro de actividad.** Cada login y cada alta, modificación o baja que sale
+bien queda registrado con la cuenta, la acción, el tipo de dato, su id y la fecha.
+Nunca se guarda el contenido (ni contraseñas, ni datos médicos, ni lo cargado en
+los formularios). Los registros se borran solos a los 180 días
+(`RETENCION_ACTIVIDAD_DIAS` para cambiarlo).
 
 ---
 
