@@ -23,11 +23,13 @@ Idioma del proyecto: **español rioplatense** (código, comentarios, mensajes de
 backend/
   prisma/schema.prisma        # Modelo de datos (fuente de verdad de la BD)
   prisma/migrations/          # Migraciones Prisma — nunca editar una ya aplicada
-  prisma/seed.js              # Datos de demo (3 usuarios, pass Admin123)
+  prisma/seed.js              # Datos de demo (familias + admin@domus.test, pass Admin123)
   src/app.js                  # Express: middlewares, montaje de rutas, 404
-  src/config/                 # auth (JWT), prisma (singleton), cloudinary, upload (multer), rateLimiter
+  src/config/                 # auth (JWT + soloAdmin), prisma (singleton), cloudinary, upload (multer), rateLimiter
   src/routes/*.routes.js      # Sólo wiring de rutas → controllers
   src/controllers/*.js        # Lógica + validación + queries
+  src/utils/actividad.js      # Registro de actividad (auditoría) para el admin
+  public/admin/index.html     # Panel rudimentario del admin, servido en /admin (se reemplaza en el revamp)
   src/utils/grupo.js          # Helpers de pertenencia a grupo (ver "Seguridad")
 frontend/
   App.js                      # Fuentes, ramas de navegación (boot/auth/onboarding/main)
@@ -93,7 +95,22 @@ return res.status(200).json({ codigo: 200, estado: 'ok', datos: resultado });
 - El `tipo` de integrante (`adulto|menor|mayor`) **no se elige**: lo calcula el back con la fecha de
   nacimiento (`tipoSegunEdad` en `familiaController`, menor < 18 ≤ adulto < 65 ≤ mayor) al guardar y al listar.
 - Enums de BD en minúscula: `adulto|menor|mayor`, `vacuna|control|medicacion`, `imagen|pdf`,
-  rol `dueno|miembro` (sin ñ).
+  rol `dueno|miembro` (sin ñ), rol de sistema `usuario|admin`.
+- **Dos niveles de rol, no mezclarlos:**
+  - `GrupoMiembro.rol` (`dueno|miembro`): rol dentro de la familia. El dueño invita, renombra y quita miembros.
+  - `Usuario.rol` (`usuario|admin`): rol en el sistema. El admin no tiene familia y sólo ve el registro
+    de actividad y las estadísticas generales, **nunca datos médicos** de las familias.
+    Las rutas de admin van con `verificarToken, soloAdmin` (`src/config/auth.js`), que lee el rol de la
+    base en cada pedido. El rol nunca se asigna desde la API (registrar y perfil lo ignoran): sólo el seed o la base.
+- **Registro de actividad** (`RegistroActividad`, `src/utils/actividad.js`): el middleware `registrarActividad`
+  guarda las escrituras que terminan en 2xx según la tabla `RUTAS` (acción, entidad, id); el login se registra
+  en `authController`. **Un endpoint de escritura nuevo se agrega a `RUTAS`.** Nunca guardar el body, contraseñas,
+  tokens ni datos médicos. Retención: `RETENCION_ACTIVIDAD_DIAS` (180 por defecto).
+- **Estadísticas del admin** (`adminController`): sólo valores globales, sin filtros por familia. Las cuentas
+  `admin` no cuentan como usuarios. Las especies de mascotas se agrupan normalizando al contar (sin mayúsculas,
+  acentos ni espacios de más), sin tocar lo guardado; `otro`/vacío → «Sin especificar».
+- El backend corre con `TZ=America/Argentina/Buenos_Aires` (docker-compose): las fechas con hora local del seed
+  y los días de las estadísticas dependen de eso.
 - Los archivos llevan una cabecera de autoría (`//Codigo por ...`). Respetarla; no reescribirla.
 
 **Seguridad — pertenencia al grupo (lo más importante):**

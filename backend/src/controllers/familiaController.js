@@ -756,5 +756,6 @@ module.exports = {
     crearGrupo, obtenerGrupo, renombrarGrupo,
     generarInvitacion, unirseGrupo, listarMiembros, eliminarMiembro, salirGrupo, eliminarGrupo,
     agregarIntegrante, listarIntegrantes, editarIntegrante, eliminarIntegrante, editarEmergenciaIntegrante,
-    agregarMascota, listarMascotas, editarMascota, eliminarMascota
+    agregarMascota, listarMascotas, editarMascota, eliminarMascota,
+    tipoSegunEdad // también lo usan las estadísticas del admin
 };
