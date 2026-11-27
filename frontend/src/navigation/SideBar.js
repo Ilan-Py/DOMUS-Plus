@@ -13,6 +13,10 @@ import * as Clipboard from 'expo-clipboard';
 import { mostrarToast } from '../components/ToastHost';
 import CrossfadeIcon from '../components/CrossfadeIcon';
 import Pulse from '../components/Pulse';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { confirmarDestructivo } from '../utils/confirm';
+
+const CLAVE_INVITA_OCULTA = 'domus_sidebar_invita_oculta';
 
 export const SIDEBAR_WIDTH = 248;
 // Desde este ancho el menú pasa a barra lateral (escritorio).
@@ -79,7 +83,7 @@ function NavItem({ focused, icon, label, onPress }) {
 
 // Tarjeta del dueño entre el menú y el perfil: copia el código de invitación vigente (lo pide al
 // servidor; si todavía no hay uno, genera el primero) para pasárselo a quien quiera sumar.
-function InvitaCard() {
+function InvitaCard({ onCerrar }) {
   const [copiado, setCopiado] = useState(false);
   const [cargando, setCargando] = useState(false);
 
@@ -111,6 +115,10 @@ function InvitaCard() {
 
   return (
     <View style={styles.invita}>
+      {/* Se puede descartar: el bloque no vuelve a aparecer en este dispositivo. */}
+      <PressScale contentStyle={styles.invitaCerrar} onPress={onCerrar} accessibilityLabel="Ocultar el aviso de invitar a la familia">
+        <Ionicons name="close" size={18} color={colors.textBody} />
+      </PressScale>
       <Text style={styles.invitaTitle}>Sumá a tu familia</Text>
       <Text style={styles.invitaText}>Pasales el código para que se unan al grupo.</Text>
       <Pulse trigger={copiado} radio={10}>
@@ -133,7 +141,20 @@ function InvitaCard() {
 // estirada de borde a borde.
 export default function SideBar({ state, navigation }) {
   const insets = useSafeAreaInsets();
-  const { usuario, grupo } = useAuth();
+  const { usuario, grupo, logout } = useAuth();
+  const [ocultaInvita, setOcultaInvita] = useState(false);
+  const [menuUsuario, setMenuUsuario] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(CLAVE_INVITA_OCULTA)
+      .then((v) => v === 'true' && setOcultaInvita(true))
+      .catch(() => {});
+  }, []);
+
+  function ocultarInvita() {
+    setOcultaInvita(true);
+    AsyncStorage.setItem(CLAVE_INVITA_OCULTA, 'true').catch(() => {});
+  }
   const [rol, setRol] = useState('');
 
   // Rol del usuario en el grupo (Dueño / Miembro) para la tarjeta de usuario.
@@ -193,15 +214,44 @@ export default function SideBar({ state, navigation }) {
       })}
       </View>
 
-      {rol === 'Dueño' && <InvitaCard />}
+      {/* En Mi cuenta ya está "Invitar miembro": no se repite el bloque acá. */}
+      {rol === 'Dueño' && !enCuenta && !ocultaInvita && <InvitaCard onCerrar={ocultarInvita} />}
 
       {/* Anclada al pie: quién tiene la sesión abierta. Lleva a Cuenta. */}
       <View style={styles.userWrap}>
+        {/* Menú del usuario: Mi cuenta y Cerrar sesión (que ya no está en el cuerpo de Mi cuenta). */}
+        {menuUsuario && (
+          <View style={styles.menuUsuario}>
+            <PressScale
+              contentStyle={styles.menuFila}
+              onPress={() => {
+                setMenuUsuario(false);
+                navigation.navigate('Cuenta');
+              }}
+              accessibilityLabel="Ir a Mi cuenta"
+            >
+              <Ionicons name="person-outline" size={20} color={colors.iconWarm} />
+              <Text style={styles.menuTexto}>Mi cuenta</Text>
+            </PressScale>
+            <PressScale
+              contentStyle={styles.menuFila}
+              onPress={() => {
+                setMenuUsuario(false);
+                confirmarDestructivo('Cerrar sesión', '¿Seguro que querés cerrar sesión?', logout, 'Cerrar sesión', 'logout');
+              }}
+              accessibilityLabel="Cerrar sesión"
+            >
+              <Ionicons name="log-out-outline" size={20} color={colors.limeDeep} />
+              <Text style={[styles.menuTexto, { color: colors.limeDeep }]}>Cerrar sesión</Text>
+            </PressScale>
+          </View>
+        )}
         <PressScale
           contentStyle={[styles.userCard, enCuenta && styles.itemActive]}
-          onPress={() => navigation.navigate('Cuenta')}
-          accessibilityRole="link"
-          accessibilityLabel={`Tu cuenta: ${usuario?.nombre || ''} ${usuario?.apellido || ''}${rol ? `, ${rol}` : ''}`}
+          onPress={() => setMenuUsuario((v) => !v)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: menuUsuario }}
+          accessibilityLabel={`Menú de ${usuario?.nombre || ''} ${usuario?.apellido || ''}${rol ? `, ${rol}` : ''}`}
         >
           <EntityAvatar avatarId={usuario?.avatar_id} type="person" name={usuario?.nombre} apellido={usuario?.apellido} size={40} />
           <View style={styles.userText}>
@@ -210,6 +260,7 @@ export default function SideBar({ state, navigation }) {
             </Text>
             {!!rol && <Text style={styles.userRole}>{rol}</Text>}
           </View>
+          <Ionicons name={menuUsuario ? 'chevron-down' : 'chevron-up'} size={18} color={colors.iconWarm} />
         </PressScale>
       </View>
     </View>
@@ -263,7 +314,6 @@ const styles = StyleSheet.create({
     gap: 8,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderStyle: 'dashed',
     borderColor: 'rgba(42, 36, 33, 0.18)',
     backgroundColor: colors.arena,
   },
@@ -283,6 +333,7 @@ const styles = StyleSheet.create({
   },
   invitaBtnText: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.accentStrong },
   userWrap: {
+    position: 'relative',
     marginTop: 'auto',
     paddingTop: 12,
     borderTopWidth: 1,
@@ -314,5 +365,27 @@ const styles = StyleSheet.create({
     fontFamily: poppinsWeight('600'),
     color: colors.textBody,
   },
-  labelActive: { color: colors.accentStrong },
+  // Terracota más profundo para que el texto del ítem activo pase el contraste AA sobre arena.
+  labelActive: { color: colors.limeDeep },
+  invitaCerrar: { position: 'absolute', top: 0, right: 0, width: 48, height: 48, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
+  menuUsuario: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: '100%',
+    marginBottom: 8,
+    padding: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(42, 36, 33, 0.08)',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#2A2421',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 0,
+    elevation: 3,
+    zIndex: 5,
+  },
+  menuFila: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, paddingHorizontal: 12, borderRadius: 8 },
+  menuTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.ink },
 });

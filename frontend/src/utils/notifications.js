@@ -8,15 +8,23 @@ const TIPO_LABELS = { vacuna: 'Vacuna', control: 'Control', medicacion: 'Medicac
 
 const STORAGE_KEY = 'notificaciones_programadas';
 
-// Preferencia "Recordatorios anticipados" (Mi cuenta): avisar este tiempo antes de cada dosis o turno.
-const CLAVE_ANTICIPADOS = 'domus_pref_anticipados';
-const ANTICIPO_MIN = 30;
-async function anticipadosActivos() {
+// Preferencia "Recordatorios anticipados" (Mi cuenta): minutos de anticipo elegidos (15, 30, 60 o 1 día); 0 = sin aviso
+// anticipado. Quien tenía activado el interruptor viejo conserva sus 30 minutos.
+const CLAVE_ANTICIPO_MIN = 'domus_pref_anticipo_min';
+const CLAVE_ANTICIPADOS_VIEJA = 'domus_pref_anticipados';
+async function minutosDeAnticipo() {
   try {
-    return (await AsyncStorage.getItem(CLAVE_ANTICIPADOS)) === 'true';
+    const nuevo = await AsyncStorage.getItem(CLAVE_ANTICIPO_MIN);
+    if (nuevo !== null) return Math.max(0, Number(nuevo) || 0);
+    return (await AsyncStorage.getItem(CLAVE_ANTICIPADOS_VIEJA)) === 'true' ? 30 : 0;
   } catch {
-    return false;
+    return 0;
   }
+}
+function etiquetaAnticipo(min) {
+  if (min >= 1440) return `${Math.round(min / 1440)} día${min >= 2880 ? 's' : ''}`;
+  if (min >= 60) return `${Math.round(min / 60)} hora${min >= 120 ? 's' : ''}`;
+  return `${min} minutos`;
 }
 
 // Un solo blob JSON { [recordatorioId]: notificationId } en vez de una key
@@ -84,15 +92,16 @@ export async function programarNotificacion(recordatorio) {
   const fecha = parseFechaHora(recordatorio.fecha_hora);
   if (Number.isNaN(fecha.getTime()) || fecha <= new Date()) return null;
 
-  // Con la preferencia activa se avisa 30 minutos antes; si ya falta menos que eso, se avisa a la hora de siempre.
-  const anticipado = new Date(fecha.getTime() - ANTICIPO_MIN * 60 * 1000);
-  const usarAnticipo = (await anticipadosActivos()) && anticipado > new Date();
+  // Con la preferencia activa se avisa con ese anticipo; si ya falta menos que eso, se avisa a la hora de siempre.
+  const anticipoMin = await minutosDeAnticipo();
+  const anticipado = new Date(fecha.getTime() - anticipoMin * 60 * 1000);
+  const usarAnticipo = anticipoMin > 0 && anticipado > new Date();
   const disparo = usarAnticipo ? anticipado : fecha;
 
   const id = await Notifications.scheduleNotificationAsync({
     content: {
       title: TIPO_LABELS[recordatorio.tipo] ?? recordatorio.tipo,
-      body: (usarAnticipo ? `En ${ANTICIPO_MIN} minutos: ` : '') + (recordatorio.descripcion || 'Tenés un recordatorio pendiente.'),
+      body: (usarAnticipo ? `En ${etiquetaAnticipo(anticipoMin)}: ` : '') + (recordatorio.descripcion || 'Tenés un recordatorio pendiente.'),
       data: { recordatorioId: recordatorio.id },
     },
     // Pasar el Date directo (no un objeto { type, date }) — la versión de

@@ -25,6 +25,7 @@ import PaperCutout from '../components/PaperCutout';
 import Logo from '../components/Logo';
 import { openDialog } from '../components/DialogHost';
 import { LEGAL } from '../utils/legal';
+import { SIDEBAR_BREAKPOINT } from '../navigation/SideBar';
 import { useFamily } from '../context/FamilyContext';
 import { usePreferencias } from '../context/PreferenciasContext';
 import { armarResumenFichas, entregarTexto } from '../utils/resumenFichas';
@@ -36,6 +37,12 @@ const TRES_COLUMNAS = 1280;
 const DOS_COLUMNAS = 768;
 const CONTAINER_MAX_WIDTH = 1440;
 
+const OPCIONES_ANTICIPO = [
+  { label: '15 min', value: 15 },
+  { label: '30 min', value: 30 },
+  { label: '1 hora', value: 60 },
+  { label: '1 día', value: 1440 },
+];
 const OPCIONES_TEXTO = [
   { label: 'Normal', value: 'normal' },
   { label: 'Grande', value: 'grande' },
@@ -109,7 +116,15 @@ export default function AccountScreen() {
   const columnas = width >= TRES_COLUMNAS ? 3 : width >= DOS_COLUMNAS ? 2 : 1;
   const navigation = useNavigation();
   const { integrantes } = useFamily();
-  const { escala, setEscala, anticipados, setAnticipados } = usePreferencias();
+  const { escala, setEscala, anticipoMin, setAnticipoMin } = usePreferencias();
+  const haySidebar = width >= SIDEBAR_BREAKPOINT;
+  // Eliminar cuenta: formulario en línea con la contraseña (se pide confirmación otra vez en un diálogo).
+  const [eliminarAbierto, setEliminarAbierto] = useState(false);
+  const [passEliminar, setPassEliminar] = useState('');
+  const [errorEliminar, setErrorEliminar] = useState('');
+  const [borrando, setBorrando] = useState(false);
+  // Contactos de emergencia cargados en mi ficha (para el porcentaje de la tarjeta).
+  const [nContactos, setNContactos] = useState(0);
   const [armandoResumen, setArmandoResumen] = useState(false);
 
   const [editandoPerfil, setEditandoPerfil] = useState(false);
@@ -211,6 +226,70 @@ export default function AccountScreen() {
       mostrarToast('Todavía no estás cargado en Familia. Sumate como integrante para tener tu ficha.');
       navigation.navigate('Familia');
     }
+  }
+
+  // Porcentaje de mi ficha: tipo de sangre, alergias, notas y al menos un contacto de emergencia.
+  React.useEffect(() => {
+    let activo = true;
+    if (!miFicha) {
+      setNContactos(0);
+      return undefined;
+    }
+    getList(`/api/familia/integrantes/${miFicha.id}/contactos-emergencia`)
+      .then((c) => activo && setNContactos(c.length))
+      .catch(() => {});
+    return () => {
+      activo = false;
+    };
+  }, [miFicha?.id, miFicha?.tipo_sangre, miFicha?.alergias, miFicha?.notas_emergencia]);
+
+  const pasosFicha = miFicha
+    ? [
+        { etiqueta: 'tipo de sangre', ok: !!miFicha.tipo_sangre },
+        { etiqueta: 'alergias', ok: !!miFicha.alergias },
+        { etiqueta: 'notas médicas', ok: !!miFicha.notas_emergencia },
+        { etiqueta: 'un contacto de emergencia', ok: nContactos > 0 },
+      ]
+    : [];
+  const porcentajeFicha = pasosFicha.length ? Math.round((100 * pasosFicha.filter((p) => p.ok).length) / pasosFicha.length) : 0;
+  const faltanFicha = pasosFicha.filter((p) => !p.ok).map((p) => p.etiqueta);
+
+  async function exportarMisDatos() {
+    try {
+      const resumen = await armarResumenFichas({ grupoNombre: grupo?.nombre, integrantes });
+      const texto = `Mis datos en DOMUS+\n${usuario?.nombre} ${usuario?.apellido} · ${usuario?.email}\nGrupo: ${grupo?.nombre || 'sin grupo'}\n\n${resumen}`;
+      await entregarTexto('mis-datos-domus.txt', texto);
+      mostrarToast('Tus datos están listos');
+    } catch {
+      mostrarToast('No pudimos exportar tus datos. Probá de nuevo.');
+    }
+  }
+
+  async function eliminarMiCuenta() {
+    setErrorEliminar('');
+    setBorrando(true);
+    try {
+      await api.delete('/api/auth/cuenta', { data: { password: passEliminar } });
+      mostrarToast('Tu cuenta fue eliminada');
+      await logout();
+    } catch (err) {
+      setErrorEliminar(err.mensaje);
+    } finally {
+      setBorrando(false);
+    }
+  }
+
+  function confirmarEliminarCuenta() {
+    if (!passEliminar) {
+      setErrorEliminar('Escribí tu contraseña para confirmar.');
+      return;
+    }
+    confirmarDestructivo(
+      'Eliminar cuenta',
+      'Tu cuenta se borra para siempre. Si sos la única persona del grupo, también se borran sus integrantes, mascotas, fichas y recordatorios.',
+      eliminarMiCuenta,
+      'Eliminar cuenta'
+    );
   }
 
   async function descargarResumen() {
@@ -402,9 +481,9 @@ export default function AccountScreen() {
 
   // ---------------- bloques ----------------
   const perfilCard = (
-    <View {...paper('cartulina')} style={styles.card}>
-      {/* Pestaña de papel en terracota suave, colgando del borde superior */}
-      <View pointerEvents="none" style={styles.pestana} />
+    <View {...paper('cartulina')} style={[styles.card, styles.cardCinta]}>
+      {/* Cinta de papel en terracota suave, cruzando el borde superior de la tarjeta */}
+      <View pointerEvents="none" style={styles.cinta} />
       {editandoPerfil ? (
         <View style={styles.formPad}>
           <Text style={styles.tituloTarjeta} accessibilityRole="header">{soloIcono ? 'Cambiar ícono' : 'Mi perfil'}</Text>
@@ -464,10 +543,6 @@ export default function AccountScreen() {
               {usuario?.nombre} {usuario?.apellido}
             </Text>
             <Text style={styles.profileEmail} numberOfLines={1}>{usuario?.email}</Text>
-            <PressScale contentStyle={styles.fichaLink} onPress={verMiFicha} accessibilityLabel="Ver mi ficha de emergencia">
-              <Text style={styles.fichaLinkText}>Ver mi ficha de emergencia</Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.accentStrong} />
-            </PressScale>
           </View>
         </View>
       )}
@@ -500,29 +575,6 @@ export default function AccountScreen() {
       )}
 
     </View>
-  );
-
-  // Botón independiente, bien separado de "Cambiar contraseña" para evitar toques accidentales.
-  const cerrarSesionBtn = (
-    <PressScale
-      style={styles.logoutWrap}
-      contentStyle={styles.logoutBtn}
-      onPress={confirmLogout}
-      disabled={loggingOut}
-      accessibilityLabel="Cerrar sesión"
-    >
-      {loggingOut ? (
-        <ActivityIndicator size="small" color={colors.limeDeep} />
-      ) : (
-        <>
-          <Ionicons name="log-out-outline" size={22} color={colors.limeDeep} />
-          <View style={styles.rowTextWrap}>
-            <Text style={styles.logoutText}>Cerrar sesión</Text>
-            <Text style={styles.logoutHint}>Salir de tu cuenta en este dispositivo.</Text>
-          </View>
-        </>
-      )}
-    </PressScale>
   );
 
   const grupoCard = (
@@ -593,6 +645,7 @@ export default function AccountScreen() {
               </View>
             </Pulse>
           ) : null}
+          {!!codigoInvitacion && <Text style={styles.codigoNota}>Sigue activo hasta que generes otro código.</Text>}
         </View>
       )}
 
@@ -643,26 +696,19 @@ export default function AccountScreen() {
           <ErrorBanner message={salirError} />
         </View>
       )}
-      <View style={styles.footer}>
-        {esDueno ? (
+      {esDueno && (
+        <View style={styles.footer}>
           <Text style={styles.sosDueno}>Sos el dueño del grupo</Text>
-        ) : (
-          <SettingRow
-            icon="exit-outline"
-            label={saliendo ? 'Saliendo…' : 'Salir del grupo'}
-            tone="danger"
-            onPress={saliendo ? null : confirmSalirGrupo}
-            last
-          />
-        )}
-      </View>
+        </View>
+      )}
     </View>
   );
 
   const preferenciasCard = (
     <View {...paper('cartulina')} style={styles.card}>
       <Text style={styles.cardLabel} accessibilityRole="header">Preferencias</Text>
-      <View style={styles.formPad}>
+      <View style={[styles.prefGrid, columnas >= 2 && styles.prefGridFila]}>
+      <View style={styles.prefBloque}>
         <Text style={styles.prefTitulo}>Tamaño de texto</Text>
         <Text style={styles.prefAyuda}>Se aplica a toda la app, en este dispositivo.</Text>
         {/* Riel arena con los tres botones adentro: un segmented control como el de cualquier app. */}
@@ -688,23 +734,44 @@ export default function AccountScreen() {
         </View>
       </View>
 
-      <View style={styles.hairline} />
-
-      <PressScale
-        contentStyle={styles.toggleFila}
-        onPress={() => setAnticipados(!anticipados)}
-        accessibilityRole="switch"
-        accessibilityState={{ checked: anticipados }}
-        accessibilityLabel="Recordatorios anticipados: recibir aviso antes de cada dosis o turno"
-      >
-        <View style={styles.rowTextWrap}>
-          <Text style={styles.prefTitulo}>Recordatorios anticipados</Text>
-          <Text style={styles.prefAyuda}>Recibir aviso 30 minutos antes de cada dosis o turno (en el celular).</Text>
-        </View>
-        <View style={[styles.pista, anticipados && styles.pistaOn]}>
-          <View style={[styles.perilla, anticipados && styles.perillaOn]} />
-        </View>
-      </PressScale>
+      <View style={styles.prefBloque}>
+        <PressScale
+          contentStyle={styles.toggleFila}
+          onPress={() => setAnticipoMin(anticipoMin > 0 ? 0 : 30)}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: anticipoMin > 0 }}
+          accessibilityLabel="Recordatorios anticipados: recibir aviso antes de cada dosis o turno"
+        >
+          <View style={styles.rowTextWrap}>
+            <Text style={styles.prefTitulo}>Recordatorios anticipados</Text>
+            <Text style={styles.prefAyuda}>Recibir aviso antes de cada dosis o turno (en el celular).</Text>
+          </View>
+          <View style={[styles.pista, anticipoMin > 0 && styles.pistaOn]}>
+            <View style={[styles.perilla, anticipoMin > 0 && styles.perillaOn]} />
+          </View>
+        </PressScale>
+        {anticipoMin > 0 && (
+          <View style={styles.escalas} accessibilityRole="radiogroup" accessibilityLabel="Cuánto antes avisar">
+            {OPCIONES_ANTICIPO.map((o) => {
+              const on = anticipoMin === o.value;
+              return (
+                <PressScale
+                  key={o.value}
+                  style={styles.escalaCelda}
+                  contentStyle={[styles.escalaBtn, on && styles.escalaBtnOn]}
+                  onPress={() => setAnticipoMin(o.value)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: on, selected: on }}
+                  accessibilityLabel={`Avisar ${o.label} antes`}
+                >
+                  <Text style={[styles.escalaTexto, on && styles.escalaTextoOn]} numberOfLines={1}>{o.label}</Text>
+                </PressScale>
+              );
+            })}
+          </View>
+        )}
+      </View>
+      </View>
     </View>
   );
 
@@ -733,6 +800,76 @@ export default function AccountScreen() {
         </PressScale>
         {integrantes.length === 0 && <Text style={styles.prefAyuda}>Cuando sumes integrantes, vas a poder descargar sus fichas.</Text>}
       </View>
+    </View>
+  );
+
+  const fichaCard = (
+    <View {...paper('cartulina')} style={styles.card}>
+      <Text style={styles.cardLabel} accessibilityRole="header">Mi ficha de emergencia</Text>
+      <View style={styles.fichaCuerpo}>
+        {miFicha ? (
+          <>
+            <Text style={styles.fichaPorcentaje}>
+              {porcentajeFicha === 100 ? 'Tu ficha está completa' : `Tu ficha está al ${porcentajeFicha}%`}
+            </Text>
+            <View style={styles.progresoPista} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: porcentajeFicha }}>
+              <View style={[styles.progresoRelleno, { width: `${porcentajeFicha}%` }]} />
+            </View>
+            <Text style={styles.prefAyuda}>
+              {faltanFicha.length ? `Te falta cargar: ${faltanFicha.join(', ')}.` : 'Tiene tipo de sangre, alergias, notas y un contacto para llamar.'}
+            </Text>
+            <PrimaryButton title={faltanFicha.length ? 'Completar mi ficha' : 'Ver mi ficha'} variant="accent" onPress={verMiFicha} />
+          </>
+        ) : (
+          <>
+            <Text style={styles.prefAyuda}>
+              Todavía no tenés tu ficha. Sumate como integrante de la familia para cargar tu tipo de sangre, alergias y contactos.
+            </Text>
+            <PrimaryButton title="Sumarme en Familia" variant="accent" onPress={verMiFicha} />
+          </>
+        )}
+      </View>
+    </View>
+  );
+
+  const zonaPeligroCard = (
+    <View {...paper('cartulina')} style={styles.card}>
+      <Text style={styles.cardLabel} accessibilityRole="header">Zona de peligro</Text>
+      <SettingRow icon="download-outline" label="Exportar mis datos" value="Un archivo de texto con tu perfil y las fichas del grupo." onPress={exportarMisDatos} />
+      {!esDueno && !!miMembresia && (
+        <SettingRow
+          icon="exit-outline"
+          label={saliendo ? 'Saliendo…' : 'Salir del grupo'}
+          tone="danger"
+          onPress={saliendo ? null : confirmSalirGrupo}
+        />
+      )}
+      {!!salirError && (
+        <View style={styles.formPad}>
+          <ErrorBanner message={salirError} />
+        </View>
+      )}
+      {!haySidebar && (
+        <SettingRow icon="log-out-outline" label="Cerrar sesión" value="Salir de tu cuenta en este dispositivo." tone="danger" onPress={confirmLogout} />
+      )}
+      {eliminarAbierto ? (
+        <View style={styles.formPad}>
+          <Text style={styles.formTitle}>Eliminar mi cuenta</Text>
+          <Text style={styles.prefAyuda}>Esto no se puede deshacer. Escribí tu contraseña para confirmar.</Text>
+          <ErrorBanner message={errorEliminar} />
+          <FormField label="Contraseña" value={passEliminar} onChangeText={setPassEliminar} secureTextEntry autoComplete="current-password" style={{ paddingBottom: 0 }} />
+          <View style={styles.formActionsFila}>
+            <View style={styles.mitad}>
+              <PrimaryButton title="Eliminar cuenta" variant="danger" onPress={confirmarEliminarCuenta} loading={borrando} />
+            </View>
+            <View style={styles.mitad}>
+              <PrimaryButton title="Cancelar" variant="secondary" onPress={() => { setEliminarAbierto(false); setPassEliminar(''); setErrorEliminar(''); }} disabled={borrando} />
+            </View>
+          </View>
+        </View>
+      ) : (
+        <SettingRow icon="trash-outline" label="Eliminar cuenta" tone="danger" onPress={() => setEliminarAbierto(true)} last />
+      )}
     </View>
   );
 
@@ -811,49 +948,35 @@ export default function AccountScreen() {
             <Text style={styles.subtitle}>Administrá tus datos personales y tu grupo familiar.</Text>
           </View>
 
-          {columnas === 3 ? (
-            <View style={styles.columns}>
-              <View style={styles.col}>
-                {perfilCard}
-                {seguridadCard}
-                {cerrarSesionBtn}
-              </View>
-              <View style={styles.col}>
-                {grupoCard}
-                {privacidadCard}
-              </View>
-              <View style={styles.col}>
-                {preferenciasCard}
-                {ayudaCard}
-              </View>
-            </View>
-          ) : columnas === 2 ? (
+          {columnas >= 2 ? (
             <View style={styles.stack}>
               <View style={styles.columns}>
                 <View style={styles.col}>
                   {perfilCard}
+                  {fichaCard}
                   {seguridadCard}
-                  {cerrarSesionBtn}
                 </View>
                 <View style={styles.col}>
                   {grupoCard}
                   {privacidadCard}
                 </View>
               </View>
+              {preferenciasCard}
               <View style={styles.columns}>
-                <View style={styles.col}>{preferenciasCard}</View>
                 <View style={styles.col}>{ayudaCard}</View>
+                <View style={styles.col}>{zonaPeligroCard}</View>
               </View>
             </View>
           ) : (
             <View style={styles.stack}>
               {perfilCard}
+              {fichaCard}
               {seguridadCard}
-              {cerrarSesionBtn}
               {grupoCard}
               {privacidadCard}
               {preferenciasCard}
               {ayudaCard}
+              {zonaPeligroCard}
             </View>
           )}
 
@@ -876,7 +999,8 @@ const styles = StyleSheet.create({
   containerIzq: { alignSelf: 'flex-start' },
 
   header: { marginBottom: 28 },
-  title: { fontSize: 26, lineHeight: 34, fontFamily: poppinsWeight('700'), color: colors.ink },
+  // Regla de títulos: los de página y de tarjeta van en la serif de la marca.
+  title: { fontSize: 32, lineHeight: 40, fontFamily: SERIF_BOLD, color: colors.ink },
   subtitle: { fontSize: 16, lineHeight: 22, color: colors.textBody, marginTop: 4 },
 
   columns: { flexDirection: 'row', gap: 28, alignItems: 'flex-start' },
@@ -957,15 +1081,18 @@ const styles = StyleSheet.create({
   // ---- perfil
   profileBody: { padding: 24, paddingTop: 28, gap: 16 },
   // Pestaña de papel colgando del borde superior de la tarjeta de perfil.
-  pestana: {
+  // Cinta de papel que cruza el borde superior (la tarjeta de perfil no recorta para que se vea entera).
+  cardCinta: { overflow: 'visible' },
+  cinta: {
     position: 'absolute',
-    top: 0,
-    left: 24,
-    width: 64,
-    height: 12,
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
-    backgroundColor: 'rgba(194, 70, 35, 0.32)',
+    top: -10,
+    left: 28,
+    width: 76,
+    height: 22,
+    borderRadius: 3,
+    backgroundColor: 'rgba(194, 70, 35, 0.30)',
+    transform: [{ rotate: '-3deg' }],
+    zIndex: 2,
   },
   perfilCab: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   tituloPerfil: { fontSize: 22, lineHeight: 30, fontFamily: SERIF_BOLD, color: colors.ink },
@@ -989,8 +1116,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  fichaLink: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4, minHeight: 48 },
-  fichaLinkText: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.accentStrong },
+  // ---- mi ficha de emergencia
+  fichaCuerpo: { paddingHorizontal: 24, paddingBottom: 24, gap: 12 },
+  fichaPorcentaje: { fontSize: 18, lineHeight: 26, fontFamily: poppinsWeight('700'), color: colors.ink },
+  progresoPista: { height: 10, borderRadius: 5, backgroundColor: colors.arena, overflow: 'hidden' },
+  progresoRelleno: { height: 10, borderRadius: 5, backgroundColor: colors.salvia },
+  prefGrid: { gap: 0 },
+  prefGridFila: { flexDirection: 'row', alignItems: 'flex-start' },
+  prefBloque: { flex: 1, minWidth: 0, padding: 24, paddingTop: 12 },
+  codigoNota: { fontSize: 14, lineHeight: 20, color: colors.textBody, marginTop: -4 },
 
   // ---- preferencias
   prefTitulo: { fontSize: 16, lineHeight: 24, fontFamily: poppinsWeight('600'), color: colors.ink },
@@ -1017,7 +1151,7 @@ const styles = StyleSheet.create({
   },
   escalaTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.ink },
   escalaTextoOn: { color: colors.accentStrong },
-  toggleFila: { flexDirection: 'row', alignItems: 'center', gap: 16, minHeight: 72, paddingHorizontal: 24, paddingVertical: 14 },
+  toggleFila: { flexDirection: 'row', alignItems: 'center', gap: 16, minHeight: 72, paddingVertical: 14 },
   pista: { width: 52, height: 30, borderRadius: 15, backgroundColor: '#D9D0C5', justifyContent: 'center', paddingHorizontal: 3 },
   pistaOn: { backgroundColor: colors.salvia },
   perilla: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#FFFFFF' },
@@ -1037,7 +1171,6 @@ const styles = StyleSheet.create({
     minHeight: 48,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderStyle: 'dashed',
     borderColor: 'rgba(74, 107, 93, 0.45)',
     backgroundColor: colors.salviaSoft,
   },
@@ -1107,7 +1240,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderStyle: 'dashed',
     borderColor: 'rgba(74, 107, 93, 0.45)',
     backgroundColor: colors.salviaSoft,
     minHeight: 72,

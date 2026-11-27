@@ -128,7 +128,7 @@ export const colors = {
   bloodBg: '#FDF2F0',
   bloodText: '#A6291B',
   // Gris cálido para "Sin cargar" (#7A6C63 sobre arena = 4,6:1; el #8C7E75 pedido daba 3,5:1).
-  textEmpty: '#7A6C63',
+  textEmpty: '#6E6159',
   emptyBg: '#F5EFE8',
   // Bloques destacados dentro de una tarjeta: arena y terracota pálido.
   sandBlock: '#F7F0E8',
@@ -159,7 +159,7 @@ export const colors = {
   // <16px). Oscurecido lo mínimo necesario para despejar 4.5:1, mismo hue/
   // saturación cálida (no gris frío) — ver textMutedLight para el mismo
   // ajuste en su token hermano.
-  textMuted: '#776F62',     // gris cálido (reemplaza el viejo #5A5F58) — más oscuro que textMutedLight, ver ese token
+  textMuted: '#6B6357',     // gris cálido (reemplaza el viejo #5A5F58) — más oscuro que textMutedLight, ver ese token
   line: '#E8DFCE',          // hairline cálido para el fondo crema (era #DDE3DC, frío)
   // Auditoría WCAG: #DC2626 daba 4.41:1 sobre errorBg (y 4.49:1 sobre bgBase)
   // — falla AA normal-text (4.5:1) por muy poco en ErrorBanner/fieldErrorText

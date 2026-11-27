@@ -156,6 +156,63 @@ async function login(req, res) {
 }
 
 //5 — Actualizar perfil (nombre/apellido/email)
+// Eliminar la propia cuenta (requiere la contraseña). Reglas para no llevarse por delante datos ajenos:
+//  - dueño con otros miembros en el grupo: no se puede (409); tiene que quitarlos o eliminar el grupo primero.
+//  - dueño solo en su grupo: se elimina el grupo (y todo lo que cuelga de él) junto con la cuenta.
+//  - miembro: sus recordatorios y adjuntos pasan al dueño del grupo (son datos compartidos) y se elimina la cuenta.
+//  - cuentas admin: no se eliminan desde la app.
+// Una contraseña incorrecta responde 403 (no 401, para no cerrar la sesión del cliente).
+async function eliminarCuenta(req, res) {
+    const usuarioId = req.usuario.id;
+    const { password } = req.body || {};
+    if (typeof password !== 'string' || !password) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'Escribí tu contraseña para confirmar.' });
+    }
+    try {
+        const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId } });
+        if (!usuario) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Usuario no encontrado.' });
+        }
+        if (usuario.rol === 'admin') {
+            return res.status(403).json({ codigo: 403, estado: 'error', datos: 'Las cuentas de administración no se eliminan desde la app.' });
+        }
+        const coincide = await bcrypt.compare(password, usuario.passwordHash);
+        if (!coincide) {
+            return res.status(403).json({ codigo: 403, estado: 'error', datos: 'La contraseña es incorrecta.' });
+        }
+
+        const membresia = await prisma.grupoMiembro.findUnique({ where: { usuarioId } });
+        const operaciones = [];
+        if (membresia) {
+            const miembros = await prisma.grupoMiembro.findMany({ where: { grupoId: membresia.grupoId } });
+            if (membresia.rol === 'dueno') {
+                if (miembros.length > 1) {
+                    return res.status(409).json({
+                        codigo: 409,
+                        estado: 'error',
+                        datos: 'Sos el dueño del grupo y todavía hay otros miembros. Quitalos o eliminá el grupo antes de eliminar tu cuenta.'
+                    });
+                }
+                // Solo en su grupo: el grupo se va con él (onDelete: Cascade limpia lo que cuelga).
+                operaciones.push(prisma.grupoFamiliar.delete({ where: { id: membresia.grupoId } }));
+            } else {
+                const dueno = miembros.find((m) => m.rol === 'dueno');
+                if (dueno) {
+                    operaciones.push(prisma.recordatorio.updateMany({ where: { creadoPor: usuarioId }, data: { creadoPor: dueno.usuarioId } }));
+                    operaciones.push(prisma.adjunto.updateMany({ where: { subidoPor: usuarioId }, data: { subidoPor: dueno.usuarioId } }));
+                }
+            }
+        }
+        operaciones.push(prisma.usuario.delete({ where: { id: usuarioId } }));
+        await prisma.$transaction(operaciones);
+
+        return res.status(200).json({ codigo: 200, estado: 'ok', datos: 'Cuenta eliminada.' });
+    } catch (err) {
+        console.error('eliminarCuenta=', err.message);
+        return res.status(500).json({ codigo: 500, estado: 'error', datos: 'Error interno del servidor.' });
+    }
+}
+
 async function actualizarPerfil(req, res) {
     const usuarioId = req.usuario.id;
     const { nombre, apellido, email } = req.body;
@@ -281,4 +338,4 @@ async function cambiarPassword(req, res) {
     }
 }
 
-module.exports = { registrar, login, actualizarPerfil, cambiarPassword };
+module.exports = { registrar, login, actualizarPerfil, cambiarPassword, eliminarCuenta };
