@@ -80,7 +80,7 @@ function RequisitoPill({ ok, text }) {
 }
 
 export default function RegisterScreen({ navigation }) {
-  const { register } = useAuth();
+  const { register, codigoPendiente } = useAuth();
   const [legal, setLegal] = useState(null);
   const { ref, focusFirst } = useFirstErrorFocus();
   const [nombre, setNombre] = useState('');
@@ -139,6 +139,9 @@ export default function RegisterScreen({ navigation }) {
     >
       <Text style={styles.title} accessibilityRole="header">Creá tu cuenta</Text>
       <Text style={styles.sub}>Para cuidar a tu familia y a tus mascotas.</Text>
+      {!!codigoPendiente && (
+        <Text style={styles.codigoNota}>Cuando termines, te unís al grupo con el código {codigoPendiente}.</Text>
+      )}
 
       <View style={styles.row2}>
         <FormField

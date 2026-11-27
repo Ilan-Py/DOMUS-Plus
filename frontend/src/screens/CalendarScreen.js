@@ -187,22 +187,33 @@ export default function CalendarScreen({ navigation }) {
     setRefreshing(false);
   }
 
-  async function handleDesactivar(id) {
+  // Interfaz optimista (Doherty < 400 ms): la fila empieza a salir en el acto, mientras el pedido
+  // viaja al servidor en paralelo. Si el servidor falla, la fila vuelve y se muestra el error —
+  // no se le miente a la persona sobre lo que quedó guardado.
+  async function salirOptimista(id, pedido) {
     setActionError('');
     setDismissingId(id);
-    try {
-      await api.patch(`/api/recordatorios/${id}/desactivar`);
-      mostrarToast('Marcado como hecho');
-      await cancelarNotificacion(id);
-      setExitingId(id);
-      await new Promise((resolve) => setTimeout(resolve, EXIT_DURATION));
-      await fetchRecordatorios();
-    } catch (err) {
-      setActionError(err.mensaje);
-    } finally {
-      setDismissingId(null);
+    setExitingId(id);
+    const [resultado] = await Promise.allSettled([
+      pedido(),
+      new Promise((resolve) => setTimeout(resolve, EXIT_DURATION)),
+    ]);
+    if (resultado.status === 'rejected') {
+      setActionError(resultado.reason?.mensaje || 'No pudimos guardar el cambio. Probá de nuevo.');
       setExitingId(null);
+      setDismissingId(null);
+      return false;
     }
+    await cancelarNotificacion(id);
+    await fetchRecordatorios();
+    setExitingId(null);
+    setDismissingId(null);
+    return true;
+  }
+
+  async function handleDesactivar(id) {
+    const ok = await salirOptimista(id, () => api.patch(`/api/recordatorios/${id}/desactivar`));
+    if (ok) mostrarToast('Marcado como hecho');
   }
 
   function handleEditar(item) {
@@ -210,20 +221,7 @@ export default function CalendarScreen({ navigation }) {
   }
 
   async function handleEliminar(id) {
-    setActionError('');
-    setDismissingId(id);
-    try {
-      await api.delete(`/api/recordatorios/${id}`);
-      await cancelarNotificacion(id);
-      setExitingId(id);
-      await new Promise((resolve) => setTimeout(resolve, EXIT_DURATION));
-      await fetchRecordatorios();
-    } catch (err) {
-      setActionError(err.mensaje);
-    } finally {
-      setDismissingId(null);
-      setExitingId(null);
-    }
+    await salirOptimista(id, () => api.delete(`/api/recordatorios/${id}`));
   }
 
   function confirmEliminar(item) {
@@ -380,6 +378,8 @@ export default function CalendarScreen({ navigation }) {
           <SkeletonReminderRow />
           <SkeletonReminderRow />
         </View>
+      ) : loadError ? (
+        <InlineError message="No pudimos cargar los recordatorios." onRetry={fetchRecordatorios} />
       ) : sections.length === 0 && !hayFiltros ? (
         <EmptyState
           titulo="Todavía no hay recordatorios"
@@ -390,8 +390,6 @@ export default function CalendarScreen({ navigation }) {
           ]}
           acciones={[{ label: '+ Nuevo recordatorio', onPress: nuevo }]}
         />
-      ) : loadError ? (
-        <InlineError message="No pudimos cargar los recordatorios." onRetry={fetchRecordatorios} />
       ) : sections.length === 0 ? (
         <View style={styles.empty}>
           <EmptyDoodle variant="calendario" size={64} />

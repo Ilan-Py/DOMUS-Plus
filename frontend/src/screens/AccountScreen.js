@@ -15,6 +15,8 @@ import ErrorBanner from '../components/ErrorBanner';
 import Skeleton from '../components/Skeleton';
 import PressScale from '../components/PressScale';
 import FormField from '../components/FormField';
+import Pulse from '../components/Pulse';
+import CrossfadeIcon from '../components/CrossfadeIcon';
 import { confirmarDestructivo } from '../utils/confirm';
 import { iniciales } from '../utils/displayFormat';
 import { avatarTint } from '../theme/avatars';
@@ -514,17 +516,17 @@ export default function AccountScreen() {
           </PressScale>
 
           {codigoInvitacion ? (
-            <View style={styles.codigoBox}>
+            <Pulse trigger={copiado} style={styles.codigoBox}>
               <Text style={styles.codigoText} selectable>{codigoInvitacion}</Text>
               <View style={styles.codigoActions}>
                 <PressScale contentStyle={styles.codigoActionBtn} onPress={handleCopiarCodigo} accessibilityLabel="Copiar código">
-                  <Ionicons name={copiado ? 'checkmark' : 'copy-outline'} size={22} color={colors.ink} />
+                  <CrossfadeIcon a="copy-outline" b="checkmark" showB={copiado} size={22} color={colors.ink} />
                 </PressScale>
                 <PressScale contentStyle={styles.codigoActionBtn} onPress={handleCompartirCodigo} accessibilityLabel="Compartir código">
                   <Ionicons name="share-outline" size={22} color={colors.ink} />
                 </PressScale>
               </View>
-            </View>
+            </Pulse>
           ) : null}
         </View>
       )}

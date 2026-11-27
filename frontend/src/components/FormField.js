@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Platform, Pressable } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import CrossfadeIcon from './CrossfadeIcon';
 import { colors, radii } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 
@@ -80,11 +80,7 @@ export default function FormField({
             accessibilityRole="button"
             accessibilityLabel={revealed ? 'Ocultar contraseña' : 'Mostrar contraseña'}
           >
-            <Ionicons
-              name={revealed ? 'eye-off-outline' : 'eye-outline'}
-              size={22}
-              color={colors.ink}
-            />
+            <CrossfadeIcon a="eye-outline" b="eye-off-outline" showB={revealed} size={22} color={colors.ink} />
             <Text style={styles.toggleText}>{revealed ? 'Ocultar' : 'Mostrar'}</Text>
           </Pressable>
         )}

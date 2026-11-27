@@ -19,6 +19,8 @@ import PressScale from './PressScale';
 import ErrorBanner from './ErrorBanner';
 import InlineError from './InlineError';
 import { EmptyDoodle } from './FamilyDoodles';
+import Skeleton, { SkeletonFilas } from './Skeleton';
+import Pulse from './Pulse';
 import FadeSlideIn from './FadeSlideIn';
 import FadeOutRow, { EXIT_DURATION } from './FadeOutRow';
 import { confirmarDestructivo, elegirOpcion } from '../utils/confirm';
@@ -44,6 +46,8 @@ export default function AttachmentsSection({
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // Sube de a uno cada vez que un comprobante se guarda bien: dispara el pulso de confirmación.
+  const [guardados, setGuardados] = useState(0);
   const [eliminandoId, setEliminandoId] = useState(null);
   const [exitingId, setExitingId] = useState(null);
   const [visorUrl, setVisorUrl] = useState(null);
@@ -103,6 +107,7 @@ export default function AttachmentsSection({
       }
       await api.post('/api/adjuntos', formData);
       await fetchAdjuntos();
+      setGuardados((n) => n + 1);
     } catch (err) {
       // Un 5xx es un fallo del servidor (ej. el servicio de archivos): mensaje
       // claro en vez del texto técnico. Los 4xx traen un motivo útil (tipo de
@@ -276,6 +281,7 @@ export default function AttachmentsSection({
                 </View>
               )}
 
+              <Pulse trigger={guardados} radio={radii.control}>
               <PressScale
                 contentStyle={[
                   styles.addBtn,
@@ -289,6 +295,7 @@ export default function AttachmentsSection({
                 <Ionicons name="add" size={20} color={colors.ink} />
                 <Text style={styles.addText}>{addLabel}</Text>
               </PressScale>
+              </Pulse>
             </>
           )}
         </>

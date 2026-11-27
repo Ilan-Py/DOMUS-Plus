@@ -18,14 +18,15 @@ const MODO_OPTIONS = [
 ];
 
 export default function GroupSetupScreen() {
-  const { crearGrupo, unirseGrupo, logout } = useAuth();
+  const { crearGrupo, unirseGrupo, logout, codigoPendiente } = useAuth();
   const insets = useSafeAreaInsets();
-  const [modo, setModo] = useState('crear');
+  // Si la persona escribió un código en el Login antes de crear su cuenta, arranca en "Unirme" con el código cargado.
+  const [modo, setModo] = useState(codigoPendiente ? 'unirse' : 'crear');
 
   const [nombre, setNombre] = useState('');
   const [nombreError, setNombreError] = useState(false);
 
-  const [codigo, setCodigo] = useState('');
+  const [codigo, setCodigo] = useState(codigoPendiente || '');
   const [codigoError, setCodigoError] = useState(false);
 
   const [formError, setFormError] = useState('');
