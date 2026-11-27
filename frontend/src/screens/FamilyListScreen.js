@@ -20,7 +20,7 @@ import ErrorBanner from '../components/ErrorBanner';
 import EmptyState from '../components/EmptyState';
 import PrimaryButton from '../components/PrimaryButton';
 import TodayCard from '../components/TodayCard';
-import { BannerDoodle, AmbientHalo } from '../components/FamilyDoodles';
+import { BannerDoodle } from '../components/FamilyDoodles';
 import PressScale from '../components/PressScale';
 import Skeleton from '../components/Skeleton';
 import FadeSlideIn from '../components/FadeSlideIn';
@@ -338,11 +338,6 @@ export default function FamilyListScreen({ navigation }) {
 
   return (
     <View style={styles.root}>
-      {/* Halo radial muy sutil en la esquina inferior derecha, detrás de todo. */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <AmbientHalo />
-      </View>
-
       <ScrollView
         contentContainerStyle={[
           styles.scroll,

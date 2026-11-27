@@ -1,26 +1,25 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   Image,
   StyleSheet,
   ScrollView,
-  Animated,
-  Easing,
   Platform,
-  AccessibilityInfo,
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '../theme/colors';
+import { colors, radii } from '../theme/colors';
 import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
-import Logo, { LogoConNombre } from '../components/Logo';
+import { LogoConNombre } from '../components/Logo';
 import PrimaryButton from '../components/PrimaryButton';
 import PressScale from '../components/PressScale';
 import FadeSlideIn from '../components/FadeSlideIn';
 import { Subrayado, Chispas, FlechaCurva } from '../components/FamilyDoodles';
-import Svg, { Path, Pattern, Rect, Defs, Circle } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
+import PaperCutout from '../components/PaperCutout';
+import { paper } from '../theme/paper';
 
 // Landing de DOMUS+ (ver DESIGN.md). Pantalla única, sin carrusel.
 const DESKTOP_BREAKPOINT = 900;
@@ -44,36 +43,24 @@ const FOTO_ASPECTO = 600 / 380;
 const BENEFITS = [
   {
     icon: 'medkit-outline',
-    bg: '#F7DED2', // terracota pastel
-    fg: '#A64B2A',
     title: 'Ficha de emergencia',
     text: 'Alergias, grupo sanguíneo y contactos en un toque.',
     preview: 'Grupo O+ · Alérgico a penicilina',
     previewIcon: 'water',
-    previewColor: '#A6291B',
-    previewBg: '#FDF2F0',
   },
   {
     icon: 'calendar-outline',
-    bg: '#D6E2D6', // verde salvia claro
-    fg: '#3E6340',
     title: 'Calendario compartido',
     text: 'Toda la familia ve los mismos recordatorios.',
     preview: 'Hoy 20:00 · Amoxicilina de Alfio',
     previewIcon: 'time-outline',
-    previewColor: '#3E6340',
-    previewBg: '#EEF3EC',
   },
   {
     icon: 'paw-outline',
-    bg: '#DCEBF2', // celeste suave
-    fg: '#2F6F8F',
     title: 'Personas y mascotas',
     text: 'Llevá el control incluso de quienes no usan la app.',
     preview: 'Mónica · José · Fatiga',
     previewIcon: 'people-outline',
-    previewColor: '#2F6F8F',
-    previewBg: '#EAF3F7',
   },
 ];
 
@@ -86,15 +73,11 @@ const PASOS = [
 const ESCENARIOS = [
   {
     icon: 'heart-outline',
-    bg: '#F7DED2',
-    fg: '#A64B2A',
     title: 'Cuidar a tus padres a la distancia',
     text: 'Mirá si ya tomaron la medicación o cuándo tienen turno, sin llamar a cada rato.',
   },
   {
     icon: 'paw-outline',
-    bg: '#D6E2D6',
-    fg: '#3E6340',
     title: 'Tener al día a tus mascotas',
     text: 'Vacunas y antiparasitarios compartidos entre todos los que viven en casa.',
   },
@@ -106,61 +89,14 @@ const CERTEZAS = [
   { icon: 'text-outline', text: 'Letra grande y clara' },
 ];
 
-// ¿El sistema pide reducir el movimiento?
-function useReduceMotion() {
-  const [reduce, setReduce] = useState(false);
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then(setReduce).catch(() => {});
-  }, []);
-  return reduce;
-}
-
-// Tarjeta flotante sobre la foto: un movimiento vertical muy leve (quieta si el
-// sistema pide reducir el movimiento).
-function TarjetaFlotante({ style, desfase = 0, reduce, children }) {
-  const flota = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (reduce) return undefined;
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(flota, { toValue: 1, duration: 2600, delay: desfase, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(flota, { toValue: 0, duration: 2600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [flota, reduce, desfase]);
-  const translateY = flota.interpolate({ inputRange: [0, 1], outputRange: [0, -5] });
-  return <Animated.View style={[styles.flotante, style, { transform: [{ translateY }] }]}>{children}</Animated.View>;
-}
-
-// Textura de papel: puntitos casi invisibles (2–3 %) sobre todo el lienzo.
-function GranoDePapel() {
-  const puntos = [[3, 5], [11, 29], [19, 13], [27, 37], [35, 21], [7, 17], [23, 3], [31, 9], [15, 33], [39, 31], [1, 23], [29, 27]];
+// Tarjeta de papel apoyada sobre la foto: borde blanco, sombra cálida en dos capas y micro-elevación
+// al pasar el mouse (CSS global, ver theme/paper.js). Entra una sola vez, escalonada (`d`), sin
+// movimiento continuo — antes flotaba en loop. Con "reducir movimiento" aparece directa.
+function TarjetaFlotante({ style, d, children }) {
   return (
-    <Svg width="100%" height="100%" style={styles.grano} accessibilityElementsHidden importantForAccessibility="no">
-      <Defs>
-        <Pattern id="grano" patternUnits="userSpaceOnUse" width="40" height="40">
-          {puntos.map(([x, y], i) => (
-            <Circle key={i} cx={x} cy={y} r={i % 3 === 0 ? 0.9 : 0.6} fill="#2A2421" />
-          ))}
-        </Pattern>
-      </Defs>
-      <Rect x="0" y="0" width="100%" height="100%" fill="url(#grano)" opacity={0.045} />
-    </Svg>
-  );
-}
-
-// Forma orgánica definida detrás de la foto del hero.
-function FormaOrganica() {
-  return (
-    <Svg width="100%" height="100%" viewBox="0 0 560 420" preserveAspectRatio="none" fill="none" accessibilityElementsHidden importantForAccessibility="no">
-      <Path
-        d="M52 92 C 20 34 120 -2 214 18 C 300 36 392 -14 480 40 C 566 92 548 214 524 290 C 500 366 400 410 300 398 C 200 386 118 420 62 360 C 6 300 84 150 52 92 Z"
-        fill="#F4DCCB"
-        fillOpacity={0.75}
-      />
-    </Svg>
+    <View {...paper('cutout', 'pop', d)} style={[styles.flotante, style]}>
+      {children}
+    </View>
   );
 }
 
@@ -240,15 +176,15 @@ function BeneficioCard({ item }) {
         onHoverOut={() => setHover(false)}
         accessibilityLabel={`${item.title}. ${item.text}`}
       >
-        <View style={[styles.benefitIcon, { backgroundColor: item.bg }]}>
-          <Ionicons name={item.icon} size={30} color={item.fg} />
+        <View style={styles.benefitHead}>
+          <Ionicons name={item.icon} size={28} color={colors.accentStrong} />
+          <Text style={styles.benefitTitle}>{item.title}</Text>
         </View>
-        <Text style={styles.benefitTitle}>{item.title}</Text>
         <Text style={styles.benefitText}>{item.text}</Text>
-        {/* Un ejemplo real de lo que se ve en la app */}
-        <View style={[styles.preview, { backgroundColor: item.previewBg }]}>
-          <Ionicons name={item.previewIcon} size={16} color={item.previewColor} />
-          <Text style={[styles.previewText, { color: item.previewColor }]}>{item.preview}</Text>
+        {/* Un dato real, tal como se ve en la app (sin cajitas de color) */}
+        <View style={styles.dato}>
+          <Ionicons name={item.previewIcon} size={18} color={colors.textBody} />
+          <Text style={styles.datoText}>{item.preview}</Text>
         </View>
       </PressScale>
     </View>
@@ -260,7 +196,6 @@ export default function WelcomeScreen({ navigation }) {
   const { width } = useWindowDimensions();
   const isDesktop = width >= DESKTOP_BREAKPOINT;
   const compacto = !isDesktop;
-  const reduce = useReduceMotion();
 
   const irLogin = () => navigation.navigate('Login');
   const irRegistro = () => navigation.navigate('Register');
@@ -313,23 +248,22 @@ export default function WelcomeScreen({ navigation }) {
       </FadeSlideIn>
 
       <FadeSlideIn index={3}>
-        <View style={[styles.ctas, isDesktop && styles.ctasRow]}>
-          <View style={isDesktop ? styles.ctaCell : null}>
-            <PrimaryButton title="Crear cuenta" variant="accent" onPress={irRegistro} />
-          </View>
-          <View style={isDesktop ? styles.ctaCell : null}>
-            <PrimaryButton title="Iniciar sesión" variant="secondary" onPress={irLogin} />
-          </View>
+        {/* Un solo botón fuerte: iniciar sesión y el código de invitación viven en el encabezado
+            (en celular, el código queda como enlace discreto debajo). */}
+        <View style={isDesktop ? styles.ctaUnico : null}>
+          <PrimaryButton title="Crear cuenta" variant="accent" onPress={irRegistro} />
         </View>
-        <PressScale
-          contentStyle={styles.inviteRow}
-          onPress={irRegistro}
-          accessibilityLabel="Me invitaron a un grupo familiar: crear cuenta para unirme con un código"
-        >
-          <Text style={styles.inviteText}>
-            ¿Te invitaron a un grupo? <Text style={styles.inviteLink}>Unite con tu código</Text>
-          </Text>
-        </PressScale>
+        {compacto && (
+          <PressScale
+            contentStyle={styles.inviteRow}
+            onPress={irRegistro}
+            accessibilityLabel="Me invitaron a un grupo familiar: crear cuenta para unirme con un código"
+          >
+            <Text style={styles.inviteText}>
+              ¿Te invitaron a un grupo? <Text style={styles.inviteLink}>Unite con tu código</Text>
+            </Text>
+          </PressScale>
+        )}
       </FadeSlideIn>
     </View>
   );
@@ -338,12 +272,6 @@ export default function WelcomeScreen({ navigation }) {
   const foto = (
     <FadeSlideIn index={4} style={styles.photoStageWrap}>
       <View style={styles.photoStage}>
-        <View style={styles.blob} pointerEvents="none"><FormaOrganica /></View>
-        {/* Isotipo como marca de agua, asomando detrás de la esquina superior derecha */}
-        <View style={styles.watermark} pointerEvents="none">
-          <Logo variante="terracota" size={isDesktop ? 220 : 150} />
-        </View>
-
         <View style={styles.photoFrame}>
           <Image
             source={require('../../assets/welcome-family.jpg')}
@@ -354,7 +282,7 @@ export default function WelcomeScreen({ navigation }) {
         </View>
 
         {/* Tarjeta A (abajo a la izquierda): próximo recordatorio */}
-        <TarjetaFlotante style={compacto ? styles.cardAc : styles.cardA} reduce={reduce}>
+        <TarjetaFlotante style={compacto ? styles.cardAc : styles.cardA} d="d2">
           <View style={[styles.cardIcon, { backgroundColor: '#D6E2D6' }]}>
             <Ionicons name="paw" size={compacto ? 18 : 22} color="#3E6340" />
           </View>
@@ -370,7 +298,7 @@ export default function WelcomeScreen({ navigation }) {
         )}
 
         {/* Tarjeta B (arriba a la derecha): recordatorio cumplido */}
-        <TarjetaFlotante style={compacto ? styles.cardBc : styles.cardB} desfase={900} reduce={reduce}>
+        <TarjetaFlotante style={compacto ? styles.cardBc : styles.cardB} d="d3">
           <View>
             <Text style={[styles.cardWhen, compacto && styles.cardWhenC]}>Hoy 18:00</Text>
             <Text style={[styles.cardWhat, compacto && styles.cardWhatC]}>Enalapril — Marta</Text>
@@ -384,13 +312,16 @@ export default function WelcomeScreen({ navigation }) {
             <FlechaCurva size={56} color="#FFFFFF" opacidad={0.95} />
           </View>
         )}
+
+        {/* Dos stickers de papel chicos, decorativos, que entran después de las tarjetas */}
+        <PaperCutout icon="heart" tinte="terracota" size={compacto ? 44 : 58} rotate={-10} delay={360} style={compacto ? styles.stickerHeartC : styles.stickerHeart} />
+        <PaperCutout icon="paw" tinte="salvia" size={compacto ? 40 : 52} rotate={12} delay={450} style={compacto ? styles.stickerPawC : styles.stickerPaw} />
       </View>
     </FadeSlideIn>
   );
 
   return (
     <View style={styles.root}>
-      <GranoDePapel />
       <ScrollView
         contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom }}
         showsVerticalScrollIndicator={false}
@@ -458,9 +389,7 @@ export default function WelcomeScreen({ navigation }) {
           <View style={[styles.escenarios, isDesktop && styles.escenariosRow]}>
             {ESCENARIOS.map((e) => (
               <View key={e.title} style={[styles.escenario, isDesktop && styles.escenarioCell]}>
-                <View style={[styles.escenarioIcon, { backgroundColor: e.bg }]}>
-                  <Ionicons name={e.icon} size={30} color={e.fg} />
-                </View>
+                <Ionicons name={e.icon} size={32} color={colors.accentStrong} />
                 <View style={styles.escenarioTexto}>
                   <Text style={styles.escenarioTitle}>{e.title}</Text>
                   <Text style={styles.escenarioDesc}>{e.text}</Text>
@@ -488,7 +417,7 @@ export default function WelcomeScreen({ navigation }) {
             <LogoConNombre variante="terracota" size={40} />
             <Text style={styles.pieText}>Creá tu grupo familiar gratis</Text>
             <View style={styles.pieCta}>
-              <PrimaryButton title="Crear cuenta" variant="accent" onPress={irRegistro} fullWidth={!isDesktop} />
+              <PrimaryButton title="Crear cuenta" variant="accent" onPress={irRegistro} />
             </View>
             <Text style={styles.legal}>© 2026 DOMUS+</Text>
           </View>
@@ -501,7 +430,6 @@ export default function WelcomeScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bgBase },
-  grano: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none' },
   seccion: { width: '100%' },
   seccionInner: { width: '100%', maxWidth: CONTAINER_MAX_WIDTH, alignSelf: 'center', paddingHorizontal: MOBILE_MARGIN },
   seccionAire: { paddingVertical: 56 },
@@ -517,7 +445,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: 20,
     justifyContent: 'center',
-    borderRadius: 999,
+    borderRadius: radii.control,
     borderWidth: 1,
     borderColor: BORDE,
     backgroundColor: 'rgba(255,255,255,0.7)',
@@ -537,9 +465,7 @@ const styles = StyleSheet.create({
   underline: { position: 'absolute', left: 0, right: 0, bottom: -2 },
   subtext: { fontSize: 18, lineHeight: 28, color: '#3F3631', maxWidth: 520 },
   subtextDesktop: { fontSize: 19, lineHeight: 30 },
-  ctas: { gap: 16 },
-  ctasRow: { flexDirection: 'row' },
-  ctaCell: { flex: 1, maxWidth: 240 },
+  ctaUnico: { width: 240 },
   inviteRow: { minHeight: 52, justifyContent: 'center', marginTop: 4 },
   inviteText: { fontSize: 16, lineHeight: 24, color: '#3F3631' },
   inviteLink: {
@@ -551,8 +477,6 @@ const styles = StyleSheet.create({
   // ---- foto y tarjetas flotantes
   photoStageWrap: { width: '100%', alignItems: 'center' },
   photoStage: { width: '100%', maxWidth: 560, position: 'relative', marginBottom: 28 },
-  blob: { position: 'absolute', left: -28, right: 24, top: 36, bottom: -36 },
-  watermark: { position: 'absolute', top: -44, right: -44, opacity: 0.07 },
   photoFrame: { borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: BORDE, backgroundColor: colors.surfaceSand },
   photo: { width: '100%', aspectRatio: FOTO_ASPECTO },
   flotante: {
@@ -572,6 +496,10 @@ const styles = StyleSheet.create({
   cardB: { right: -20, top: 28 },
   cardAc: { left: -6, bottom: -20, paddingVertical: 8, paddingHorizontal: 12 },
   cardBc: { right: -6, top: 12, paddingVertical: 8, paddingHorizontal: 12 },
+  stickerHeart: { position: 'absolute', left: -18, top: -22 },
+  stickerHeartC: { position: 'absolute', left: -6, top: -16 },
+  stickerPaw: { position: 'absolute', right: 30, bottom: -30 },
+  stickerPawC: { position: 'absolute', right: 14, bottom: -26 },
   sparksA: { position: 'absolute', left: 168, bottom: -34 },
   sparksAc: { position: 'absolute', left: 130, bottom: -30 },
   arrowB: { position: 'absolute', right: 150, top: 78 },
@@ -599,9 +527,9 @@ const styles = StyleSheet.create({
     ...SOMBRA_CALIDA,
   },
   benefitHover: { borderColor: '#E8B9A5' },
-  benefitIcon: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  preview: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', marginTop: 12, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999 },
-  previewText: { fontSize: 14, lineHeight: 20, fontFamily: poppinsWeight('600') },
+  benefitHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  dato: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#EFE8DF' },
+  datoText: { flex: 1, fontVariant: ['tabular-nums'], fontSize: 15, lineHeight: 22, fontFamily: poppinsWeight('600'), color: colors.ink },
   benefitTitle: { fontSize: 18, lineHeight: 26, fontFamily: poppinsWeight('700'), color: colors.ink },
   benefitText: { fontSize: 16, lineHeight: 24, color: '#3F3631' },
 
@@ -639,7 +567,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 440,
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: BORDE,
     overflow: 'visible',
@@ -650,14 +578,14 @@ const styles = StyleSheet.create({
   maquetaSub: { fontSize: 14, lineHeight: 20, color: '#3F3631' },
   maquetaBody: { padding: 20, gap: 16 },
   maquetaRow: { flexDirection: 'row', gap: 12 },
-  maquetaBlood: { flex: 1, borderRadius: 12, padding: 12, backgroundColor: '#FDF2F0' },
+  maquetaBlood: { flex: 1, borderRadius: 10, padding: 12, backgroundColor: '#FDF2F0' },
   maquetaLabel: { fontSize: 14, lineHeight: 20, fontFamily: poppinsWeight('600'), color: '#574E49' },
   maquetaBloodValue: { fontSize: 30, lineHeight: 38, fontFamily: poppinsWeight('700'), color: '#A6291B' },
   maquetaAllergies: { flex: 1.4, justifyContent: 'center' },
   maquetaChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   maquetaChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: '#F9DDD5' },
   maquetaChipText: { fontSize: 14, fontFamily: poppinsWeight('600'), color: '#8C2F1B' },
-  maquetaContacto: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#EFE8DF' },
+  maquetaContacto: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#EFE8DF' },
   maquetaPhone: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FDF2F0', alignItems: 'center', justifyContent: 'center' },
   maquetaContactName: { fontSize: 15, lineHeight: 22, fontFamily: poppinsWeight('600'), color: colors.ink },
   maquetaContactTel: { fontVariant: ['tabular-nums'], fontSize: 18, lineHeight: 26, fontFamily: poppinsWeight('700'), color: colors.accentStrong, textDecorationLine: 'underline' },
@@ -667,7 +595,6 @@ const styles = StyleSheet.create({
   escenariosRow: { flexDirection: 'row', gap: 20 },
   escenario: { flexDirection: 'row', alignItems: 'center', gap: 20, padding: 24, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: BORDE, ...SOMBRA_CALIDA },
   escenarioCell: { flex: 1 },
-  escenarioIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
   escenarioTexto: { flex: 1, gap: 4 },
   escenarioTitle: { fontSize: 19, lineHeight: 27, fontFamily: poppinsWeight('700'), color: colors.ink },
   escenarioDesc: { fontSize: 16, lineHeight: 25, color: '#3F3631' },

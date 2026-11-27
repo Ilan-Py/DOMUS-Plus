@@ -8,7 +8,6 @@ import FormField from '../components/FormField';
 import PrimaryButton from '../components/PrimaryButton';
 import ErrorBanner from '../components/ErrorBanner';
 import SegmentedControl from '../components/SegmentedControl';
-import BackgroundBlobs from '../components/BackgroundBlobs';
 import Logo from '../components/Logo';
 import { confirmarDestructivo } from '../utils/confirm';
 
@@ -91,8 +90,6 @@ export default function GroupSetupScreen() {
       style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <BackgroundBlobs />
-
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
