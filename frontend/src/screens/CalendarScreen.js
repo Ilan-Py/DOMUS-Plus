@@ -36,11 +36,14 @@ import FadeOutRow, { EXIT_DURATION } from '../components/FadeOutRow';
 const DESKTOP_BREAKPOINT = 1024;
 const CONTAINER_MAX_WIDTH = 1440;
 
-const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-const MESES = [
-  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
-];
+// Nombres de días y meses desde Intl (es-AR) en vez de listas fijas: 7 de enero de 2024 fue domingo.
+const fmtDia = new Intl.DateTimeFormat('es-AR', { weekday: 'long' });
+const fmtMes = new Intl.DateTimeFormat('es-AR', { month: 'long' });
+const DIAS = Array.from({ length: 7 }, (_, i) => {
+  const n = fmtDia.format(new Date(2024, 0, 7 + i));
+  return n.charAt(0).toUpperCase() + n.slice(1);
+});
+const MESES = Array.from({ length: 12 }, (_, i) => fmtMes.format(new Date(2024, i, 1)));
 const TIPO_LABELS = { vacuna: 'Vacuna', control: 'Control', medicacion: 'Medicación' };
 
 const FILTROS = [
@@ -343,7 +346,7 @@ export default function CalendarScreen({ navigation }) {
   );
 
   const grilla = (
-    <View {...paper('cartulina')} style={styles.cartulina}>
+    <View {...paper('cartulina')} style={[styles.cartulina, !desktop && styles.cartulinaCompacta]}>
       <MiniCalendar
         cabecera={false}
         compacta={!desktop}
@@ -417,14 +420,17 @@ export default function CalendarScreen({ navigation }) {
             return (
               <FadeSlideIn key={item.id} index={i}>
                 <FadeOutRow exiting={exitingId === item.id}>
-                  <PressScale
-                    contentStyle={[styles.item, hecho && styles.itemDone]}
-                    onPress={() => handleEditar(item)}
-                    disabled={ocupado}
-                    accessibilityLabel={`Editar recordatorio: ${item.descripcion || TIPO_LABELS[item.tipo] || ''}`}
-                  >
+                  {/* El contenedor no es un botón: editar y "Hecho" son dos controles hermanos, nunca uno dentro del otro. */}
+                  <View style={[styles.item, hecho && styles.itemDone]}>
                     {/* Barra lateral de 4 px del color de su categoría */}
                     <View pointerEvents="none" style={[styles.itemBarra, { backgroundColor: cat.fg }]} />
+                    <PressScale
+                      style={styles.itemPress}
+                      contentStyle={styles.itemPressContent}
+                      onPress={() => handleEditar(item)}
+                      disabled={ocupado}
+                      accessibilityLabel={`Editar recordatorio: ${item.descripcion || TIPO_LABELS[item.tipo] || ''}`}
+                    >
                     <View style={styles.itemMain}>
                       <View style={styles.itemTop}>
                         <Text style={styles.itemHora}>{formatHora(fecha)}</Text>
@@ -438,6 +444,7 @@ export default function CalendarScreen({ navigation }) {
                       )}
                       {!!dueno && <Text style={styles.itemDueno}>{dueno}</Text>}
                     </View>
+                    </PressScale>
 
                     <Pulse trigger={ocupado} radio={12}>
                       <PressScale
@@ -462,7 +469,7 @@ export default function CalendarScreen({ navigation }) {
                         )}
                       </PressScale>
                     </Pulse>
-                  </PressScale>
+                  </View>
                 </FadeOutRow>
               </FadeSlideIn>
             );
@@ -608,6 +615,8 @@ const styles = StyleSheet.create({
     shadowRadius: 0,
     elevation: 2,
   },
+  // Móvil: menos relleno para que las 7 columnas de la grilla queden lo más anchas posible.
+  cartulinaCompacta: { padding: 8 },
   leyenda: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#EFE8DF' },
   leyendaItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   leyendaPunto: { width: 12, height: 12, borderRadius: 4, borderWidth: 1 },
@@ -637,6 +646,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   itemDone: { opacity: 0.6 },
+  itemPress: { flex: 1, minWidth: 0 },
+  itemPressContent: { minWidth: 0, justifyContent: 'center' },
   itemBarra: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 4 },
   itemMain: { flex: 1, gap: 4, minWidth: 0 },
   itemTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },

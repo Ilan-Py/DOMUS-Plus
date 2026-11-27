@@ -36,6 +36,8 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
   const style = document.createElement('style');
   style.textContent = 'input::-ms-reveal, input::-ms-clear { display: none; } html, body { background: #FBF6EE; }';
   document.head.appendChild(style);
+  // El contenido está en español: los lectores de pantalla eligen la voz según este atributo.
+  document.documentElement.lang = 'es';
   // Utilidades "paper cutout" (grano de papel, tarjetas flotantes, paper-pop).
   injectPaperCss();
   // Favicon explícito (el corazón terracota) — sin esto el navegador cae al /favicon.ico por defecto.

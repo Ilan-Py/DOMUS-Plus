@@ -11,10 +11,14 @@ import PressScale from './PressScale';
 // 2 o 3 categorías). Elegir un día muestra su agenda. No depende de ninguna librería. Con `cabecera={false}`
 // se dibuja sólo la grilla (el encabezado con mes, "Hoy" y flechas lo pone la pantalla).
 //   marcados: Map<dayKey, { categorias: string[], total: number, titulo: string }>
-const MESES = [
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-];
+// Nombres de mes desde Intl (es-AR) en vez de una lista fija.
+const fmtMes = new Intl.DateTimeFormat('es-AR', { month: 'long' });
+const MESES = Array.from({ length: 12 }, (_, i) => {
+  const n = fmtMes.format(new Date(2024, i, 1));
+  return n.charAt(0).toUpperCase() + n.slice(1);
+});
+// Para lectores de pantalla: el color solo no alcanza para saber de qué es el aviso.
+const NOMBRE_CATEGORIA = { medicacion: 'medicación', mascota: 'mascota', turno: 'turno o control' };
 const DIAS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
 // Tono pastel y borde sutil por categoría: medicación (terracota), mascota (salvia), turno o control (ocre).
@@ -90,13 +94,16 @@ function DayCell({ fecha, info, esHoy, esSel, onPress, alto, compacta }) {
       contentStyle={[
         styles.carta,
         { minHeight: alto, backgroundColor: fondo, borderColor: borde },
+        compacta && styles.cartaCompacta,
         esSel && styles.cartaSel,
       ]}
       onPress={onPress}
       onHoverIn={() => setHover(true)}
       onHoverOut={() => setHover(false)}
       accessibilityLabel={`${fecha.getDate()} de ${MESES[fecha.getMonth()].toLowerCase()}${esHoy ? ', hoy' : ''}${
-        total ? `, ${total} ${total === 1 ? 'recordatorio' : 'recordatorios'}` : ''
+        total
+          ? `, ${total} ${total === 1 ? 'recordatorio' : 'recordatorios'} (${categorias.map((c) => NOMBRE_CATEGORIA[c]).join(', ')})`
+          : ', sin recordatorios'
       }`}
       accessibilityState={{ selected: esSel }}
     >
@@ -105,7 +112,7 @@ function DayCell({ fecha, info, esHoy, esSel, onPress, alto, compacta }) {
         <View style={[styles.num, esHoy && styles.numHoy]}>
           <Text style={[styles.dayText, esHoy && styles.dayTextHoy]}>{fecha.getDate()}</Text>
         </View>
-        {total >= 2 && (
+        {total >= 2 && !compacta && (
           <View style={styles.contador}>
             <Text style={styles.contadorText}>{total}</Text>
           </View>
@@ -153,7 +160,7 @@ export default function MiniCalendar({
         </View>
       )}
 
-      <View style={[styles.fila, styles.filaDias]}>
+      <View style={[styles.fila, styles.filaDias, compacta && styles.gapChico]}>
         {DIAS.map((d) => (
           <Text key={d} style={styles.dow}>
             {d}
@@ -161,9 +168,9 @@ export default function MiniCalendar({
         ))}
       </View>
 
-      <View style={styles.grilla}>
+      <View style={[styles.grilla, compacta && styles.gapChico]}>
         {filas.map((fila, i) => (
-          <View key={i} style={styles.fila}>
+          <View key={i} style={[styles.fila, compacta && styles.gapChico]}>
             {fila.map((fecha, j) => {
               if (!fecha) return <View key={j} style={styles.cell} />;
               const key = dayKey(fecha);
@@ -196,6 +203,7 @@ const styles = StyleSheet.create({
   grilla: { gap: 8 },
   fila: { flexDirection: 'row', gap: 8 },
   filaDias: { marginBottom: 8 },
+  gapChico: { gap: 4 },
   dow: {
     flex: 1,
     textAlign: 'center',
@@ -212,6 +220,7 @@ const styles = StyleSheet.create({
     padding: 8,
     justifyContent: 'space-between',
   },
+  cartaCompacta: { padding: 4 },
   // Elegido: borde sólido de 2 px en tinta + sombra corta de cartulina.
   cartaSel: {
     borderWidth: 2,

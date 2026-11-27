@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -62,30 +62,43 @@ function calcularEdad(fechaNacimiento) {
 // claro. Los integrantes llevan un botón rápido de «Emergencia».
 function MemberCard({ icon, nombre, apellido, nombreCompleto, fotoUrl, avatarId, subt, tipo, mascota, onPress, onLongPress, onEmergencyPress, disabled }) {
   const [hover, setHover] = useState(false);
+  // La tarjeta no es un botón: abrir el perfil y "Emergencia" son dos controles hermanos (nunca uno dentro del
+  // otro). El hover se comparte entre los dos con una pequeña demora para que no parpadee al pasar de uno a otro.
+  const temporizador = useRef(null);
+  const entrar = () => {
+    clearTimeout(temporizador.current);
+    setHover(true);
+  };
+  const salir = () => {
+    temporizador.current = setTimeout(() => setHover(false), 60);
+  };
   return (
     <View {...paper('cartulina')} style={[styles.cardWrap, Platform.OS === 'web' && styles.cardWrapWeb, hover && styles.cardWrapHover]}>
-      <PressScale
-        contentStyle={[styles.memberCard, hover && styles.memberCardHover]}
-        onPress={onPress}
-        onLongPress={onLongPress}
-        onHoverIn={() => setHover(true)}
-        onHoverOut={() => setHover(false)}
-        disabled={disabled}
-        accessibilityLabel={`${nombreCompleto || nombre}, ${subt}`}
-      >
+      <View style={[styles.memberCard, hover && styles.memberCardHover]}>
         {/* Barra lateral de 4 px: terracota para personas, verde salvia para mascotas */}
         <View pointerEvents="none" style={[styles.barra, { backgroundColor: mascota ? colors.salvia : colors.accentStrong }]} />
-        <View style={styles.memberHead}>
-          <EntityAvatar avatarId={avatarId} type={mascota ? 'pet' : 'person'} name={nombre} apellido={apellido} size={48} tipo={tipo} fotoUrl={fotoUrl} />
-          <View style={styles.memberInfo}>
-            <Text style={styles.memberName}>{nombreCompleto || nombre}</Text>
-            <Text style={styles.memberSubt}>{subt}</Text>
+        <PressScale
+          onPress={onPress}
+          onLongPress={onLongPress}
+          onHoverIn={entrar}
+          onHoverOut={salir}
+          disabled={disabled}
+          accessibilityLabel={`${nombreCompleto || nombre}, ${subt}`}
+        >
+          <View style={styles.memberHead}>
+            <EntityAvatar avatarId={avatarId} type={mascota ? 'pet' : 'person'} name={nombre} apellido={apellido} size={48} tipo={tipo} fotoUrl={fotoUrl} />
+            <View style={styles.memberInfo}>
+              <Text style={styles.memberName}>{nombreCompleto || nombre}</Text>
+              <Text style={styles.memberSubt}>{subt}</Text>
+            </View>
           </View>
-        </View>
+        </PressScale>
         {!!onEmergencyPress && (
           <PressScale
             contentStyle={styles.emergencyBadge}
             onPress={onEmergencyPress}
+            onHoverIn={entrar}
+            onHoverOut={salir}
             disabled={disabled}
             accessibilityLabel={`Ficha de emergencia de ${nombreCompleto || nombre}`}
           >
@@ -93,7 +106,7 @@ function MemberCard({ icon, nombre, apellido, nombreCompleto, fotoUrl, avatarId,
             <Text style={styles.emergencyLabel}>Emergencia</Text>
           </PressScale>
         )}
-      </PressScale>
+      </View>
     </View>
   );
 }
