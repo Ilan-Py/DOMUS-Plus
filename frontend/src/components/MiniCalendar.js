@@ -1,26 +1,29 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
+import Svg, { Polygon } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
 import PressScale from './PressScale';
 
-// Calendario mensual (semana de lunes a domingo, como en Argentina). Marca con puntos de color los
-// días que tienen recordatorios (un punto por categoría) y permite elegir un día para ver su agenda.
-// No depende de ninguna librería. Con `cabecera={false}` se dibuja sólo la grilla (el encabezado con
-// mes, "Hoy" y flechas lo pone la pantalla).
+// Calendario mensual (semana de lunes a domingo, como en Argentina) hecho de cartas de día: cada día con
+// recordatorios se pinta entero con el tono pastel de su categoría (o con cortes diagonales nítidos si tiene
+// 2 o 3 categorías). Elegir un día muestra su agenda. No depende de ninguna librería. Con `cabecera={false}`
+// se dibuja sólo la grilla (el encabezado con mes, "Hoy" y flechas lo pone la pantalla).
+//   marcados: Map<dayKey, { categorias: string[], total: number, titulo: string }>
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
 const DIAS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
-// Color del punto según la categoría: medicación (terracota), mascota (salvia), turno o control (ocre).
-export const COLOR_CATEGORIA = {
-  medicacion: colors.accentStrong,
-  mascota: colors.salvia,
-  turno: colors.ocre,
+// Tono pastel y borde sutil por categoría: medicación (terracota), mascota (salvia), turno o control (ocre).
+export const TONO_CATEGORIA = {
+  medicacion: { bg: '#FAECE7', borde: 'rgba(194, 70, 35, 0.35)' },
+  mascota: { bg: '#E8F0EC', borde: 'rgba(74, 107, 93, 0.35)' },
+  turno: { bg: '#FDF3E1', borde: 'rgba(200, 141, 50, 0.35)' },
 };
+const VACIO = { bg: '#FBF8F3', borde: 'rgba(42, 36, 33, 0.08)' };
 
 export function dayKey(fecha) {
   return `${fecha.getFullYear()}-${fecha.getMonth()}-${fecha.getDate()}`;
@@ -37,41 +40,94 @@ function celdasDelMes(mes) {
   return celdas;
 }
 
-// Celda de un día. Hoy: círculo terracota sólido con número blanco. Elegido: borde terracota de 2 px
-// y fondo arena. Fondo suave al pasar el mouse.
-function DayCell({ fecha, categorias, esHoy, esSel, onPress }) {
+// Fondo de la carta: tono liso (0 o 1 categoría) o cortes diagonales a 135° sin difuminar (2 o 3).
+function FondoCategorias({ categorias }) {
+  const t = categorias.slice(0, 3).map((c) => (TONO_CATEGORIA[c] || VACIO).bg);
+  if (t.length < 2) return null;
+  const poligonos =
+    t.length === 2
+      ? [
+          { pts: '0,0 100,0 0,100', fill: t[0] },
+          { pts: '100,0 100,100 0,100', fill: t[1] },
+        ]
+      : [
+          { pts: '0,0 66.7,0 0,66.7', fill: t[0] },
+          { pts: '66.7,0 100,0 100,33.3 33.3,100 0,100 0,66.7', fill: t[1] },
+          { pts: '100,33.3 100,100 33.3,100', fill: t[2] },
+        ];
+  return (
+    <Svg
+      width="100%"
+      height="100%"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+      style={StyleSheet.absoluteFill}
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no"
+    >
+      {poligonos.map((p) => (
+        <Polygon key={p.pts} points={p.pts} fill={p.fill} />
+      ))}
+    </Svg>
+  );
+}
+
+// Carta de un día. Hoy: círculo terracota con número blanco (sin tapar el fondo de categoría). Elegido: borde
+// sólido de 2 px en tinta y sombra corta de cartulina. Día vacío: fondo casi blanco con hover suave.
+function DayCell({ fecha, info, esHoy, esSel, onPress, alto, compacta }) {
   const [hover, setHover] = useState(false);
-  const tiene = categorias.length > 0;
+  const categorias = info ? info.categorias : [];
+  const total = info ? info.total : 0;
+  const tono = TONO_CATEGORIA[categorias[0]] || VACIO;
+  const fondo = categorias.length === 0 ? (hover ? '#F5EFE6' : VACIO.bg) : tono.bg;
+  const borde = categorias.length === 0 ? VACIO.borde : categorias.length === 1 ? tono.borde : 'rgba(42, 36, 33, 0.18)';
+  const abajo = total === 0 ? '' : total === 1 ? info.titulo : `${total} avisos`;
+
   return (
     <PressScale
       style={styles.cell}
-      contentStyle={[styles.day, hover && !esSel && styles.dayHover, esSel && styles.daySelected]}
+      contentStyle={[
+        styles.carta,
+        { minHeight: alto, backgroundColor: fondo, borderColor: borde },
+        esSel && styles.cartaSel,
+      ]}
       onPress={onPress}
       onHoverIn={() => setHover(true)}
       onHoverOut={() => setHover(false)}
-      accessibilityLabel={`${fecha.getDate()} de ${MESES[fecha.getMonth()].toLowerCase()}${esHoy ? ', hoy' : ''}${tiene ? ', con recordatorios' : ''}`}
+      accessibilityLabel={`${fecha.getDate()} de ${MESES[fecha.getMonth()].toLowerCase()}${esHoy ? ', hoy' : ''}${
+        total ? `, ${total} ${total === 1 ? 'recordatorio' : 'recordatorios'}` : ''
+      }`}
       accessibilityState={{ selected: esSel }}
     >
-      <View style={[styles.num, esHoy && styles.numHoy]}>
-        <Text style={[styles.dayText, esHoy && styles.dayTextHoy, esSel && !esHoy && styles.dayTextSel]}>
-          {fecha.getDate()}
+      <FondoCategorias categorias={categorias} />
+      <View style={styles.arriba}>
+        <View style={[styles.num, esHoy && styles.numHoy]}>
+          <Text style={[styles.dayText, esHoy && styles.dayTextHoy]}>{fecha.getDate()}</Text>
+        </View>
+        {total >= 2 && (
+          <View style={styles.contador}>
+            <Text style={styles.contadorText}>{total}</Text>
+          </View>
+        )}
+      </View>
+      {!compacta && !!abajo && (
+        <Text style={styles.abajo} numberOfLines={1}>
+          {abajo}
         </Text>
-      </View>
-      {/* Un punto por categoría del día (máx. 3), del color de su categoría. */}
-      <View style={styles.dots}>
-        {categorias.slice(0, 3).map((c) => (
-          <View key={c} style={[styles.dot, { backgroundColor: COLOR_CATEGORIA[c] || colors.accentStrong }]} />
-        ))}
-      </View>
+      )}
     </PressScale>
   );
 }
 
-export default function MiniCalendar({ mes, onCambiarMes, marcados, seleccionado, onElegirDia, cabecera = true }) {
+export default function MiniCalendar({
+  mes, onCambiarMes, marcados, seleccionado, onElegirDia, cabecera = true, compacta = false,
+}) {
   const celdas = celdasDelMes(mes);
   const hoyKey = dayKey(new Date());
   const filas = [];
   for (let i = 0; i < celdas.length; i += 7) filas.push(celdas.slice(i, i + 7));
+  const alto = compacta ? 56 : 84;
 
   return (
     <View>
@@ -97,7 +153,7 @@ export default function MiniCalendar({ mes, onCambiarMes, marcados, seleccionado
         </View>
       )}
 
-      <View style={styles.row}>
+      <View style={[styles.fila, styles.filaDias]}>
         {DIAS.map((d) => (
           <Text key={d} style={styles.dow}>
             {d}
@@ -105,27 +161,28 @@ export default function MiniCalendar({ mes, onCambiarMes, marcados, seleccionado
         ))}
       </View>
 
-      {filas.map((fila, i) => (
-        <View key={i} style={styles.row}>
-          {fila.map((fecha, j) => {
-            if (!fecha) return <View key={j} style={styles.cell} />;
-            const key = dayKey(fecha);
-            const esSel = seleccionado === key;
-            const esHoy = key === hoyKey;
-            const categorias = marcados.get(key) || [];
-            return (
-              <DayCell
-                key={j}
-                fecha={fecha}
-                categorias={categorias}
-                esHoy={esHoy}
-                esSel={esSel}
-                onPress={() => onElegirDia(key)}
-              />
-            );
-          })}
-        </View>
-      ))}
+      <View style={styles.grilla}>
+        {filas.map((fila, i) => (
+          <View key={i} style={styles.fila}>
+            {fila.map((fecha, j) => {
+              if (!fecha) return <View key={j} style={styles.cell} />;
+              const key = dayKey(fecha);
+              return (
+                <DayCell
+                  key={j}
+                  fecha={fecha}
+                  info={marcados.get(key)}
+                  esHoy={key === hoyKey}
+                  esSel={seleccionado === key}
+                  alto={alto}
+                  compacta={compacta}
+                  onPress={() => onElegirDia(key)}
+                />
+              );
+            })}
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
@@ -136,34 +193,50 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   nav: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 20, fontFamily: SERIF_BOLD, color: colors.ink },
-  row: { flexDirection: 'row' },
+  grilla: { gap: 8 },
+  fila: { flexDirection: 'row', gap: 8 },
+  filaDias: { marginBottom: 8 },
   dow: {
     flex: 1,
     textAlign: 'center',
     fontSize: 14,
     fontFamily: poppinsWeight('600'),
     color: colors.textMuted,
-    paddingVertical: 8,
   },
-  cell: { flex: 1, aspectRatio: 1.45, minHeight: 48, alignItems: 'center', justifyContent: 'center', padding: 2 },
-  day: {
-    width: '100%',
-    height: '100%',
-    minHeight: 48,
-    gap: 4,
-    borderRadius: 10,
+  cell: { flex: 1, minWidth: 0 },
+  carta: {
+    flex: 1,
+    overflow: 'hidden',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 8,
+    justifyContent: 'space-between',
+  },
+  // Elegido: borde sólido de 2 px en tinta + sombra corta de cartulina.
+  cartaSel: {
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: '#2A2421',
+    shadowColor: '#2A2421',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 0,
+    elevation: 2,
+    ...Platform.select({ web: { boxShadow: '0 3px 0 rgba(42, 36, 33, 0.10)' }, default: {} }),
+  },
+  arriba: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  num: { minWidth: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  numHoy: { backgroundColor: colors.accentStrong },
+  dayText: { fontVariant: ['tabular-nums'], fontSize: 17, fontFamily: poppinsWeight('600'), color: '#2A2421' },
+  dayTextHoy: { color: colors.onAccent, fontFamily: poppinsWeight('700') },
+  contador: {
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 6,
+    borderRadius: 11,
+    backgroundColor: '#2A2421',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dayHover: { backgroundColor: colors.surfaceSoftPressed },
-  daySelected: { backgroundColor: colors.arena, borderColor: colors.accentStrong },
-  num: { minWidth: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  numHoy: { backgroundColor: colors.accentStrong },
-  dayText: { fontVariant: ['tabular-nums'], fontSize: 17, color: colors.ink },
-  dayTextHoy: { color: colors.onAccent, fontFamily: poppinsWeight('700') },
-  dayTextSel: { fontFamily: poppinsWeight('700') },
-  dots: { flexDirection: 'row', gap: 4, height: 8 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  contadorText: { fontSize: 12, lineHeight: 16, fontFamily: poppinsWeight('700'), color: '#FFFFFF' },
+  abajo: { fontSize: 13, lineHeight: 18, color: '#2A2421' },
 });

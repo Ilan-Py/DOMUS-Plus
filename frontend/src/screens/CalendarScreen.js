@@ -22,7 +22,7 @@ import InlineError from '../components/InlineError';
 import PrimaryButton from '../components/PrimaryButton';
 import PressScale from '../components/PressScale';
 import Skeleton from '../components/Skeleton';
-import MiniCalendar, { dayKey, NOMBRE_MES } from '../components/MiniCalendar';
+import MiniCalendar, { dayKey, NOMBRE_MES, TONO_CATEGORIA } from '../components/MiniCalendar';
 import PaperCutout from '../components/PaperCutout';
 import Pulse from '../components/Pulse';
 import { cancelarNotificacion, sincronizarNotificaciones } from '../utils/notifications';
@@ -34,7 +34,7 @@ import FadeOutRow, { EXIT_DURATION } from '../components/FadeOutRow';
 // Layout: desde 1024 px, grilla mensual a la izquierda (~65 %) y "Agenda del día" a la derecha
 // (~35 %), en un contenedor de hasta 1180 px alineado a la izquierda. Debajo, apilados.
 const DESKTOP_BREAKPOINT = 1024;
-const CONTAINER_MAX_WIDTH = 1180;
+const CONTAINER_MAX_WIDTH = 1440;
 
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const MESES = [
@@ -259,10 +259,11 @@ export default function CalendarScreen({ navigation }) {
     const mapa = new Map();
     porQuien.forEach((r) => {
       const k = dayKey(parseFechaHora(r.fecha_hora));
-      const cats = mapa.get(k) || [];
+      const info = mapa.get(k) || { categorias: [], total: 0, titulo: r.descripcion || TIPO_LABELS[r.tipo] || 'Aviso' };
       const c = categoriaDe(r);
-      if (!cats.includes(c)) cats.push(c);
-      mapa.set(k, cats);
+      if (!info.categorias.includes(c)) info.categorias.push(c);
+      info.total += 1;
+      mapa.set(k, info);
     });
     return mapa;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -274,6 +275,17 @@ export default function CalendarScreen({ navigation }) {
         .sort((x, y) => parseFechaHora(x.fecha_hora) - parseFechaHora(y.fecha_hora)),
     [porQuien, diaElegido]
   );
+
+  // Próximos 3 avisos pendientes del mes que se está viendo (desde ahora en adelante).
+  const proximosMes = useMemo(() => {
+    const ahora = new Date();
+    return porQuien
+      .filter((x) => x.activo)
+      .map((x) => ({ item: x, fecha: parseFechaHora(x.fecha_hora) }))
+      .filter(({ fecha }) => fecha >= ahora && fecha.getMonth() === mes.getMonth() && fecha.getFullYear() === mes.getFullYear())
+      .sort((a, b) => a.fecha - b.fecha)
+      .slice(0, 3);
+  }, [porQuien, mes]);
 
   const [anio, mesNum, diaNum] = diaElegido.split('-').map(Number);
   const fechaElegida = new Date(anio, mesNum, diaNum);
@@ -334,6 +346,7 @@ export default function CalendarScreen({ navigation }) {
     <View {...paper('cartulina')} style={styles.cartulina}>
       <MiniCalendar
         cabecera={false}
+        compacta={!desktop}
         mes={mes}
         onCambiarMes={setMes}
         marcados={marcados}
@@ -343,7 +356,7 @@ export default function CalendarScreen({ navigation }) {
       <View style={styles.leyenda}>
         {Object.entries(CATEGORIAS).map(([k, c]) => (
           <View key={k} style={styles.leyendaItem}>
-            <View style={[styles.leyendaPunto, { backgroundColor: c.fg }]} />
+            <View style={[styles.leyendaPunto, { backgroundColor: TONO_CATEGORIA[k].bg, borderColor: TONO_CATEGORIA[k].borde }]} />
             <Text style={styles.leyendaText}>{c.label}</Text>
           </View>
         ))}
@@ -459,6 +472,43 @@ export default function CalendarScreen({ navigation }) {
     </View>
   );
 
+  const proximos = (
+    <View {...paper('cartulina')} style={styles.cartulina}>
+      <Text style={styles.agendaEyebrow} accessibilityRole="header">Próximos del mes</Text>
+      {loading ? (
+        <View style={styles.lista}>
+          <SkeletonReminderRow />
+        </View>
+      ) : proximosMes.length === 0 ? (
+        <Text style={styles.proximoVacio}>
+          No hay avisos próximos en {NOMBRE_MES(mes.getMonth()).toLowerCase()}.
+        </Text>
+      ) : (
+        <View style={styles.lista}>
+          {proximosMes.map(({ item, fecha }) => {
+            const cat = CATEGORIAS[categoriaDe(item)];
+            return (
+              <PressScale
+                key={item.id}
+                contentStyle={styles.proximoFila}
+                onPress={() => setDiaElegido(dayKey(fecha))}
+                accessibilityLabel={`Ver el ${fecha.getDate()} de ${NOMBRE_MES(fecha.getMonth()).toLowerCase()}: ${item.descripcion || TIPO_LABELS[item.tipo] || 'aviso'}`}
+              >
+                <View pointerEvents="none" style={[styles.itemBarra, { backgroundColor: cat.fg }]} />
+                <View style={styles.itemMain}>
+                  <Text style={styles.proximoCuando}>
+                    {fecha.getDate()} de {NOMBRE_MES(fecha.getMonth()).toLowerCase()} · {formatHora(fecha)}
+                  </Text>
+                  <Text style={styles.itemDesc} numberOfLines={2}>{item.descripcion || TIPO_LABELS[item.tipo] || 'Aviso'}</Text>
+                </View>
+              </PressScale>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+
   return (
     <View style={styles.root}>
       <ScrollView
@@ -475,12 +525,16 @@ export default function CalendarScreen({ navigation }) {
           {desktop ? (
             <View style={styles.columns}>
               <View style={styles.colGrilla}>{grilla}</View>
-              <View style={styles.colAgenda}>{agenda}</View>
+              <View style={styles.colAgenda}>
+                {agenda}
+                {proximos}
+              </View>
             </View>
           ) : (
             <View style={styles.stack}>
               {grilla}
               {agenda}
+              {proximos}
             </View>
           )}
         </View>
@@ -536,8 +590,9 @@ const styles = StyleSheet.create({
 
   // ---- layout
   columns: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
-  colGrilla: { flex: 65 },
-  colAgenda: { flex: 35 },
+  // grid-template-columns: minmax(0, 1.75fr) minmax(340px, 1fr), gap 24
+  colGrilla: { flex: 1.75, minWidth: 0 },
+  colAgenda: { flex: 1, minWidth: 340, gap: 24 },
   stack: { gap: 16 },
 
   // Cartulina: fondo blanco, borde cálido de 1 px y sombra corta (en web, de dos capas vía theme/paper.js).
@@ -555,7 +610,7 @@ const styles = StyleSheet.create({
   },
   leyenda: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#EFE8DF' },
   leyendaItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  leyendaPunto: { width: 10, height: 10, borderRadius: 5 },
+  leyendaPunto: { width: 12, height: 12, borderRadius: 4, borderWidth: 1 },
   leyendaText: { fontSize: 14, lineHeight: 20, color: colors.textBody },
 
   // ---- agenda del día
@@ -605,6 +660,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   hechoText: { fontSize: 15, fontFamily: poppinsWeight('600') },
+
+  proximoVacio: { fontSize: 16, lineHeight: 24, color: colors.textBody, marginTop: 8 },
+  proximoFila: {
+    minHeight: 56,
+    paddingVertical: 8,
+    paddingLeft: 16,
+    paddingRight: 8,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    backgroundColor: colors.glassStrong,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
+    borderRadius: 12,
+  },
+  proximoCuando: { fontVariant: ['tabular-nums'], fontSize: 15, lineHeight: 22, fontFamily: poppinsWeight('600'), color: colors.ink },
 
   // ---- día libre
   diaLibre: { alignItems: 'center', gap: 8, paddingVertical: 24 },
