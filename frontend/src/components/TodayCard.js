@@ -8,8 +8,9 @@ import { poppinsWeight } from '../theme/typography';
 import { getList } from '../api/client';
 import { parseFechaHora } from '../utils/displayFormat';
 import { useFamily } from '../context/FamilyContext';
-import { AllClearDoodle } from './FamilyDoodles';
+import PaperCutout from './PaperCutout';
 import PressScale from './PressScale';
+import { paper } from '../theme/paper';
 
 // «Hoy en tu familia»: los próximos recordatorios de hoy (y los vencidos que
 // siguen pendientes), hasta 3, con hora, categoría, descripción y de quién es.
@@ -62,7 +63,7 @@ export default function TodayCard({ onVerCalendario }) {
 
   if (items === null) {
     return (
-      <View style={styles.card}>
+      <View {...paper('cutout')} style={styles.card}>
         <SkeletonFilas filas={2} />
       </View>
     );
@@ -72,15 +73,16 @@ export default function TodayCard({ onVerCalendario }) {
   const visibles = items.slice(0, MAX_ITEMS);
 
   return (
-    <View style={styles.card}>
+    <View {...paper('cutout')} style={styles.card}>
       <Text style={styles.title} accessibilityRole="header">
         Hoy en tu familia
       </Text>
 
       {visibles.length === 0 ? (
         <View style={styles.empty}>
-          <AllClearDoodle width={132} />
-          <Text style={styles.emptyTitle}>{error ? 'No pudimos cargar los pendientes' : '¡Todo al día!'}</Text>
+          {/* Solcito de papel (ocre), apenas girado, que se eleva un poco al pasar el mouse */}
+          {!error && <PaperCutout icon="sun" tinte="ocre" size={104} rotate={-2} hover />}
+          <Text style={[styles.emptyTitle, !error && { color: colors.salvia }]}>{error ? 'No pudimos cargar los pendientes' : '¡Todo al día!'}</Text>
           <Text style={styles.emptyText}>
             {error ? 'Revisá tu conexión e intentá de nuevo.' : 'No hay pendientes para hoy.'}
           </Text>

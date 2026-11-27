@@ -6,7 +6,7 @@ const { verificarToken } = require('../config/auth');
 const { validarIdDeRuta } = require('../utils/validacion');
 const {
     crearGrupo, obtenerGrupo, renombrarGrupo,
-    generarInvitacion, unirseGrupo, listarMiembros, eliminarMiembro, salirGrupo, eliminarGrupo,
+    generarInvitacion, obtenerInvitacion, unirseGrupo, listarMiembros, eliminarMiembro, salirGrupo, eliminarGrupo,
     agregarIntegrante, listarIntegrantes, editarIntegrante, eliminarIntegrante,
     editarEmergenciaIntegrante,
     agregarMascota, listarMascotas, editarMascota, eliminarMascota
@@ -27,6 +27,7 @@ router.get('/grupo',           obtenerGrupo);
 router.patch('/grupo',         renombrarGrupo);
 router.delete('/grupo',        eliminarGrupo);
 
+router.get('/grupo/invitacion',        obtenerInvitacion);
 router.post('/grupo/invitacion',       generarInvitacion);
 router.post('/grupo/unirse',           unirseGrupo);
 router.get('/grupo/miembros',          listarMiembros);

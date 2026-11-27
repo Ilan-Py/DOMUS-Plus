@@ -11,13 +11,38 @@ import { poppinsWeight } from '../theme/typography';
 // `icon` acepta los nombres de siempre: heart, paw, calendar, notifications, people, help.
 export const TINTES_RECORTE = {
   terracota: { bg: '#FBE3D9', fg: '#C24623' },
-  salvia: { bg: '#D6E2D6', fg: '#3E6340' },
+  salvia: { bg: '#E8F0EC', fg: '#4A6B5D' },
+  ocre: { bg: '#FDF3E1', fg: '#C88D32' },
   arena: { bg: '#F6E7C1', fg: '#8A6A12' },
 };
 
 // Cada forma se dibuja dos veces sobre una grilla 100×100: la capa 'borde' (blanca, con trazo
 // grueso redondeado = el corte del sticker) y la capa 'color'. `d` son los detalles internos.
 const FORMAS = {
+  // Sol sonriente: disco con ocho rayos redondeados y carita en el color claro.
+  sun: ({ c, d, fg }) => {
+    const rayos = Array.from({ length: 8 }, (_, i) => {
+      const a = (i * Math.PI) / 4;
+      const p = (r) => `${(50 + Math.cos(a) * r).toFixed(1)} ${(50 + Math.sin(a) * r).toFixed(1)}`;
+      return `M${p(33)} L${p(44)}`;
+    });
+    const trazo = c.stroke ? { stroke: '#FFFFFF', strokeWidth: 16 } : { stroke: fg, strokeWidth: 7 };
+    return (
+      <>
+        {rayos.map((r, i) => (
+          <Path key={i} d={r} fill="none" strokeLinecap="round" {...trazo} />
+        ))}
+        <Circle cx="50" cy="50" r="26" {...c} />
+        {d && (
+          <>
+            <Circle cx="42" cy="46" r="3" fill={d} />
+            <Circle cx="58" cy="46" r="3" fill={d} />
+            <Path d="M40 56 Q50 66 60 56" stroke={d} strokeWidth="3.5" strokeLinecap="round" fill="none" />
+          </>
+        )}
+      </>
+    );
+  },
   circulo: ({ c }) => <Circle cx="50" cy="50" r="42" {...c} />,
   heart: ({ c }) => (
     <Path
@@ -92,7 +117,7 @@ const SOMBRA_WEB = Platform.select({
 // `etiqueta` (ej. "1") dibuja un círculo recortado con ese texto en vez de un ícono (números de pasos).
 // `visible={false}` lo deja oculto hasta que pase a true: la entrada corre recién entonces
 // (ver useAlEntrar, para que los stickers de abajo de la página aparezcan al llegar a ellos).
-export default function PaperCutout({ icon, etiqueta, tinte = 'terracota', size = 84, rotate = 0, delay = 0, visible = true, style }) {
+export default function PaperCutout({ icon, etiqueta, tinte = 'terracota', size = 84, rotate = 0, delay = 0, visible = true, hover = false, style }) {
   const reduceMotion = useReducedMotion();
   const esWeb = Platform.OS === 'web';
   const anim = useRef(new Animated.Value(esWeb || reduceMotion ? 1 : 0)).current;
@@ -114,7 +139,7 @@ export default function PaperCutout({ icon, etiqueta, tinte = 'terracota', size 
 
   return (
     <Animated.View
-      {...(visible ? paper('pop', demora(delay)) : {})}
+      {...(visible ? paper('pop', demora(delay), hover && 'lift') : {})}
       style={[
         { width: size, height: size, opacity: esWeb ? (visible ? 1 : 0) : anim, transform: [{ rotate: `${rotate}deg` }, { scale: escala }] },
         SOMBRA_WEB,
@@ -125,7 +150,7 @@ export default function PaperCutout({ icon, etiqueta, tinte = 'terracota', size 
     >
       <Svg width={size} height={size} viewBox="-10 -10 120 120">
         <Forma c={borde} d={null} />
-        <Forma c={{ fill: fg }} d={bg} />
+        <Forma c={{ fill: fg }} d={bg} fg={fg} />
       </Svg>
       {!!etiqueta && (
         <View style={StyleSheet.absoluteFill} pointerEvents="none">

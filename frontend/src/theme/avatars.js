@@ -10,7 +10,7 @@ export const AVATAR_TINTS = {
   adulto: { bg: '#FBE5D8', text: '#A64B2A' }, // durazno suave
   menor: { bg: '#FDF1D6', text: '#9A6B16' }, // amarillo miel suave
   mayor: { bg: '#EFE8F2', text: '#5E4B66' }, // lavanda cálida
-  mascota: { bg: '#E5EFE4', text: '#3E6340' }, // verde salvia suave
+  mascota: { bg: colors.salviaSoft, text: colors.salvia }, // verde salvia (paleta de mascotas)
 };
 
 export const DEFAULT_AVATAR_TINT = AVATAR_TINTS.mascota;

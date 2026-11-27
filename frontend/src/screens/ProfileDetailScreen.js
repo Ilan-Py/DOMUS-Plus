@@ -24,7 +24,7 @@ import InlineError from '../components/InlineError';
 import PressScale from '../components/PressScale';
 import PrimaryButton from '../components/PrimaryButton';
 import Skeleton from '../components/Skeleton';
-import Avatar from '../components/Avatar';
+import EntityAvatar from '../components/EntityAvatar';
 import { EmptyDoodle } from '../components/FamilyDoodles';
 import EmergencySummary from '../components/EmergencySummary';
 import { formatLongDate, parseApiDate, toSentenceCase } from '../utils/displayFormat';
@@ -391,11 +391,12 @@ export default function ProfileDetailScreen({ navigation, route }) {
       </View>
 
       <View style={styles.identity}>
-        <Avatar
-          nombre={member?.nombre}
+        <EntityAvatar
+          avatarId={member?.avatar_id}
+          type={tipo === 'mascota' ? 'pet' : 'person'}
+          name={member?.nombre}
           apellido={member?.apellido}
           size={56}
-          mascota={tipo === 'mascota'}
           tipo={member?.tipo}
           fotoUrl={member?.foto_url}
         />

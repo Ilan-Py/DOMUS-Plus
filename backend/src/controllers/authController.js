@@ -143,6 +143,7 @@ async function login(req, res) {
                     nombre:   usuario.nombre,
                     apellido: usuario.apellido,
                     email:    usuario.email,
+                    avatar_id: usuario.avatarId,
                     rol:      usuario.rol // 'usuario' | 'admin'
                 }
             }
@@ -172,6 +173,12 @@ async function actualizarPerfil(req, res) {
         });
     }
 
+    // Avatar opcional: si no viene no se toca; vacío/null lo borra.
+    const avatarId = req.body.avatar_id;
+    if (avatarId !== undefined && avatarId !== null && avatarId !== '' && !(typeof avatarId === 'string' && /^[a-z0-9-]{1,40}$/.test(avatarId))) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'El avatar elegido no es válido.' });
+    }
+
     const emailNormalizado = email.trim().toLowerCase();
 
     try {
@@ -192,13 +199,17 @@ async function actualizarPerfil(req, res) {
 
         await prisma.usuario.update({
             where: { id: usuarioId },
-            data: { nombre: nombre.trim(), apellido: apellido.trim(), email: emailNormalizado }
+            data: {
+                nombre: nombre.trim(), apellido: apellido.trim(), email: emailNormalizado,
+                ...(avatarId === undefined ? {} : { avatarId: avatarId || null })
+            }
         });
+        const actualizado = await prisma.usuario.findUnique({ where: { id: usuarioId }, select: { avatarId: true } });
 
         return res.status(200).json({
             codigo: 200,
             estado: 'ok',
-            datos: { id: usuarioId, nombre: nombre.trim(), apellido: apellido.trim(), email: emailNormalizado }
+            datos: { id: usuarioId, nombre: nombre.trim(), apellido: apellido.trim(), email: emailNormalizado, avatar_id: actualizado ? actualizado.avatarId : null }
         });
 
     } catch (err) {

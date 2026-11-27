@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { mostrarToast } from '../components/ToastHost';
 import { View, Text, StyleSheet, Share, ActivityIndicator, ScrollView, useWindowDimensions } from 'react-native';
-import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,37 +17,15 @@ import FormField from '../components/FormField';
 import Pulse from '../components/Pulse';
 import CrossfadeIcon from '../components/CrossfadeIcon';
 import { confirmarDestructivo } from '../utils/confirm';
-import { iniciales } from '../utils/displayFormat';
-import { avatarTint } from '../theme/avatars';
+import { paper } from '../theme/paper';
+import CasaRecorte from '../components/CasaRecorte';
+import EntityAvatar from '../components/EntityAvatar';
+import AvatarPicker from '../components/AvatarPicker';
 
 // Layout (ver DESIGN.md): desde 1024px, dos columnas (38% perfil y seguridad / 62% grupo)
 // en un contenedor de hasta 1040px; debajo, una sola columna en el mismo orden.
 const DESKTOP_BREAKPOINT = 1024;
-const CONTAINER_MAX_WIDTH = 1040;
-
-// Doodle decorativo (casita) para la cabecera del grupo: trazo fino, sin texto.
-function DoodleCasa() {
-  return (
-    <Svg width={104} height={104} viewBox="0 0 96 96" fill="none">
-      <Path d="M10 46 L48 14 L86 46" stroke={colors.accentStrong} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-      <Path d="M20 42 V82 H76 V42" stroke={colors.accentStrong} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-      <Path d="M42 82 V60 H54 V82" stroke={colors.accentStrong} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-      <Path d="M70 24 V14 H78 V30" stroke={colors.accentStrong} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-      <Circle cx={12} cy={78} r={3} fill={colors.accentStrong} />
-      <Circle cx={86} cy={74} r={2} fill={colors.accentStrong} />
-    </Svg>
-  );
-}
-
-// Doodle de un sobre para el bloque de invitación.
-function DoodleSobre() {
-  return (
-    <Svg width={40} height={40} viewBox="0 0 40 40" fill="none" accessibilityElementsHidden importantForAccessibility="no">
-      <Rect x={5} y={10} width={30} height={22} rx={4} stroke={colors.accentStrong} strokeWidth={2} />
-      <Path d="M6 13 L20 24 L34 13" stroke={colors.accentStrong} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-    </Svg>
-  );
-}
+const CONTAINER_MAX_WIDTH = 1180;
 
 // Botón de sólo texto (Editar / Renombrar): sin ícono, fondo arena, 48dp.
 function TextButton({ label, onPress, accessibilityLabel }) {
@@ -107,26 +84,6 @@ function SettingRow({ icon, label, value, onPress, disabled, tone, accessibility
   );
 }
 
-// Círculo con iniciales: sólo para personas (no para filas de configuración).
-function Avatar({ nombre, apellido, size = 48 }) {
-  const tinte = avatarTint('adulto');
-  const ini = iniciales(nombre, apellido);
-  return (
-    <View
-      style={[
-        styles.avatar,
-        { width: size, height: size, borderRadius: size / 2, backgroundColor: tinte.bg },
-      ]}
-    >
-      {ini ? (
-        <Text style={[styles.avatarText, { color: tinte.text, fontSize: size * 0.36 }]}>{ini}</Text>
-      ) : (
-        <Ionicons name="person" size={size * 0.45} color={tinte.text} />
-      )}
-    </View>
-  );
-}
-
 export default function AccountScreen() {
   const { usuario, grupo, logout, salirDelGrupo, actualizarPerfil, renombrarGrupo } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -136,6 +93,7 @@ export default function AccountScreen() {
 
   const [editandoPerfil, setEditandoPerfil] = useState(false);
   const [perfilNombre, setPerfilNombre] = useState('');
+  const [perfilAvatar, setPerfilAvatar] = useState(null);
   const [perfilApellido, setPerfilApellido] = useState('');
   const [perfilEmail, setPerfilEmail] = useState('');
   const [perfilError, setPerfilError] = useState('');
@@ -218,6 +176,7 @@ export default function AccountScreen() {
     setPerfilNombre(usuario?.nombre || '');
     setPerfilApellido(usuario?.apellido || '');
     setPerfilEmail(usuario?.email || '');
+    setPerfilAvatar(usuario?.avatar_id || null);
     setPerfilError('');
     setEditandoPerfil(true);
   }
@@ -235,8 +194,10 @@ export default function AccountScreen() {
         nombre: perfilNombre.trim(),
         apellido: perfilApellido.trim(),
         email: perfilEmail.trim(),
+        avatar_id: perfilAvatar,
       });
       setEditandoPerfil(false);
+      fetchMiembros(); // la lista de miembros muestra el avatar nuevo
     } catch (err) {
       setPerfilError(err.mensaje);
     } finally {
@@ -380,10 +341,11 @@ export default function AccountScreen() {
 
   // ---------------- bloques ----------------
   const perfilCard = (
-    <View style={styles.card}>
+    <View {...paper('cartulina')} style={styles.card}>
       {editandoPerfil ? (
         <View style={styles.formPad}>
           <ErrorBanner message={perfilError} />
+          <AvatarPicker mode="all" value={perfilAvatar} onChange={setPerfilAvatar} name={perfilNombre} apellido={perfilApellido} />
           <FormField label="Nombre" value={perfilNombre} onChangeText={setPerfilNombre} />
           <FormField label="Apellido" value={perfilApellido} onChangeText={setPerfilApellido} />
           <FormField
@@ -401,7 +363,7 @@ export default function AccountScreen() {
         </View>
       ) : (
         <View style={styles.profileBody}>
-          <Avatar nombre={usuario?.nombre} apellido={usuario?.apellido} size={64} />
+          <EntityAvatar avatarId={usuario?.avatar_id} type="person" name={usuario?.nombre} apellido={usuario?.apellido} size={64} />
           <View style={styles.profileInfo}>
             <Text style={styles.profileNombre} numberOfLines={2}>
               {usuario?.nombre} {usuario?.apellido}
@@ -415,7 +377,7 @@ export default function AccountScreen() {
   );
 
   const seguridadCard = (
-    <View style={styles.card}>
+    <View {...paper('cartulina')} style={styles.card}>
       <Text style={styles.cardLabel} accessibilityRole="header">Acceso y seguridad</Text>
       {mostrarPasswordForm ? (
         <View style={styles.formPad}>
@@ -463,11 +425,11 @@ export default function AccountScreen() {
   );
 
   const grupoCard = (
-    <View style={[styles.card, styles.cardNoPad]}>
+    <View {...paper('cartulina')} style={[styles.card, styles.cardNoPad]}>
       {/* Cabecera destacada con un doodle decorativo (casita) en la esquina. */}
       <View style={styles.banner}>
         <View style={styles.bannerDoodle} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no">
-          <DoodleCasa />
+          <CasaRecorte size={100} />
         </View>
         {editandoGrupo ? (
           <View style={styles.bannerForm}>
@@ -499,21 +461,23 @@ export default function AccountScreen() {
       {esDueno && (
         <View style={styles.inviteWrap}>
           {!!invitacionError && <ErrorBanner message={invitacionError} />}
+          <View {...paper('lift')} style={styles.inviteLift}>
           <PressScale
             contentStyle={styles.inviteBox}
             onPress={generandoCodigo ? null : handleGenerarInvitacion}
             disabled={generandoCodigo}
             accessibilityLabel={codigoInvitacion ? 'Generar otro código de invitación' : 'Invitar miembro'}
           >
-            <DoodleSobre />
+            <Ionicons name="mail-open-outline" size={30} color={colors.salvia} />
             <View style={styles.rowTextWrap}>
               <Text style={styles.inviteTitle}>
                 {generandoCodigo ? 'Generando código…' : codigoInvitacion ? 'Generar otro código' : 'Invitar miembro'}
               </Text>
               <Text style={styles.inviteHint}>Generá un código para que se una a tu grupo</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.iconWarm} />
+            <Ionicons name="chevron-forward" size={20} color={colors.salvia} />
           </PressScale>
+          </View>
 
           {codigoInvitacion ? (
             <Pulse trigger={copiado} style={styles.codigoBox}>
@@ -547,12 +511,12 @@ export default function AccountScreen() {
           </Text>
           {miembros.map((m, i) => (
             <View key={m.usuario_id} style={[styles.miembroRow, i < miembros.length - 1 && styles.rowDivider]}>
-              <Avatar nombre={m.nombre} apellido={m.apellido} size={40} />
+              <EntityAvatar avatarId={m.avatar_id} type="person" name={m.nombre} apellido={m.apellido} size={40} />
               <Text style={styles.miembroNombre} numberOfLines={1}>
                 {m.nombre} {m.apellido}
               </Text>
-              <View style={styles.rolBadge}>
-                <Text style={styles.rolBadgeText}>{rolLabel(m.rol)}</Text>
+              <View style={[styles.rolBadge, esRolDueno(m.rol) && styles.rolBadgeDueno]}>
+                <Text style={[styles.rolBadgeText, esRolDueno(m.rol) && styles.rolBadgeDuenoText]}>{rolLabel(m.rol)}</Text>
               </View>
               {esDueno && m.usuario_id !== usuario?.id && (
                 <PressScale
@@ -580,13 +544,7 @@ export default function AccountScreen() {
       )}
       <View style={styles.footer}>
         {esDueno ? (
-          <SettingRow
-            icon="exit-outline"
-            label="Salir del grupo"
-            value="Como dueño, no podés salir del grupo."
-            disabled
-            last
-          />
+          <Text style={styles.sosDueno}>Sos el dueño del grupo</Text>
         ) : (
           <SettingRow
             icon="exit-outline"
@@ -606,10 +564,10 @@ export default function AccountScreen() {
         contentContainerStyle={[
           styles.scroll,
           desktop ? styles.scrollDesktop : styles.scrollMobile,
-          { paddingTop: (desktop ? 24 : 12) + insets.top },
+          { paddingTop: (desktop ? 32 : 12) + insets.top },
         ]}
       >
-        <View style={styles.container}>
+        <View style={[styles.container, desktop && styles.containerIzq]}>
           {/* Encabezado sin divisor: el título vive dentro del mismo contenedor que las tarjetas. */}
           <View style={styles.header}>
             <Text style={styles.title} accessibilityRole="header">Mi cuenta</Text>
@@ -640,9 +598,11 @@ export default function AccountScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   scroll: { paddingBottom: 112 },
-  scrollDesktop: { paddingHorizontal: 32 },
+  scrollDesktop: { paddingHorizontal: 48 },
   scrollMobile: { paddingHorizontal: 20 },
   container: { width: '100%', maxWidth: CONTAINER_MAX_WIDTH, alignSelf: 'center' },
+  // Escritorio: alineado a la izquierda, pegado a la barra lateral (sin pasillo vacío).
+  containerIzq: { alignSelf: 'flex-start' },
 
   header: { marginBottom: 24 },
   title: { fontSize: 26, lineHeight: 34, fontFamily: poppinsWeight('700'), color: colors.ink },
@@ -660,11 +620,12 @@ const styles = StyleSheet.create({
     borderColor: colors.borderCard,
     borderRadius: 16,
     overflow: 'hidden',
+    // Cartulina: en web, sombra de dos capas vía theme/paper.js; en nativo, una corta y nítida.
     shadowColor: '#2A2421',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 16,
-    elevation: 0,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.07,
+    shadowRadius: 0,
+    elevation: 2,
   },
   cardNoPad: { paddingBottom: 0 },
   cardLabel: {
@@ -726,15 +687,15 @@ const styles = StyleSheet.create({
 
   // ---- grupo: cabecera destacada (nivel 3: terracota pálido)
   banner: {
-    backgroundColor: colors.terraPale,
+    backgroundColor: colors.arena,
     borderBottomWidth: 1,
-    borderBottomColor: '#EFE8DF',
+    borderBottomColor: 'rgba(42, 36, 33, 0.08)',
     overflow: 'hidden',
     padding: 16,
     paddingRight: 120, // deja libre la esquina del doodle
     minHeight: 132,
   },
-  bannerDoodle: { position: 'absolute', right: 8, top: 8, opacity: 0.18 },
+  bannerDoodle: { position: 'absolute', right: 16, top: 12 },
   bannerText: { gap: 4 },
   bannerForm: { paddingRight: 0, marginRight: -104 },
   bannerAction: { marginTop: 12, alignSelf: 'flex-start' },
@@ -744,13 +705,18 @@ const styles = StyleSheet.create({
 
   // ---- bloque "Invitar miembro" (nivel 3: arena)
   inviteWrap: { padding: 16, paddingBottom: 0, gap: 12 },
+  inviteLift: { borderRadius: 10 },
+  // Destacado con acento salvia: borde punteado suave sobre fondo salvia claro.
   inviteBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
     padding: 16,
     borderRadius: 10,
-    backgroundColor: colors.sandBlock,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(74, 107, 93, 0.45)',
+    backgroundColor: colors.salviaSoft,
     minHeight: 72,
   },
   inviteTitle: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
@@ -789,8 +755,13 @@ const styles = StyleSheet.create({
   miembroNombre: { flex: 1, fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
   rolBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.badgeSand },
   rolBadgeText: { fontSize: 14, fontFamily: poppinsWeight('600'), color: colors.badgeSandText },
+  // Dueño: ocre mostaza suave. El texto va en un ocre más oscuro para mantener el contraste (#C88D32 sobre
+  // #FDF3E1 no llega a 3:1); el borde sí usa el ocre de la paleta.
+  rolBadgeDueno: { backgroundColor: colors.ocreSoft, borderWidth: 1, borderColor: colors.ocre },
+  rolBadgeDuenoText: { color: '#7A5112' },
   deleteBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', marginRight: -8 },
 
   // ---- pie: salir del grupo
   footer: { marginTop: 8, borderTopWidth: 1, borderTopColor: '#EFE8DF' },
+  sosDueno: { fontSize: 14, lineHeight: 20, color: colors.textBody, textAlign: 'center', paddingVertical: 16 },
 });

@@ -81,7 +81,13 @@ export default function AddReminderScreen({ navigation, route }) {
       : TIPOS_VALIDOS.includes(params.tipo) ? params.tipo
       : 'control'
   );
-  const [fecha, setFecha] = useState(() => fechaHoraEditando);
+  // Desde "+ Agregar para este día" del Calendario llega `fechaInicial` (clave AAAA-M-D, mes desde 0).
+  const fechaPrecargada = (() => {
+    if (editando || !params.fechaInicial) return null;
+    const [y, m, d] = String(params.fechaInicial).split('-').map(Number);
+    return Number.isFinite(y) ? new Date(y, m, d) : null;
+  })();
+  const [fecha, setFecha] = useState(() => fechaHoraEditando || fechaPrecargada);
   const [hora, setHora] = useState(() => fechaHoraEditando);
   const [descripcion, setDescripcion] = useState(() => editando?.descripcion || '');
 
