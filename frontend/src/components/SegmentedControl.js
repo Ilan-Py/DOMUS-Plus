@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     // solo, sin nada detrás desenfocándose, no lee como vidrio (mismo
     // diagnóstico que Login/Register: blurear un fondo parejo no se nota).
     backgroundColor: colors.trackSand,
-    borderRadius: 14,
+    borderRadius: 10,
     overflow: 'hidden', // recorta el blur nativo al radio del track (Android)
   },
   // View plana interna — ver comentario junto a trackRef arriba. Lleva el

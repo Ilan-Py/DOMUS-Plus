@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     marginTop: 8,
-    borderRadius: radii.pill,
+    borderRadius: radii.control,
     backgroundColor: colors.lime,
   },
   doneBtnText: {

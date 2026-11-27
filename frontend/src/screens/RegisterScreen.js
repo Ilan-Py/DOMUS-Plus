@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
   legalText: { fontSize: 15, lineHeight: 30, color: '#574E49', marginTop: 16 },
   legalLink: { color: colors.accentStrong, textDecorationLine: 'underline', fontFamily: poppinsWeight('600') },
   modalFondo: { flex: 1, backgroundColor: 'rgba(42,36,33,0.45)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  modalCard: { width: '100%', maxWidth: 480, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 24, gap: 12 },
+  modalCard: { width: '100%', maxWidth: 480, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 24, gap: 12 },
   modalTitulo: { fontSize: 22, lineHeight: 30, fontFamily: SERIF_BOLD, color: colors.ink },
   modalTexto: { fontSize: 16, lineHeight: 25, color: '#3F3631' },
 });

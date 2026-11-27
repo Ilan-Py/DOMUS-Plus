@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     minHeight: 44,
-    borderRadius: 12,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },

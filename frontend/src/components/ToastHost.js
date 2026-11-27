@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
     minHeight: 52,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 14,
+    borderRadius: 10,
     backgroundColor: colors.glass,
     borderWidth: 1,
     borderColor: colors.borderCard,

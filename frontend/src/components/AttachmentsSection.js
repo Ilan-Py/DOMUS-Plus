@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
     gap: 8,
     minHeight: 48,
     marginTop: 12,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.borderCard,
     backgroundColor: colors.glassStrong,
