@@ -16,6 +16,8 @@ services:
       - "5432:5432"
     volumes:
       - domus_pg_data:/var/lib/postgresql/data
+      # Las tablas las crea Prisma al arrancar el backend (migrate deploy en
+      # backend/Dockerfile.dev). Los scripts SQL viejos quedaron en docs/scripts-viejos.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -38,6 +40,9 @@ services:
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
       PORT: 3000
+      # Hora de Argentina: sin esto Node corre en UTC y el seed (y cualquier fecha armada
+      # con hora local, como "20:00") queda 3 horas corrido en la app.
+      TZ: America/Argentina/Buenos_Aires
     volumes:
       - ./backend/src:/app/src
     depends_on:

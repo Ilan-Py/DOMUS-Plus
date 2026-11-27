@@ -3,6 +3,44 @@
 // extraerPadreUnico de utils/grupo.js.
 const prisma = require('../config/prisma');
 const { verificarPertenenciaDirecta, extraerPadreUnico } = require('../utils/grupo');
+const { validarCampos } = require('../utils/validacion');
+
+// Tipo y largo de cada campo (ERR-011). Los obligatorios se chequean en cada función.
+// MEJ-002: especialidad — una de la lista, u "Otra" escribiendo cuál (se guarda
+// lo escrito, ej. "Fonoaudiología", no la palabra "Otra"). Sigue siendo opcional.
+const ESPECIALIDADES = [
+    'Medicina general', 'Pediatría', 'Cardiología', 'Dermatología', 'Ginecología',
+    'Traumatología', 'Oftalmología', 'Odontología', 'Psicología', 'Nutrición', 'Veterinario'
+];
+// Otras formas de escribir una de la lista (comparadas sin tildes ni mayúsculas)
+const ALIAS_ESPECIALIDAD = { 'veterinaria': 'Veterinario', 'clinica': 'Medicina general', 'clinico': 'Medicina general' };
+
+function sinTildes(texto) {
+    return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+// "pediatria" / "PEDIATRÍA " → "Pediatría"; una especialidad escrita a mano queda
+// con la primera letra en mayúscula y sin espacios de más.
+function normalizarEspecialidad(valor) {
+    if (typeof valor !== 'string') return valor;
+    const limpia = valor.trim().replace(/\s+/g, ' ');
+    if (!limpia) return limpia;
+    const clave = sinTildes(limpia);
+    const deLaLista = ESPECIALIDADES.find((e) => sinTildes(e) === clave) || ALIAS_ESPECIALIDAD[clave];
+    return deLaLista || limpia.charAt(0).toUpperCase() + limpia.slice(1).toLowerCase();
+}
+
+function esEspecialidadSinDetalle(especialidad) {
+    return typeof especialidad === 'string' && ['otra', 'otro'].includes(sinTildes(especialidad));
+}
+
+const REGLAS_PROFESIONAL = {
+    nombre:       { tipo: 'texto', max: 150 },
+    especialidad: { tipo: 'nombrePersona', max: 100 }, // MEJ-002: sólo letras (sin números ni símbolos)
+    telefono:     { tipo: 'texto', max: 30, etiqueta: 'teléfono' },
+    direccion:    { tipo: 'texto', max: 255, etiqueta: 'dirección' },
+    notas:        { tipo: 'texto', max: 2000 }
+};
 
 const CAMPOS_PADRE = ['integrante', 'mascota'];
 
@@ -14,7 +52,16 @@ async function crearProfesional(req, res) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: error });
     }
 
-    const { nombre, especialidad, telefono, direccion, notas } = req.body;
+    const { nombre, telefono, direccion, notas } = req.body;
+    const especialidad = normalizarEspecialidad(req.body.especialidad);
+
+    const errorCampos = validarCampos({ ...req.body, especialidad }, REGLAS_PROFESIONAL);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
+    if (esEspecialidadSinDetalle(especialidad)) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'Si la especialidad es "Otra", escribí cuál es (por ejemplo, Fonoaudiología).' });
+    }
     if (!nombre || !nombre.trim()) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre es obligatorio.' });
     }
@@ -80,7 +127,16 @@ async function listarProfesionales(req, res) {
 async function editarProfesional(req, res) {
     const usuarioId = req.usuario.id;
     const id        = Number(req.params.id);
-    const { nombre, especialidad, telefono, direccion, notas } = req.body;
+    const { nombre, telefono, direccion, notas } = req.body;
+    const especialidad = normalizarEspecialidad(req.body.especialidad);
+
+    const errorCampos = validarCampos({ ...req.body, especialidad }, REGLAS_PROFESIONAL);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
+    if (esEspecialidadSinDetalle(especialidad)) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'Si la especialidad es "Otra", escribí cuál es (por ejemplo, Fonoaudiología).' });
+    }
 
     if (!nombre || !nombre.trim()) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre es obligatorio.' });

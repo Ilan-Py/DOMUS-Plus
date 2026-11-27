@@ -2,6 +2,142 @@
 //1 — Controlador de grupo familiar, integrantes y mascotas (CU3, CU4, CU5) — migrado a Prisma
 const prisma = require('../config/prisma');
 const { resolverGrupoId, resolverMembresia } = require('../utils/grupo');
+const { validarCampos } = require('../utils/validacion');
+
+// Tipo, formato y largo de cada campo (ERR-011). Los obligatorios se chequean en cada función.
+// MEJ-004: el tipo de integrante ya no se elige — se calcula con la fecha de
+// nacimiento. Menor: hasta 17 años; adulto: de 18 a 64; mayor: desde 65.
+const EDAD_ADULTO = 18;
+const EDAD_MAYOR  = 65;
+
+// Años cumplidos a hoy. Se usa UTC en las dos fechas porque las columnas DATE
+// vuelven como medianoche UTC (y 'AAAA-MM-DD' se interpreta igual).
+function calcularEdad(fechaNacimiento, hoy = new Date()) {
+    const nacimiento = new Date(fechaNacimiento);
+    let edad = hoy.getUTCFullYear() - nacimiento.getUTCFullYear();
+    const mes = hoy.getUTCMonth() - nacimiento.getUTCMonth();
+    if (mes < 0 || (mes === 0 && hoy.getUTCDate() < nacimiento.getUTCDate())) edad--;
+    return edad;
+}
+
+function tipoSegunEdad(fechaNacimiento) {
+    const edad = calcularEdad(fechaNacimiento);
+    if (edad < EDAD_ADULTO) return 'menor';
+    if (edad < EDAD_MAYOR)  return 'adulto';
+    return 'mayor';
+}
+const REGLAS_GRUPO      = { nombre: { tipo: 'texto', max: 150, etiqueta: 'nombre del grupo' } };
+const REGLAS_INVITACION = { codigo: { tipo: 'texto', max: 20, etiqueta: 'código de invitación' } };
+const REGLAS_INTEGRANTE = {
+    nombre:           { tipo: 'nombrePersona', max: 100 }, // ERR-008: sin números
+    apellido:         { tipo: 'nombrePersona', max: 100 },
+    fecha_nacimiento: { tipo: 'fecha', etiqueta: 'fecha de nacimiento' },
+    observaciones:    { tipo: 'texto', max: 2000 }
+};
+// ERR-009: el tipo de sangre es uno de los 8 grupos. Antes se guardaba texto libre.
+const GRUPOS_SANGUINEOS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+// Corrige lo que se suele tipear distinto: minúsculas, espacios ("o +"), un
+// cero en vez de la letra O ("0+"), un guion largo/signo menos ("A–") o el
+// factor en palabras ("0 positivo", "AB negativo").
+function normalizarTipoSangre(valor) {
+    if (typeof valor !== 'string') return valor;
+    return valor.toUpperCase().replace(/\s+/g, '').replace(/^0/, 'O').replace(/[–—−]/g, '-')
+        .replace(/POSITIVO$/, '+').replace(/NEGATIVO$/, '-');
+}
+
+// ERR-010: alergias — las frecuentes de la lista y "Otras" escribiendo cuáles.
+// Llegan como texto ("penicilina, mani") o como lista (["Penicilina", "Maní"]) y
+// se guardan siempre como texto separado por comas, en la misma columna de antes.
+const ALERGIAS_FRECUENTES = [
+    'Penicilina', 'AINEs', 'Maní', 'Frutos secos', 'Mariscos', 'Lácteos',
+    'Huevo', 'Gluten', 'Polen', 'Ácaros', 'Látex', 'Picadura de abeja'
+];
+// Otras formas de escribir una de la lista (comparadas sin tildes ni mayúsculas)
+const ALIAS_ALERGIA = {
+    'antiinflamatorios': 'AINEs', 'cacahuete': 'Maní', 'cacahuate': 'Maní',
+    'leche': 'Lácteos', 'lactosa': 'Lácteos', 'nueces': 'Frutos secos',
+    'abeja': 'Picadura de abeja', 'picadura de abejas': 'Picadura de abeja'
+};
+const MAX_LARGO_ALERGIA = 60;
+const MAX_ALERGIAS      = 30;
+// Letras, números ("Vitamina B12"), espacios, apóstrofes, paréntesis, punto, barra y guion
+const PATRON_ALERGIA = /^[\p{L}\p{N}][\p{L}\p{M}\p{N}\s'’()./-]*$/u;
+
+function sinTildes(texto) {
+    return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+// Devuelve { alergias } con el texto normalizado (o null si no hay), o { error }.
+function normalizarAlergias(valor) {
+    if (valor === undefined || valor === null || valor === '') return { alergias: null };
+
+    let partes;
+    if (Array.isArray(valor)) {
+        if (!valor.every((v) => typeof v === 'string')) return { error: 'Cada alergia debe ser texto.' };
+        partes = valor;
+    } else if (typeof valor === 'string') {
+        partes = valor.split(/[,;\n]/);
+    } else {
+        return { error: 'El campo alergias debe ser texto o una lista.' };
+    }
+
+    const yaCargadas = new Set();
+    const resultado = [];
+    for (const parte of partes) {
+        const limpia = parte.trim().replace(/\s+/g, ' ');
+        if (!limpia) continue;
+        const clave = sinTildes(limpia);
+        if (['otra', 'otras', 'otro', 'otros'].includes(clave)) {
+            return { error: 'Si hay otras alergias, escribí cuáles (por ejemplo, Ibuprofeno).' };
+        }
+        if (limpia.length > MAX_LARGO_ALERGIA) {
+            return { error: `Cada alergia admite como máximo ${MAX_LARGO_ALERGIA} caracteres.` };
+        }
+        if (!PATRON_ALERGIA.test(limpia) || !/\p{L}/u.test(limpia)) {
+            return { error: `"${limpia}" no es una alergia válida: usá letras, números, espacios y guiones.` };
+        }
+        const nombre = ALERGIAS_FRECUENTES.find((a) => sinTildes(a) === clave)
+            || ALIAS_ALERGIA[clave]
+            || limpia.charAt(0).toUpperCase() + limpia.slice(1);
+        if (!yaCargadas.has(sinTildes(nombre))) {
+            yaCargadas.add(sinTildes(nombre));
+            resultado.push(nombre);
+        }
+    }
+    if (resultado.length > MAX_ALERGIAS) return { error: `Se pueden cargar hasta ${MAX_ALERGIAS} alergias.` };
+    return { alergias: resultado.length ? resultado.join(', ') : null };
+}
+
+const REGLAS_EMERGENCIA = {
+    alergias:         { tipo: 'texto', max: 2000 },
+    tipo_sangre:      { tipo: 'enum', valores: GRUPOS_SANGUINEOS, etiqueta: 'tipo de sangre' },
+    notas_emergencia: { tipo: 'texto', max: 2000, etiqueta: 'notas de emergencia' }
+};
+// MEJ-001: especie de la mascota — una de la lista, o "Otro" escribiendo cuál
+// (se guarda lo escrito, ej. "Conejo", no la palabra "Otro").
+const ESPECIES = ['Perro', 'Gato', 'Ave'];
+
+// "perro" / "PERRO " → "Perro"; una especie escrita a mano queda con la primera
+// letra en mayúscula y los espacios de más limpios ("pez  payaso" → "Pez payaso").
+function normalizarEspecie(valor) {
+    if (typeof valor !== 'string') return valor;
+    const limpia = valor.trim().replace(/\s+/g, ' ');
+    if (!limpia) return limpia;
+    const deLaLista = ESPECIES.find((e) => e.toLowerCase() === limpia.toLowerCase());
+    return deLaLista || limpia.charAt(0).toUpperCase() + limpia.slice(1).toLowerCase();
+}
+
+function esEspecieSinDetalle(especie) {
+    return typeof especie === 'string' && ['otro', 'otra'].includes(especie.toLowerCase());
+}
+
+const REGLAS_MASCOTA = {
+    nombre:           { tipo: 'texto', max: 100 },
+    especie:          { tipo: 'nombrePersona', max: 50 }, // MEJ-001: sólo letras (sin números ni símbolos)
+    raza:             { tipo: 'texto', max: 100 },
+    fecha_nacimiento: { tipo: 'fecha', etiqueta: 'fecha de nacimiento' }
+};
 
 //2 — Validacion: fecha no puede ser futura (CU4, CU5)
 function esFechaFutura(fechaStr) {
@@ -30,6 +166,11 @@ function generarCodigo() {
 async function crearGrupo(req, res) {
     const usuarioId = req.usuario.id;
     const { nombre } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_GRUPO);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!nombre || !nombre.trim()) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'El nombre del grupo es obligatorio.' });
@@ -82,6 +223,11 @@ async function obtenerGrupo(req, res) {
 async function renombrarGrupo(req, res) {
     const usuarioId = req.usuario.id;
     const { nombre } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_GRUPO);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!nombre || !nombre.trim()) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'El nombre del grupo es obligatorio.' });
@@ -148,6 +294,11 @@ async function unirseGrupo(req, res) {
     const usuarioId = req.usuario.id;
     const { codigo } = req.body;
 
+    const errorCampos = validarCampos(req.body, REGLAS_INVITACION);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
+
     if (!codigo || !codigo.trim()) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'El código de invitación es obligatorio.' });
     }
@@ -191,11 +342,14 @@ async function listarMiembros(req, res) {
             orderBy: [{ joinedAt: 'asc' }]
         });
 
+        // En la BD el rol es 'dueno' (Prisma no admite ñ en un enum), pero la API
+        // siempre devolvió 'dueño' y la pantalla Cuenta compara contra eso para
+        // mostrar invitar, renombrar y quitar miembros. Se traduce acá.
         const datos = miembros.map((m) => ({
             usuario_id: m.usuario.id,
             nombre:     m.usuario.nombre,
             apellido:   m.usuario.apellido,
-            rol:        m.rol,
+            rol:        m.rol === 'dueno' ? 'dueño' : m.rol,
             joined_at:  m.joinedAt
         }));
 
@@ -285,14 +439,21 @@ async function eliminarGrupo(req, res) {
 
 async function agregarIntegrante(req, res) {
     const usuarioId = req.usuario.id;
-    const { nombre, apellido, fecha_nacimiento, tipo, observaciones } = req.body;
+    // `tipo` se ignora si viene: se calcula con la fecha de nacimiento (MEJ-004)
+    const { nombre, apellido, fecha_nacimiento, observaciones } = req.body;
 
-    if (!nombre || !apellido || !fecha_nacimiento || !tipo) {
-        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre, apellido, fecha_nacimiento y tipo son obligatorios.' });
+    const errorCampos = validarCampos(req.body, REGLAS_INTEGRANTE);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
+
+    if (!nombre || !apellido || !fecha_nacimiento) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre, apellido y fecha_nacimiento son obligatorios.' });
     }
     if (esFechaFutura(fecha_nacimiento)) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'La fecha de nacimiento no puede ser una fecha futura.' });
     }
+    const tipo = tipoSegunEdad(fecha_nacimiento);
 
     try {
         const grupoId = await resolverGrupoId(usuarioId);
@@ -330,7 +491,10 @@ async function listarIntegrantes(req, res) {
             where: { grupoId },
             orderBy: { nombre: 'asc' }
         });
-        return res.status(200).json({ codigo: 200, estado: 'ok', datos: integrantes });
+        // El tipo se recalcula al listar: así un integrante que cumplió 18 (o 65)
+        // pasa a adulto (o mayor) sin que nadie tenga que editarlo (MEJ-004).
+        const conTipoActual = integrantes.map((i) => ({ ...i, tipo: tipoSegunEdad(i.fechaNacimiento) }));
+        return res.status(200).json({ codigo: 200, estado: 'ok', datos: conTipoActual });
     } catch (err) {
         console.error('listarIntegrantes=', err.message);
         return res.status(500).json({ codigo: 500, estado: 'error', datos: 'Error interno del servidor.' });
@@ -340,14 +504,21 @@ async function listarIntegrantes(req, res) {
 async function editarIntegrante(req, res) {
     const usuarioId    = req.usuario.id;
     const integranteId = Number(req.params.id);
-    const { nombre, apellido, fecha_nacimiento, tipo, observaciones } = req.body;
+    // `tipo` se ignora si viene: se calcula con la fecha de nacimiento (MEJ-004)
+    const { nombre, apellido, fecha_nacimiento, observaciones } = req.body;
 
-    if (!nombre || !apellido || !fecha_nacimiento || !tipo) {
-        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre, apellido, fecha_nacimiento y tipo son obligatorios.' });
+    const errorCampos = validarCampos(req.body, REGLAS_INTEGRANTE);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
+
+    if (!nombre || !apellido || !fecha_nacimiento) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre, apellido y fecha_nacimiento son obligatorios.' });
     }
     if (esFechaFutura(fecha_nacimiento)) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'La fecha de nacimiento no puede ser una fecha futura.' });
     }
+    const tipo = tipoSegunEdad(fecha_nacimiento);
 
     try {
         const grupoId = await resolverGrupoId(usuarioId);
@@ -405,7 +576,17 @@ async function eliminarIntegrante(req, res) {
 async function editarEmergenciaIntegrante(req, res) {
     const usuarioId    = req.usuario.id;
     const integranteId = Number(req.params.id);
-    const { alergias, tipo_sangre, notas_emergencia } = req.body;
+    const { notas_emergencia } = req.body;
+    const tipo_sangre = normalizarTipoSangre(req.body.tipo_sangre);
+    const { alergias, error: errorAlergias } = normalizarAlergias(req.body.alergias);
+    if (errorAlergias) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorAlergias });
+    }
+
+    const errorCampos = validarCampos({ ...req.body, tipo_sangre, alergias }, REGLAS_EMERGENCIA);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     try {
         const grupoId = await resolverGrupoId(usuarioId);
@@ -441,7 +622,16 @@ async function editarEmergenciaIntegrante(req, res) {
 
 async function agregarMascota(req, res) {
     const usuarioId = req.usuario.id;
-    const { nombre, especie, raza, fecha_nacimiento } = req.body;
+    const { nombre, raza, fecha_nacimiento } = req.body;
+    const especie = normalizarEspecie(req.body.especie);
+
+    const errorCampos = validarCampos({ ...req.body, especie }, REGLAS_MASCOTA);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
+    if (esEspecieSinDetalle(especie)) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'Si la especie es "Otro", escribí cuál es (por ejemplo, Conejo).' });
+    }
 
     if (!nombre || !especie) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre y especie son obligatorios.' });
@@ -494,7 +684,16 @@ async function listarMascotas(req, res) {
 async function editarMascota(req, res) {
     const usuarioId = req.usuario.id;
     const mascotaId = Number(req.params.id);
-    const { nombre, especie, raza, fecha_nacimiento } = req.body;
+    const { nombre, raza, fecha_nacimiento } = req.body;
+    const especie = normalizarEspecie(req.body.especie);
+
+    const errorCampos = validarCampos({ ...req.body, especie }, REGLAS_MASCOTA);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
+    if (esEspecieSinDetalle(especie)) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'Si la especie es "Otro", escribí cuál es (por ejemplo, Conejo).' });
+    }
 
     if (!nombre || !especie) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre y especie son obligatorios.' });
@@ -557,5 +756,6 @@ module.exports = {
     crearGrupo, obtenerGrupo, renombrarGrupo,
     generarInvitacion, unirseGrupo, listarMiembros, eliminarMiembro, salirGrupo, eliminarGrupo,
     agregarIntegrante, listarIntegrantes, editarIntegrante, eliminarIntegrante, editarEmergenciaIntegrante,
-    agregarMascota, listarMascotas, editarMascota, eliminarMascota
+    agregarMascota, listarMascotas, editarMascota, eliminarMascota,
+    tipoSegunEdad // también lo usan las estadísticas del admin
 };

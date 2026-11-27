@@ -2,7 +2,23 @@
 //1 — Controlador de autenticacion (CU1 y CU2)
 const bcrypt = require('bcryptjs');
 const jwt    = require('jsonwebtoken');
+const { registrarAccion } = require('../utils/actividad');
 const prisma = require('../config/prisma');
+const { validarCampos } = require('../utils/validacion');
+
+// Tipo y largo de cada campo (ERR-011). Los obligatorios se chequean en cada función.
+const REGLAS_REGISTRO = {
+    nombre:   { tipo: 'nombrePersona', max: 100 }, // ERR-008: sin números
+    apellido: { tipo: 'nombrePersona', max: 100 },
+    email:    { tipo: 'email', max: 150 },
+    password: { tipo: 'texto', max: 72, etiqueta: 'contraseña' } // bcrypt ignora lo que pase de 72
+};
+const REGLAS_LOGIN  = { email: { tipo: 'texto', max: 150 }, password: { tipo: 'texto', max: 200, etiqueta: 'contraseña' } };
+const REGLAS_PERFIL = { nombre: REGLAS_REGISTRO.nombre, apellido: REGLAS_REGISTRO.apellido, email: REGLAS_REGISTRO.email };
+const REGLAS_PASSWORD = {
+    passwordActual: { tipo: 'texto', max: 200, etiqueta: 'contraseña actual' },
+    passwordNueva:  { tipo: 'texto', max: 72,  etiqueta: 'contraseña nueva' }
+};
 
 //2 — Validacion de formato de contrasena: min 8 caracteres, 1 mayuscula, 1 numero
 function validarPassword(password) {
@@ -12,6 +28,11 @@ function validarPassword(password) {
 //3 — CU1: Registrar usuario
 async function registrar(req, res) {
     const { nombre, apellido, email, password } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_REGISTRO);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!nombre || !apellido || !email || !password) {
         return res.status(400).json({
@@ -29,9 +50,15 @@ async function registrar(req, res) {
         });
     }
 
+    // Se busca y se guarda siempre el mismo email normalizado: antes se buscaba
+    // tal cual llegaba ("ILAN@domus.test") pero se guardaba en minúsculas, así
+    // que un email repetido con otras mayúsculas pasaba el chequeo y fallaba
+    // en el insert con un 500 en vez de un 409.
+    const emailNormalizado = email.trim().toLowerCase();
+
     try {
         const existente = await prisma.usuario.findUnique({
-            where: { email }
+            where: { email: emailNormalizado }
         });
         if (existente) {
             return res.status(409).json({
@@ -45,16 +72,20 @@ async function registrar(req, res) {
         // RETURNING id — pg no tiene insertId como mysql2, hay que pedirlo
         // explícito en el INSERT.
           const nuevo = await prisma.usuario.create({
-            data: { nombre: nombre.trim(), apellido: apellido.trim(), email: email.trim().toLowerCase(), passwordHash: hash }
+            data: { nombre: nombre.trim(), apellido: apellido.trim(), email: emailNormalizado, passwordHash: hash }
         });
 
         return res.status(201).json({
             codigo: 201,
             estado: 'ok',
-            datos: { id: nuevo.id, nombre, apellido, email }
+            datos: { id: nuevo.id, nombre: nuevo.nombre, apellido: nuevo.apellido, email: nuevo.email }
         });
 
     } catch (err) {
+        // P2002 = email repetido: dos registros casi simultáneos con el mismo email
+        if (err.code === 'P2002') {
+            return res.status(409).json({ codigo: 409, estado: 'error', datos: 'El email ya está registrado.' });
+        }
         console.error('registrar=', err.message);
         return res.status(500).json({ codigo: 500, estado: 'error', datos: 'Error interno del servidor.' });
     }
@@ -63,6 +94,11 @@ async function registrar(req, res) {
 //4 — CU2: Iniciar sesion
 async function login(req, res) {
     const { email, password } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_LOGIN);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!email || !password) {
         return res.status(400).json({
@@ -89,6 +125,8 @@ async function login(req, res) {
             });
         }
 
+        registrarAccion(usuario.id, 'login');
+
         const token = jwt.sign(
             { id: usuario.id, email: usuario.email },
             process.env.JWT_SECRET,
@@ -104,7 +142,8 @@ async function login(req, res) {
                     id:       usuario.id,
                     nombre:   usuario.nombre,
                     apellido: usuario.apellido,
-                    email:    usuario.email
+                    email:    usuario.email,
+                    rol:      usuario.rol // 'usuario' | 'admin'
                 }
             }
         });
@@ -120,6 +159,11 @@ async function actualizarPerfil(req, res) {
     const usuarioId = req.usuario.id;
     const { nombre, apellido, email } = req.body;
 
+    const errorCampos = validarCampos(req.body, REGLAS_PERFIL);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
+
     if (!nombre || !apellido || !email) {
         return res.status(400).json({
             codigo: 400,
@@ -131,10 +175,12 @@ async function actualizarPerfil(req, res) {
     const emailNormalizado = email.trim().toLowerCase();
 
     try {
-        // AND id != ? deja pasar el caso "no cambió el email" sin tratarlo
-        // como colisión contra la propia fila del usuario.
-        const enUso = await prisma.usuario.findUnique({
-            where: { email: emailNormalizado, id: { not: usuarioId } }
+        // Busca otro usuario con ese email: NOT deja pasar el caso "no cambió el
+        // email" sin tratarlo como colisión contra la propia fila del usuario.
+        // findFirst y no findUnique: findUnique no acepta filtros como { not }
+        // sobre el id y fallaba siempre con un 500.
+        const enUso = await prisma.usuario.findFirst({
+            where: { email: emailNormalizado, NOT: { id: usuarioId } }
         });
         if (enUso) {
             return res.status(409).json({
@@ -165,6 +211,11 @@ async function actualizarPerfil(req, res) {
 async function cambiarPassword(req, res) {
     const usuarioId = req.usuario.id;
     const { passwordActual, passwordNueva } = req.body;
+
+    const errorCampos = validarCampos(req.body, REGLAS_PASSWORD);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
 
     if (!passwordActual || !passwordNueva) {
         return res.status(400).json({
