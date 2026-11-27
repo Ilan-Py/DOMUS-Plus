@@ -12,8 +12,9 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, reminderBadge } from '../theme/colors';
-import { poppinsWeight } from '../theme/typography';
+import { colors } from '../theme/colors';
+import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
+import { paper } from '../theme/paper';
 import api, { getList } from '../api/client';
 import { useFamily } from '../context/FamilyContext';
 import ErrorBanner from '../components/ErrorBanner';
@@ -21,22 +22,19 @@ import InlineError from '../components/InlineError';
 import PrimaryButton from '../components/PrimaryButton';
 import PressScale from '../components/PressScale';
 import Skeleton from '../components/Skeleton';
-import EmptyState from '../components/EmptyState';
-import MiniCalendar, { dayKey } from '../components/MiniCalendar';
-import { EmptyDoodle } from '../components/FamilyDoodles';
+import MiniCalendar, { dayKey, NOMBRE_MES } from '../components/MiniCalendar';
+import PaperCutout from '../components/PaperCutout';
+import Pulse from '../components/Pulse';
 import { cancelarNotificacion, sincronizarNotificaciones } from '../utils/notifications';
 import { parseFechaHora } from '../utils/displayFormat';
 import { confirmarDestructivo } from '../utils/confirm';
 import FadeSlideIn from '../components/FadeSlideIn';
 import FadeOutRow, { EXIT_DURATION } from '../components/FadeOutRow';
 
-// Layout (ver DESIGN.md): desde 1024px, columna izquierda de 320px (mini
-// calendario + filtros) y agenda a la derecha, en un contenedor de hasta
-// 1120px. Debajo, una sola columna.
+// Layout: desde 1024 px, grilla mensual a la izquierda (~65 %) y "Agenda del día" a la derecha
+// (~35 %), en un contenedor de hasta 1180 px alineado a la izquierda. Debajo, apilados.
 const DESKTOP_BREAKPOINT = 1024;
-const MINI_CAL_BREAKPOINT = 768;
-const CONTAINER_MAX_WIDTH = 1120;
-const LEFT_COLUMN_WIDTH = 348;
+const CONTAINER_MAX_WIDTH = 1180;
 
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const MESES = [
@@ -47,37 +45,26 @@ const TIPO_LABELS = { vacuna: 'Vacuna', control: 'Control', medicacion: 'Medicac
 
 const FILTROS = [
   { label: 'Todos', value: 'todos' },
-  { label: 'Vacuna', value: 'vacuna' },
-  { label: 'Control', value: 'control' },
-  { label: 'Medicación', value: 'medicacion' },
+  { label: 'Personas', value: 'personas' },
+  { label: 'Mascotas', value: 'mascotas' },
 ];
+
+// Código de color: medicación/dosis en terracota, mascotas/veterinario en salvia y turnos o controles
+// médicos en ocre. `texto` es una variante más oscura para que las etiquetas se lean bien.
+const CATEGORIAS = {
+  medicacion: { label: 'Medicación', fg: colors.accentStrong, bg: colors.terracotaSoft, texto: '#9A3416' },
+  mascota: { label: 'Mascota', fg: colors.salvia, bg: colors.salviaSoft, texto: '#3B5A4C' },
+  turno: { label: 'Turno o control', fg: colors.ocre, bg: colors.ocreSoft, texto: '#7A5112' },
+};
 
 function formatSectionTitle(fecha) {
   return `${DIAS[fecha.getDay()]} ${fecha.getDate()} de ${MESES[fecha.getMonth()]}`;
-}
-
-// Etiqueta corta de un día elegido en el mini calendario, ej. "1 de diciembre".
-function etiquetaDia(key) {
-  const [, m, d] = key.split('-').map(Number);
-  return `${d} de ${MESES[m]}`;
 }
 
 function formatHora(fecha) {
   const h = String(fecha.getHours()).padStart(2, '0');
   const m = String(fecha.getMinutes()).padStart(2, '0');
   return `${h}:${m}`;
-}
-
-// El backend ya devuelve ORDER BY fecha_hora ASC — sólo se agrupa por día.
-function groupByDate(recordatorios) {
-  const map = new Map();
-  recordatorios.forEach((item) => {
-    const fecha = parseFechaHora(item.fecha_hora);
-    const key = dayKey(fecha);
-    if (!map.has(key)) map.set(key, { key, title: formatSectionTitle(fecha), data: [] });
-    map.get(key).data.push(item);
-  });
-  return Array.from(map.values());
 }
 
 function SkeletonReminderRow() {
@@ -93,7 +80,6 @@ export default function CalendarScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const desktop = width >= DESKTOP_BREAKPOINT;
-  const mostrarMiniCal = width >= MINI_CAL_BREAKPOINT;
   const { integrantes, mascotas } = useFamily();
 
   const [recordatorios, setRecordatorios] = useState([]);
@@ -106,14 +92,14 @@ export default function CalendarScreen({ navigation }) {
   const [exitingId, setExitingId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [filtro, setFiltro] = useState('todos');
-  const [diaElegido, setDiaElegido] = useState(null);
+  // Siempre hay un día elegido (por defecto, hoy): la agenda de la derecha muestra ese día.
+  const [diaElegido, setDiaElegido] = useState(() => dayKey(new Date()));
   const [mes, setMes] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   // De quién es cada recordatorio: se deduce de la vacuna/tratamiento al que
   // está vinculado (la API no guarda el dueño en el recordatorio en sí).
   const [duenos, setDuenos] = useState({});
 
   const hasLoadedOnceRef = useRef(false);
-  const mesInicialRef = useRef(false);
 
   const cargarDuenos = useCallback(
     async (datos) => {
@@ -152,18 +138,6 @@ export default function CalendarScreen({ navigation }) {
       const datos = await getList('/api/recordatorios');
       setRecordatorios(datos);
       hasLoadedOnceRef.current = true;
-      // La primera vez, el mini calendario abre en el mes del próximo
-      // recordatorio pendiente (si no hay, en el mes actual).
-      if (!mesInicialRef.current) {
-        mesInicialRef.current = true;
-        const ahora = new Date();
-        const proximo = datos
-          .filter((r) => r.activo)
-          .map((r) => parseFechaHora(r.fecha_hora))
-          .filter((f) => f >= ahora)
-          .sort((x, y) => x - y)[0];
-        if (proximo) setMes(new Date(proximo.getFullYear(), proximo.getMonth(), 1));
-      }
       // Fire-and-forget: programa en este dispositivo los recordatorios que
       // creó otro integrante del grupo (ver utils/notifications.js).
       sincronizarNotificaciones(datos).catch(() => {});
@@ -258,217 +232,229 @@ export default function CalendarScreen({ navigation }) {
     return duenos[item.vacuna_id ? `v-${item.vacuna_id}` : `t-${item.tratamiento_id}`];
   }
 
-  // Filtro por tipo -> base para el calendario y la agenda.
-  const porTipo = useMemo(
-    () => (filtro === 'todos' ? recordatorios : recordatorios.filter((r) => r.tipo === filtro)),
-    [recordatorios, filtro]
+  // Mascota si el recordatorio es de una mascota (directo o por la vacuna/tratamiento al que está vinculado).
+  function esDeMascota(item) {
+    if (item.mascota_id) return true;
+    if (item.integrante_id) return false;
+    const nombre = duenoDe(item);
+    return !!nombre && mascotas.some((m) => m.nombre === nombre) && !integrantes.some((m) => m.nombre === nombre);
+  }
+  // Categoría para el color: medicación primero; si no, mascota; si no, turno o control.
+  function categoriaDe(item) {
+    if (item.tipo === 'medicacion') return 'medicacion';
+    return esDeMascota(item) ? 'mascota' : 'turno';
+  }
+
+  // Filtro por quién (Todos / Personas / Mascotas) -> base para la grilla y la agenda.
+  const porQuien = useMemo(
+    () =>
+      filtro === 'todos'
+        ? recordatorios
+        : recordatorios.filter((r) => (filtro === 'mascotas' ? esDeMascota(r) : !esDeMascota(r))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [recordatorios, filtro, integrantes, mascotas, duenos]
   );
-  // día -> tipos de recordatorio de ese día (para los puntos de colores del calendario)
+  // día -> categorías de ese día (para los puntos de color de la grilla)
   const marcados = useMemo(() => {
     const mapa = new Map();
-    porTipo.forEach((r) => {
+    porQuien.forEach((r) => {
       const k = dayKey(parseFechaHora(r.fecha_hora));
-      const tipos = mapa.get(k) || [];
-      if (!tipos.includes(r.tipo)) tipos.push(r.tipo);
-      mapa.set(k, tipos);
+      const cats = mapa.get(k) || [];
+      const c = categoriaDe(r);
+      if (!cats.includes(c)) cats.push(c);
+      mapa.set(k, cats);
     });
     return mapa;
-  }, [porTipo]);
-  const visibles = useMemo(
-    () => (diaElegido ? porTipo.filter((r) => dayKey(parseFechaHora(r.fecha_hora)) === diaElegido) : porTipo),
-    [porTipo, diaElegido]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [porQuien, integrantes, mascotas, duenos]);
+  const delDia = useMemo(
+    () =>
+      porQuien
+        .filter((r) => dayKey(parseFechaHora(r.fecha_hora)) === diaElegido)
+        .sort((x, y) => parseFechaHora(x.fecha_hora) - parseFechaHora(y.fecha_hora)),
+    [porQuien, diaElegido]
   );
-  const sections = useMemo(() => groupByDate(visibles), [visibles]);
 
-  const subtitulo = `${recordatorios.length} recordatorio${recordatorios.length === 1 ? '' : 's'}`;
-  const hayFiltros = filtro !== 'todos' || !!diaElegido;
+  const [anio, mesNum, diaNum] = diaElegido.split('-').map(Number);
+  const fechaElegida = new Date(anio, mesNum, diaNum);
+  const hoy0 = new Date();
+  hoy0.setHours(0, 0, 0, 0);
+  const esPasado = fechaElegida < hoy0;
+  const esHoyElegido = diaElegido === dayKey(new Date());
+
+  function irAHoy() {
+    const h = new Date();
+    setMes(new Date(h.getFullYear(), h.getMonth(), 1));
+    setDiaElegido(dayKey(h));
+  }
+  const moverMes = (delta) => setMes(new Date(mes.getFullYear(), mes.getMonth() + delta, 1));
 
   // ---------------- bloques ----------------
-  const nuevoBtn = (
-    <PrimaryButton
-      title="+ Nuevo recordatorio"
-      variant="accent"
-      fullWidth={!desktop}
-      onPress={nuevo}
-    />
-  );
-
   const header = (
     <View style={[styles.header, !desktop && styles.headerMobile]}>
-      <View style={styles.headerText}>
-        <Text style={styles.title} accessibilityRole="header">
-          Calendario
-        </Text>
-        <Text style={styles.subtitle}>{subtitulo}</Text>
+      <Text style={styles.mesTitulo} accessibilityRole="header">
+        {NOMBRE_MES(mes.getMonth())} {mes.getFullYear()}
+      </Text>
+      <View style={styles.controles}>
+        <PressScale contentStyle={styles.ctrlBtn} onPress={() => moverMes(-1)} accessibilityLabel="Mes anterior">
+          <Ionicons name="chevron-back" size={24} color={colors.ink} />
+        </PressScale>
+        <PressScale contentStyle={[styles.ctrlBtn, styles.hoyBtn]} onPress={irAHoy} accessibilityLabel="Ir a hoy">
+          <Text style={styles.hoyBtnText}>Hoy</Text>
+        </PressScale>
+        <PressScale contentStyle={styles.ctrlBtn} onPress={() => moverMes(1)} accessibilityLabel="Mes siguiente">
+          <Ionicons name="chevron-forward" size={24} color={colors.ink} />
+        </PressScale>
+        <PrimaryButton title="+ Agregar" variant="accent" fullWidth={false} onPress={nuevo} style={styles.agregarBtn} />
       </View>
-      {nuevoBtn}
     </View>
   );
 
   const filtros = (
-    <View>
-      <Text style={styles.sideLabel}>Mostrar</Text>
-      <View style={styles.filterGrid}>
-        {FILTROS.map((f) => {
-          const on = filtro === f.value;
-          return (
-            <PressScale
-              key={f.value}
-              style={styles.filterCell}
-              contentStyle={[styles.chip, on && styles.chipOn]}
-              onPress={() => setFiltro(f.value)}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: on, selected: on }}
-              accessibilityLabel={f.label}
-            >
-              <Text style={[styles.chipText, on && styles.chipTextOn]}>{f.label}</Text>
-            </PressScale>
-          );
-        })}
-      </View>
+    <View style={styles.filtros} accessibilityRole="radiogroup">
+      {FILTROS.map((f) => {
+        const on = filtro === f.value;
+        return (
+          <PressScale
+            key={f.value}
+            contentStyle={[styles.pill, on && styles.pillOn]}
+            onPress={() => setFiltro(f.value)}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: on, selected: on }}
+            accessibilityLabel={f.label}
+          >
+            <Text style={[styles.pillText, on && styles.pillTextOn]}>{f.label}</Text>
+          </PressScale>
+        );
+      })}
     </View>
   );
 
-  const miniCal = mostrarMiniCal ? (
-    <View style={styles.sideCard}>
+  const grilla = (
+    <View {...paper('cartulina')} style={styles.cartulina}>
       <MiniCalendar
+        cabecera={false}
         mes={mes}
         onCambiarMes={setMes}
         marcados={marcados}
         seleccionado={diaElegido}
         onElegirDia={setDiaElegido}
       />
+      <View style={styles.leyenda}>
+        {Object.entries(CATEGORIAS).map(([k, c]) => (
+          <View key={k} style={styles.leyendaItem}>
+            <View style={[styles.leyendaPunto, { backgroundColor: c.fg }]} />
+            <Text style={styles.leyendaText}>{c.label}</Text>
+          </View>
+        ))}
+      </View>
     </View>
-  ) : null;
-
-  const filtrosCard = <View style={styles.sideCard}>{filtros}</View>;
+  );
 
   const agenda = (
-    <View style={styles.agenda}>
-      {!!actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError('')} />}
-
-      {hayFiltros && (
-        <View style={styles.activeFilters}>
-          {!!diaElegido && (
-            <PressScale
-              contentStyle={[styles.filterTag, styles.filterTagDay]}
-              onPress={() => setDiaElegido(null)}
-              accessibilityLabel={`Quitar el filtro del día ${etiquetaDia(diaElegido)}`}
-            >
-              <Text style={[styles.filterTagText, styles.filterTagDayText]}>{etiquetaDia(diaElegido)}</Text>
-              <Ionicons name="close" size={18} color={colors.limeDeep} />
-            </PressScale>
-          )}
-          {filtro !== 'todos' && (
-            <PressScale
-              contentStyle={styles.filterTag}
-              onPress={() => setFiltro('todos')}
-              accessibilityLabel={`Quitar el filtro ${TIPO_LABELS[filtro]}`}
-            >
-              <Text style={styles.filterTagText}>{TIPO_LABELS[filtro]}</Text>
-              <Ionicons name="close" size={18} color={colors.ink} />
-            </PressScale>
-          )}
-        </View>
+    <View {...paper('cartulina')} style={styles.cartulina}>
+      <Text style={styles.agendaEyebrow} accessibilityRole="header">Agenda del día</Text>
+      <View style={styles.agendaTitulo}>
+        <Text style={styles.agendaFecha}>{formatSectionTitle(fechaElegida)}</Text>
+        {esHoyElegido && (
+          <View style={styles.hoyTag}>
+            <Text style={styles.hoyTagText}>Hoy</Text>
+          </View>
+        )}
+      </View>
+      {!loading && !loadError && (
+        <Text style={styles.agendaSub}>
+          {delDia.length === 0 ? 'Sin pendientes' : `${delDia.length} recordatorio${delDia.length === 1 ? '' : 's'}`}
+        </Text>
       )}
 
+      {!!actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError('')} />}
+
       {loading ? (
-        <View style={styles.list}>
-          <SkeletonReminderRow />
+        <View style={styles.lista}>
           <SkeletonReminderRow />
           <SkeletonReminderRow />
         </View>
       ) : loadError ? (
         <InlineError message="No pudimos cargar los recordatorios." onRetry={fetchRecordatorios} />
-      ) : sections.length === 0 && !hayFiltros ? (
-        <EmptyState
-          titulo="Todavía no hay recordatorios"
-          message="Anotá la próxima vacuna, control o dosis y te avisamos a tiempo."
-          recortes={[
-            { icon: 'calendar', tinte: 'terracota' },
-            { icon: 'notifications', tinte: 'arena' },
-          ]}
-          acciones={[{ label: '+ Nuevo recordatorio', onPress: nuevo }]}
-        />
-      ) : sections.length === 0 ? (
-        <View style={styles.empty}>
-          <EmptyDoodle variant="calendario" size={64} />
-          <Text style={styles.emptyText}>
-            {hayFiltros ? 'No hay recordatorios con este filtro.' : 'No tenés recordatorios.'}
+      ) : delDia.length === 0 ? (
+        <View style={styles.diaLibre}>
+          <PaperCutout icon="sun" tinte="ocre" size={96} rotate={-3} />
+          <Text style={styles.diaLibreTitulo}>Día libre</Text>
+          <Text style={styles.diaLibreText}>
+            {esPasado ? 'No hubo recordatorios este día.' : 'No tenés nada pendiente para este día.'}
           </Text>
-          {!hayFiltros && (
-            <View style={styles.emptyAction}>
-              <PrimaryButton title="+ Nuevo recordatorio" variant="accent" fullWidth={false} onPress={nuevo} />
-            </View>
+          {!esPasado && (
+            <PrimaryButton
+              title="+ Agregar para este día"
+              variant="accent"
+              onPress={() => navigation.navigate('AddReminder', { fechaInicial: diaElegido })}
+            />
           )}
         </View>
       ) : (
-        sections.map((section) => (
-          <View key={section.key} style={styles.section}>
-            <Text style={[styles.sectionLabel, !!diaElegido && styles.sectionLabelFocus]} accessibilityRole="header">
-              {section.title}
-            </Text>
-            <View style={styles.list}>
-              {section.data.map((item, i) => {
-                const fecha = parseFechaHora(item.fecha_hora);
-                const hecho = !item.activo;
-                const vencido = !hecho && fecha < new Date();
-                const dueno = duenoDe(item);
-                const ocupado = dismissingId === item.id;
-                return (
-                  <FadeSlideIn key={item.id} index={i}>
-                    <FadeOutRow exiting={exitingId === item.id}>
-                      <PressScale
-                        contentStyle={[styles.card, !!diaElegido && styles.cardFocus, hecho && styles.cardDone]}
-                        onPress={() => handleEditar(item)}
-                        disabled={ocupado}
-                        accessibilityLabel={`Editar recordatorio: ${item.descripcion || TIPO_LABELS[item.tipo] || ''}`}
-                      >
-                        <PressScale
-                          contentStyle={styles.checkHit}
-                          onPress={() => (hecho ? null : confirmHecho(item))}
-                          disabled={hecho || ocupado}
-                          accessibilityRole="checkbox"
-                          accessibilityState={{ checked: hecho }}
-                          accessibilityLabel={
-                            hecho
-                              ? `Hecho: ${item.descripcion || 'recordatorio'}`
-                              : `Marcar como hecho: ${item.descripcion || 'recordatorio'}`
-                          }
-                        >
-                          <View style={[styles.check, hecho && styles.checkOn]}>
-                            {ocupado ? (
-                              <ActivityIndicator size="small" color={colors.iconWarm} />
-                            ) : hecho ? (
-                              <Ionicons name="checkmark" size={18} color={colors.onAccent} />
-                            ) : null}
-                          </View>
-                        </PressScale>
-
-                        <View style={styles.cardMain}>
-                          {/* Hora primero; la categoría como texto con un punto de color. */}
-                          <View style={styles.cardTop}>
-                            <Text style={styles.cardHora}>{formatHora(fecha)}</Text>
-                            <Text style={styles.cardSep}>·</Text>
-                            <View style={[styles.dot, { backgroundColor: (reminderBadge[item.tipo] ?? reminderBadge.control).text }]} />
-                            <Text style={styles.cardTipo}>{TIPO_LABELS[item.tipo] ?? item.tipo}</Text>
-                            {vencido && <Text style={styles.cardVencido}>· Vencido</Text>}
-                            {!!dueno && <Text style={styles.cardTipo}>· {dueno}</Text>}
-                          </View>
-                          {!!item.descripcion && (
-                            <Text style={[styles.cardDesc, hecho && styles.cardDescDone]}>{item.descripcion}</Text>
-                          )}
+        <View style={styles.lista}>
+          {delDia.map((item, i) => {
+            const fecha = parseFechaHora(item.fecha_hora);
+            const hecho = !item.activo;
+            const vencido = !hecho && fecha < new Date();
+            const dueno = duenoDe(item);
+            const ocupado = dismissingId === item.id;
+            const cat = CATEGORIAS[categoriaDe(item)];
+            return (
+              <FadeSlideIn key={item.id} index={i}>
+                <FadeOutRow exiting={exitingId === item.id}>
+                  <PressScale
+                    contentStyle={[styles.item, hecho && styles.itemDone]}
+                    onPress={() => handleEditar(item)}
+                    disabled={ocupado}
+                    accessibilityLabel={`Editar recordatorio: ${item.descripcion || TIPO_LABELS[item.tipo] || ''}`}
+                  >
+                    {/* Barra lateral de 4 px del color de su categoría */}
+                    <View pointerEvents="none" style={[styles.itemBarra, { backgroundColor: cat.fg }]} />
+                    <View style={styles.itemMain}>
+                      <View style={styles.itemTop}>
+                        <Text style={styles.itemHora}>{formatHora(fecha)}</Text>
+                        <View style={[styles.catPill, { backgroundColor: cat.bg }]}>
+                          <Text style={[styles.catPillText, { color: cat.texto }]}>{TIPO_LABELS[item.tipo] ?? item.tipo}</Text>
                         </View>
+                        {vencido && <Text style={styles.itemVencido}>Vencido</Text>}
+                      </View>
+                      {!!item.descripcion && (
+                        <Text style={[styles.itemDesc, hecho && styles.itemDescDone]}>{item.descripcion}</Text>
+                      )}
+                      {!!dueno && <Text style={styles.itemDueno}>{dueno}</Text>}
+                    </View>
 
-                        <Ionicons name="chevron-forward" size={20} color={colors.iconWarm} style={styles.cardChevron} />
+                    <Pulse trigger={ocupado} radio={12}>
+                      <PressScale
+                        contentStyle={[styles.hechoBtn, { borderColor: cat.fg }, hecho && { backgroundColor: cat.fg }]}
+                        onPress={() => (hecho ? null : confirmHecho(item))}
+                        disabled={hecho || ocupado}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: hecho }}
+                        accessibilityLabel={
+                          hecho
+                            ? `Hecho: ${item.descripcion || 'recordatorio'}`
+                            : `Marcar como hecho: ${item.descripcion || 'recordatorio'}`
+                        }
+                      >
+                        {ocupado ? (
+                          <ActivityIndicator size="small" color={cat.fg} />
+                        ) : (
+                          <>
+                            <Ionicons name="checkmark" size={22} color={hecho ? colors.onAccent : cat.fg} />
+                            <Text style={[styles.hechoText, { color: hecho ? colors.onAccent : cat.texto }]}>Hecho</Text>
+                          </>
+                        )}
                       </PressScale>
-                    </FadeOutRow>
-                  </FadeSlideIn>
-                );
-              })}
-            </View>
-          </View>
-        ))
+                    </Pulse>
+                  </PressScale>
+                </FadeOutRow>
+              </FadeSlideIn>
+            );
+          })}
+        </View>
       )}
     </View>
   );
@@ -479,24 +465,21 @@ export default function CalendarScreen({ navigation }) {
         contentContainerStyle={[
           styles.scroll,
           desktop ? styles.scrollDesktop : styles.scrollMobile,
-          { paddingTop: (desktop ? 24 : 12) + insets.top },
+          { paddingTop: (desktop ? 32 : 12) + insets.top },
         ]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.navy} />}
       >
-        <View style={styles.container}>
+        <View style={[styles.container, desktop && styles.containerIzq]}>
           {header}
+          {filtros}
           {desktop ? (
             <View style={styles.columns}>
-              <View style={styles.colLeft}>
-                {miniCal}
-                {filtrosCard}
-              </View>
-              <View style={styles.colRight}>{agenda}</View>
+              <View style={styles.colGrilla}>{grilla}</View>
+              <View style={styles.colAgenda}>{agenda}</View>
             </View>
           ) : (
             <View style={styles.stack}>
-              {miniCal}
-              {filtrosCard}
+              {grilla}
               {agenda}
             </View>
           )}
@@ -509,131 +492,130 @@ export default function CalendarScreen({ navigation }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   scroll: { paddingBottom: 112 },
-  scrollDesktop: { paddingHorizontal: 32 },
+  scrollDesktop: { paddingHorizontal: 48 },
   scrollMobile: { paddingHorizontal: 20 },
-  container: { width: '100%', maxWidth: CONTAINER_MAX_WIDTH, alignSelf: 'center' },
+  container: { width: '100%', maxWidth: CONTAINER_MAX_WIDTH, alignSelf: 'center', gap: 16 },
+  // Escritorio: alineado a la izquierda, pegado a la barra lateral (sin pasillo vacío).
+  containerIzq: { alignSelf: 'flex-start' },
 
-  header: {
-    flexDirection: 'row',
+  // ---- encabezado
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 },
+  headerMobile: { flexDirection: 'column', alignItems: 'flex-start' },
+  mesTitulo: { fontSize: 36, lineHeight: 44, fontFamily: SERIF_BOLD, color: colors.ink },
+  controles: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  ctrlBtn: {
+    minWidth: 48,
+    height: 48,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
+    backgroundColor: colors.glassStrong,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
-    marginBottom: 24,
+    justifyContent: 'center',
   },
-  headerMobile: { flexDirection: 'column', alignItems: 'stretch' },
-  headerText: { flexShrink: 1 },
-  title: { fontSize: 26, lineHeight: 34, fontFamily: poppinsWeight('600'), color: colors.ink },
-  subtitle: { fontSize: 16, lineHeight: 22, color: colors.textBody, marginTop: 4 },
+  hoyBtn: { paddingHorizontal: 20 },
+  hoyBtnText: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
+  agregarBtn: { marginLeft: 8 },
 
+  // ---- filtros (píldoras)
+  filtros: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  pill: {
+    minHeight: 48,
+    paddingHorizontal: 20,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: colors.borderInput,
+    backgroundColor: colors.glassStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pillOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  pillText: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.textBody },
+  pillTextOn: { color: colors.onAccent },
+
+  // ---- layout
   columns: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
-  colLeft: { width: LEFT_COLUMN_WIDTH, gap: 16 },
-  colRight: { flex: 1 },
+  colGrilla: { flex: 65 },
+  colAgenda: { flex: 35 },
   stack: { gap: 16 },
 
-  sideCard: {
+  // Cartulina: fondo blanco, borde cálido de 1 px y sombra corta (en web, de dos capas vía theme/paper.js).
+  cartulina: {
+    backgroundColor: colors.glassStrong,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#2A2421',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.07,
+    shadowRadius: 0,
+    elevation: 2,
+  },
+  leyenda: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#EFE8DF' },
+  leyendaItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  leyendaPunto: { width: 10, height: 10, borderRadius: 5 },
+  leyendaText: { fontSize: 14, lineHeight: 20, color: colors.textBody },
+
+  // ---- agenda del día
+  agendaEyebrow: { fontSize: 14, fontFamily: poppinsWeight('700'), color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
+  agendaTitulo: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  agendaFecha: { fontSize: 24, lineHeight: 32, fontFamily: SERIF_BOLD, color: colors.ink },
+  hoyTag: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.accentStrong },
+  hoyTagText: { fontSize: 14, fontFamily: poppinsWeight('600'), color: colors.onAccent },
+  agendaSub: { fontSize: 15, lineHeight: 22, color: colors.textBody, marginTop: 4, marginBottom: 12 },
+  lista: { gap: 12, marginTop: 8 },
+
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: 80,
+    paddingVertical: 12,
+    paddingLeft: 20,
+    paddingRight: 12,
+    overflow: 'hidden',
+    backgroundColor: colors.glassStrong,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
+    borderRadius: 16,
+  },
+  itemDone: { opacity: 0.6 },
+  itemBarra: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 4 },
+  itemMain: { flex: 1, gap: 4, minWidth: 0 },
+  itemTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  itemHora: { fontVariant: ['tabular-nums'], fontSize: 18, lineHeight: 26, fontFamily: poppinsWeight('700'), color: colors.ink },
+  catPill: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999 },
+  catPillText: { fontSize: 14, lineHeight: 20, fontFamily: poppinsWeight('600') },
+  itemVencido: { fontSize: 14, fontFamily: poppinsWeight('600'), color: colors.limeDeep },
+  itemDesc: { fontSize: 16, lineHeight: 22, color: colors.ink },
+  itemDescDone: { textDecorationLine: 'line-through' },
+  itemDueno: { fontSize: 15, lineHeight: 22, fontFamily: poppinsWeight('600'), color: colors.iconWarm },
+  hechoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    minWidth: 48,
+    height: 48,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 2,
+    backgroundColor: '#FFFFFF',
+  },
+  hechoText: { fontSize: 15, fontFamily: poppinsWeight('600') },
+
+  // ---- día libre
+  diaLibre: { alignItems: 'center', gap: 8, paddingVertical: 24 },
+  diaLibreTitulo: { fontSize: 24, lineHeight: 32, fontFamily: SERIF_BOLD, color: colors.ink, marginTop: 8 },
+  diaLibreText: { fontSize: 16, lineHeight: 24, color: colors.textBody, textAlign: 'center', marginBottom: 8 },
+
+  card: {
     backgroundColor: colors.glassStrong,
     borderWidth: 1,
     borderColor: colors.borderCard,
     borderRadius: 16,
     padding: 16,
   },
-  sideLabel: { fontSize: 14, fontFamily: poppinsWeight('600'), color: colors.textBody, marginBottom: 8 },
-  filterGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  filterCell: { width: '48%', flexGrow: 1 },
-  chip: {
-    minHeight: 48,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: colors.borderInput,
-    backgroundColor: colors.glassFillStrong,
-  },
-  chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-  chipText: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.textBody },
-  chipTextOn: { color: colors.onAccent },
-
-  agenda: { gap: 4 },
-  activeFilters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  filterTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    minHeight: 48,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: colors.badgeSand,
-    borderWidth: 1,
-    borderColor: colors.borderCard,
-  },
-  filterTagDay: { backgroundColor: colors.accentTint, borderColor: colors.accentStrong },
-  filterTagDayText: { color: colors.limeDeep },
-  filterTagText: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
-
-  section: { marginBottom: 12 },
-  // Encabezado de fecha: gris cálido suave, peso 600 y un poco de espaciado.
-  sectionLabel: {
-    fontSize: 14,
-    fontFamily: poppinsWeight('600'),
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    marginLeft: 4,
-  },
-  sectionLabelFocus: { color: colors.limeDeep },
-  list: { gap: 12 },
-
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.glassStrong,
-    borderWidth: 1,
-    borderColor: colors.borderCard,
-    borderRadius: 16,
-    paddingVertical: 8,
-    paddingLeft: 4,
-    paddingRight: 4,
-    minHeight: 72,
-  },
-  // Completado: la tarjeta baja de opacidad (el tilde verde ya lo indica).
-  // Cuando se elige un día en el calendario, las tarjetas de ese día se destacan.
-  cardFocus: { backgroundColor: colors.accentTint, borderColor: colors.accentStrong, borderLeftWidth: 5 },
-  cardDone: { opacity: 0.6 },
-  checkHit: { width: 48, height: 56, alignItems: 'center', justifyContent: 'center' },
-  check: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: colors.iconWarm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkOn: { backgroundColor: colors.sageDeep, borderColor: colors.sageDeep },
-  cardMain: { flex: 1, paddingVertical: 4, paddingHorizontal: 8 },
-  cardTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  cardSep: { fontSize: 16, color: colors.textMuted },
-  dot: { width: 6, height: 6, borderRadius: 3 },
-  cardTipo: { fontSize: 15, color: colors.textBody },
-  cardVencido: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.limeDeep },
-  cardChevron: { marginRight: 12 },
-  cardHora: { fontVariant: ['tabular-nums'], fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
-  cardDesc: { fontSize: 16, lineHeight: 22, color: colors.textBody, marginTop: 8 },
-  cardDescDone: { textDecorationLine: 'line-through' },
-
-
-  empty: { alignItems: 'center', paddingVertical: 32, gap: 12 },
-  emptyCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.badgeSand,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyText: { fontSize: 17, lineHeight: 24, color: colors.textBody, textAlign: 'center' },
-  emptyAction: { marginTop: 4 },
 });

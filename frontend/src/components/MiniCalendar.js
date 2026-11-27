@@ -2,23 +2,24 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
-import { poppinsWeight } from '../theme/typography';
+import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
 import PressScale from './PressScale';
 
-// Mini calendario mensual (semana de lunes a domingo, como en Argentina).
-// Marca con un puntito los días que tienen recordatorios y permite elegir un
-// día para filtrar la agenda. No depende de ninguna librería.
+// Calendario mensual (semana de lunes a domingo, como en Argentina). Marca con puntos de color los
+// días que tienen recordatorios (un punto por categoría) y permite elegir un día para ver su agenda.
+// No depende de ninguna librería. Con `cabecera={false}` se dibuja sólo la grilla (el encabezado con
+// mes, "Hoy" y flechas lo pone la pantalla).
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
 const DIAS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
-// Color del punto según el tipo de recordatorio.
-const COLOR_TIPO = {
-  vacuna: colors.avatarAdultText,
-  control: colors.sageDeep,
-  medicacion: colors.limeDeep,
+// Color del punto según la categoría: medicación (terracota), mascota (salvia), turno o control (ocre).
+export const COLOR_CATEGORIA = {
+  medicacion: colors.accentStrong,
+  mascota: colors.salvia,
+  turno: colors.ocre,
 };
 
 export function dayKey(fecha) {
@@ -36,38 +37,37 @@ function celdasDelMes(mes) {
   return celdas;
 }
 
-// Celda de un día: fondo suave al pasar el mouse (si no es el día elegido).
-function DayCell({ fecha, tipos, esHoy, esSel, onPress }) {
+// Celda de un día. Hoy: círculo terracota sólido con número blanco. Elegido: borde terracota de 2 px
+// y fondo arena. Fondo suave al pasar el mouse.
+function DayCell({ fecha, categorias, esHoy, esSel, onPress }) {
   const [hover, setHover] = useState(false);
-  const tiene = tipos.length > 0;
+  const tiene = categorias.length > 0;
   return (
     <PressScale
       style={styles.cell}
-      contentStyle={[
-        styles.day,
-        tiene && styles.dayMarked,
-        hover && !esSel && styles.dayHover,
-        esHoy && styles.dayToday,
-        esSel && styles.daySelected,
-      ]}
+      contentStyle={[styles.day, hover && !esSel && styles.dayHover, esSel && styles.daySelected]}
       onPress={onPress}
       onHoverIn={() => setHover(true)}
       onHoverOut={() => setHover(false)}
-      accessibilityLabel={`${fecha.getDate()} de ${MESES[fecha.getMonth()].toLowerCase()}${tiene ? ', con recordatorios' : ''}`}
+      accessibilityLabel={`${fecha.getDate()} de ${MESES[fecha.getMonth()].toLowerCase()}${esHoy ? ', hoy' : ''}${tiene ? ', con recordatorios' : ''}`}
       accessibilityState={{ selected: esSel }}
     >
-      <Text style={[styles.dayText, esSel && styles.dayTextSelected]}>{fecha.getDate()}</Text>
-      {/* Un punto por tipo de recordatorio del día (máx. 3), del color de su tipo. */}
+      <View style={[styles.num, esHoy && styles.numHoy]}>
+        <Text style={[styles.dayText, esHoy && styles.dayTextHoy, esSel && !esHoy && styles.dayTextSel]}>
+          {fecha.getDate()}
+        </Text>
+      </View>
+      {/* Un punto por categoría del día (máx. 3), del color de su categoría. */}
       <View style={styles.dots}>
-        {tipos.slice(0, 3).map((t) => (
-          <View key={t} style={[styles.dot, { backgroundColor: esSel ? colors.onAccent : COLOR_TIPO[t] || colors.accentStrong }]} />
+        {categorias.slice(0, 3).map((c) => (
+          <View key={c} style={[styles.dot, { backgroundColor: COLOR_CATEGORIA[c] || colors.accentStrong }]} />
         ))}
       </View>
     </PressScale>
   );
 }
 
-export default function MiniCalendar({ mes, onCambiarMes, marcados, seleccionado, onElegirDia }) {
+export default function MiniCalendar({ mes, onCambiarMes, marcados, seleccionado, onElegirDia, cabecera = true }) {
   const celdas = celdasDelMes(mes);
   const hoyKey = dayKey(new Date());
   const filas = [];
@@ -75,25 +75,27 @@ export default function MiniCalendar({ mes, onCambiarMes, marcados, seleccionado
 
   return (
     <View>
-      <View style={styles.head}>
-        <PressScale
-          contentStyle={styles.nav}
-          onPress={() => onCambiarMes(new Date(mes.getFullYear(), mes.getMonth() - 1, 1))}
-          accessibilityLabel="Mes anterior"
-        >
-          <Ionicons name="chevron-back" size={22} color={colors.ink} />
-        </PressScale>
-        <Text style={styles.title} accessibilityRole="header">
-          {MESES[mes.getMonth()]} {mes.getFullYear()}
-        </Text>
-        <PressScale
-          contentStyle={styles.nav}
-          onPress={() => onCambiarMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}
-          accessibilityLabel="Mes siguiente"
-        >
-          <Ionicons name="chevron-forward" size={22} color={colors.ink} />
-        </PressScale>
-      </View>
+      {cabecera && (
+        <View style={styles.head}>
+          <PressScale
+            contentStyle={styles.nav}
+            onPress={() => onCambiarMes(new Date(mes.getFullYear(), mes.getMonth() - 1, 1))}
+            accessibilityLabel="Mes anterior"
+          >
+            <Ionicons name="chevron-back" size={22} color={colors.ink} />
+          </PressScale>
+          <Text style={styles.title} accessibilityRole="header">
+            {MESES[mes.getMonth()]} {mes.getFullYear()}
+          </Text>
+          <PressScale
+            contentStyle={styles.nav}
+            onPress={() => onCambiarMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}
+            accessibilityLabel="Mes siguiente"
+          >
+            <Ionicons name="chevron-forward" size={22} color={colors.ink} />
+          </PressScale>
+        </View>
+      )}
 
       <View style={styles.row}>
         {DIAS.map((d) => (
@@ -110,15 +112,15 @@ export default function MiniCalendar({ mes, onCambiarMes, marcados, seleccionado
             const key = dayKey(fecha);
             const esSel = seleccionado === key;
             const esHoy = key === hoyKey;
-            const tipos = marcados.get(key) || [];
+            const categorias = marcados.get(key) || [];
             return (
               <DayCell
                 key={j}
                 fecha={fecha}
-                tipos={tipos}
+                categorias={categorias}
                 esHoy={esHoy}
                 esSel={esSel}
-                onPress={() => onElegirDia(esSel ? null : key)}
+                onPress={() => onElegirDia(key)}
               />
             );
           })}
@@ -128,10 +130,12 @@ export default function MiniCalendar({ mes, onCambiarMes, marcados, seleccionado
   );
 }
 
+export const NOMBRE_MES = (i) => MESES[i];
+
 const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   nav: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 17, fontFamily: poppinsWeight('600'), color: colors.ink },
+  title: { fontSize: 20, fontFamily: SERIF_BOLD, color: colors.ink },
   row: { flexDirection: 'row' },
   dow: {
     flex: 1,
@@ -141,29 +145,25 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     paddingVertical: 8,
   },
-  cell: { flex: 1, aspectRatio: 1, alignItems: 'center', justifyContent: 'center', minHeight: 44 },
+  cell: { flex: 1, aspectRatio: 1.45, minHeight: 48, alignItems: 'center', justifyContent: 'center', padding: 2 },
   day: {
     width: '100%',
     height: '100%',
-    minHeight: 44,
+    minHeight: 48,
+    gap: 4,
     borderRadius: 10,
+    borderWidth: 2,
+    borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dayMarked: { backgroundColor: colors.dayTint },
   dayHover: { backgroundColor: colors.surfaceSoftPressed },
-  dayToday: { borderWidth: 1.5, borderColor: colors.accentStrong },
-  daySelected: {
-    backgroundColor: colors.accentStrong,
-    borderColor: colors.accentStrong,
-    shadowColor: colors.accentStrong,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  dayText: { fontVariant: ['tabular-nums'], fontSize: 15, color: colors.ink },
-  dayTextSelected: { color: colors.onAccent, fontFamily: poppinsWeight('600') },
-  dots: { flexDirection: 'row', gap: 4, height: 6, marginTop: 4 },
-  dot: { width: 6, height: 6, borderRadius: 3 },
+  daySelected: { backgroundColor: colors.arena, borderColor: colors.accentStrong },
+  num: { minWidth: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  numHoy: { backgroundColor: colors.accentStrong },
+  dayText: { fontVariant: ['tabular-nums'], fontSize: 17, color: colors.ink },
+  dayTextHoy: { color: colors.onAccent, fontFamily: poppinsWeight('700') },
+  dayTextSel: { fontFamily: poppinsWeight('700') },
+  dots: { flexDirection: 'row', gap: 4, height: 8 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
 });
