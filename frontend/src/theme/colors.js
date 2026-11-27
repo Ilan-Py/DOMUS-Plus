@@ -27,6 +27,13 @@ export const colors = {
   // único de antes). `sage` = tinte claro de fondo, `sageDeep` = el verde
   // salvia profundo en sí (texto/íconos sobre el tinte), `sagePressed` =
   // estado presionado, más oscuro todavía.
+  // Paleta de Familia/Calendario: salvia = mascotas y "al día"; ocre = turnos/controles y sol; arena = fondos cálidos.
+  salvia: '#4A6B5D',
+  salviaSoft: '#E8F0EC',
+  ocre: '#C88D32',
+  ocreSoft: '#FDF3E1',
+  arena: '#F3EAE0',
+  terracotaSoft: '#FAECE7',
   sage: '#D6E2D6',          // tinte claro — relleno de paneles/badges secundarios (era #D5E8D4)
   // #4C6B4F daba 4.46:1 sobre `sage` — falla AA normal-text (4.5:1) usado como
   // texto del badge "Control" (11.5px/700). Oscurecido lo mínimo (misma

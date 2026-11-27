@@ -54,7 +54,7 @@ body::after {
 }
 .paper-pop,
 [data-paper~="pop"] {
-  animation: paper-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: paper-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
 }
 [data-paper~="d1"] { animation-delay: 90ms; }
 [data-paper~="d2"] { animation-delay: 180ms; }
@@ -66,6 +66,15 @@ body::after {
    Sin giros ni entrada animada. Los contactos ("carton") suman una micro-elevación al pasar el mouse. */
 [data-paper~="ficha"] {
   box-shadow: 0 3px 0 rgba(42, 36, 33, 0.07), 0 10px 24px rgba(42, 36, 33, 0.06) !important;
+}
+/* Tarjetas de lista (Familia): sombra de cartulina en dos capas, sin hover propio. */
+[data-paper~="cartulina"] {
+  box-shadow: 0 3px 0 rgba(42, 36, 33, 0.07), 0 8px 18px rgba(42, 36, 33, 0.06) !important;
+}
+/* Micro-elevación al pasar el mouse para stickers decorativos. */
+[data-paper~="lift"] { transition: translate 160ms ease-out; }
+@media (hover: hover) {
+  [data-paper~="lift"]:hover { translate: 0 -2px; }
 }
 [data-paper~="carton"] {
   box-shadow: 0 3px 0 rgba(42, 36, 33, 0.07), 0 6px 14px rgba(42, 36, 33, 0.05) !important;
@@ -79,7 +88,8 @@ body::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-paper~="carton"] { transition: none; }
+  [data-paper~="carton"], [data-paper~="lift"] { transition: none; }
+  [data-paper~="lift"]:hover { translate: none; }
   [data-paper~="carton"]:hover { translate: none; }
   .paper-pop,
   [data-paper~="pop"] { animation: none; }

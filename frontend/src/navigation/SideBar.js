@@ -8,7 +8,11 @@ import PressScale from '../components/PressScale';
 import Avatar from '../components/Avatar';
 import { LogoConNombre } from '../components/Logo';
 import { useAuth } from '../context/AuthContext';
-import { getList } from '../api/client';
+import api, { getList } from '../api/client';
+import * as Clipboard from 'expo-clipboard';
+import { mostrarToast } from '../components/ToastHost';
+import CrossfadeIcon from '../components/CrossfadeIcon';
+import Pulse from '../components/Pulse';
 
 export const SIDEBAR_WIDTH = 248;
 // Desde este ancho el menú pasa a barra lateral (escritorio).
@@ -70,6 +74,57 @@ function NavItem({ focused, icon, label, onPress }) {
       <Ionicons name={icon} size={24} color={focused ? colors.accentStrong : colors.iconWarm} />
       <Text style={[styles.label, focused && styles.labelActive]}>{label}</Text>
     </PressScale>
+  );
+}
+
+// Tarjeta del dueño entre el menú y el perfil: copia el código de invitación vigente (lo pide al
+// servidor; si todavía no hay uno, genera el primero) para pasárselo a quien quiera sumar.
+function InvitaCard() {
+  const [copiado, setCopiado] = useState(false);
+  const [cargando, setCargando] = useState(false);
+
+  async function copiar() {
+    if (cargando) return;
+    setCargando(true);
+    try {
+      let codigo = null;
+      try {
+        const datos = await api.get('/api/familia/grupo/invitacion');
+        codigo = datos?.codigo_invitacion || null;
+      } catch {
+        // sin endpoint o sin código todavía: se genera abajo
+      }
+      if (!codigo) {
+        const datos = await api.post('/api/familia/grupo/invitacion');
+        codigo = datos.codigo_invitacion;
+      }
+      await Clipboard.setStringAsync(codigo);
+      mostrarToast('Código copiado');
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 1500);
+    } catch (err) {
+      mostrarToast(err?.mensaje || 'No pudimos copiar el código');
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  return (
+    <View style={styles.invita}>
+      <Text style={styles.invitaTitle}>Sumá a tu familia</Text>
+      <Text style={styles.invitaText}>Pasales el código para que se unan al grupo.</Text>
+      <Pulse trigger={copiado} radio={10}>
+        <PressScale
+          contentStyle={styles.invitaBtn}
+          onPress={copiar}
+          disabled={cargando}
+          accessibilityLabel="Copiar código de invitación"
+        >
+          <CrossfadeIcon a="copy-outline" b="checkmark" showB={copiado} size={20} color={colors.accentStrong} />
+          <Text style={styles.invitaBtnText}>{copiado ? 'Copiado' : 'Copiar código'}</Text>
+        </PressScale>
+      </Pulse>
+    </View>
   );
 }
 
@@ -138,6 +193,8 @@ export default function SideBar({ state, navigation }) {
       })}
       </View>
 
+      {rol === 'Dueño' && <InvitaCard />}
+
       {/* Anclada al pie: quién tiene la sesión abierta. Lleva a Cuenta. */}
       <View style={styles.userWrap}>
         <PressScale
@@ -200,6 +257,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.badgeSand,
   },
   groupText: { fontSize: 14, lineHeight: 20, color: colors.textBody },
+  invita: {
+    marginTop: 16,
+    padding: 16,
+    gap: 8,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(42, 36, 33, 0.18)',
+    backgroundColor: colors.arena,
+  },
+  invitaTitle: { fontSize: 16, lineHeight: 24, fontFamily: poppinsWeight('700'), color: colors.ink },
+  invitaText: { fontSize: 14, lineHeight: 20, color: colors.textBody },
+  invitaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 48,
+    marginTop: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
+    backgroundColor: '#FFFFFF',
+  },
+  invitaBtnText: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.accentStrong },
   userWrap: {
     marginTop: 'auto',
     paddingTop: 12,

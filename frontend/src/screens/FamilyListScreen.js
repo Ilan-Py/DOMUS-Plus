@@ -20,7 +20,8 @@ import ErrorBanner from '../components/ErrorBanner';
 import EmptyState from '../components/EmptyState';
 import PrimaryButton from '../components/PrimaryButton';
 import TodayCard from '../components/TodayCard';
-import { BannerDoodle } from '../components/FamilyDoodles';
+import BannerRecortes from '../components/BannerRecortes';
+import { paper } from '../theme/paper';
 import PressScale from '../components/PressScale';
 import Skeleton from '../components/Skeleton';
 import FadeSlideIn from '../components/FadeSlideIn';
@@ -33,7 +34,7 @@ import { avatarTint } from '../theme/avatars';
 // columnas (64% integrantes y mascotas / 36% «Hoy en tu familia») en un
 // contenedor de hasta 1120px; debajo, una sola columna apilada.
 const DESKTOP_BREAKPOINT = 1024;
-const CONTAINER_MAX_WIDTH = 1120;
+const CONTAINER_MAX_WIDTH = 1180;
 
 const TIPO_LABELS = { adulto: 'Adulto', menor: 'Menor', mayor: 'Mayor' };
 
@@ -58,7 +59,7 @@ function calcularEdad(fechaNacimiento) {
 function MemberCard({ icon, nombre, apellido, nombreCompleto, fotoUrl, subt, tipo, mascota, onPress, onLongPress, onEmergencyPress, disabled }) {
   const [hover, setHover] = useState(false);
   return (
-    <View style={[styles.cardWrap, Platform.OS === 'web' && styles.cardWrapWeb, hover && styles.cardWrapHover]}>
+    <View {...paper('cartulina')} style={[styles.cardWrap, Platform.OS === 'web' && styles.cardWrapWeb, hover && styles.cardWrapHover]}>
       <PressScale
         contentStyle={[styles.memberCard, hover && styles.memberCardHover]}
         onPress={onPress}
@@ -68,6 +69,8 @@ function MemberCard({ icon, nombre, apellido, nombreCompleto, fotoUrl, subt, tip
         disabled={disabled}
         accessibilityLabel={`${nombreCompleto || nombre}, ${subt}`}
       >
+        {/* Barra lateral de 4 px: terracota para personas, verde salvia para mascotas */}
+        <View pointerEvents="none" style={[styles.barra, { backgroundColor: mascota ? colors.salvia : colors.accentStrong }]} />
         <View style={styles.memberHead}>
           <Avatar nombre={nombre} apellido={apellido} size={48} mascota={mascota} tipo={tipo} fotoUrl={fotoUrl} />
           <View style={styles.memberInfo}>
@@ -205,7 +208,7 @@ export default function FamilyListScreen({ navigation }) {
   const banner = (
     <View style={styles.banner}>
       <View style={[styles.bannerDoodle, !desktop && styles.bannerDoodleMobile]} pointerEvents="none">
-        <BannerDoodle width={desktop ? 300 : 170} />
+        <BannerRecortes width={desktop ? 340 : 200} />
       </View>
       <View style={styles.bannerText}>
         <Text style={styles.bannerTitle} numberOfLines={2} accessibilityRole="header">
@@ -223,9 +226,12 @@ export default function FamilyListScreen({ navigation }) {
 
   const listaDeIntegrantes = (
     <View style={styles.section}>
-      <Text style={styles.sectionLabel} accessibilityRole="header">
-        Integrantes ({integrantes.length})
-      </Text>
+      <View style={styles.sectionHead}>
+        <Ionicons name="people" size={20} color={colors.accentStrong} />
+        <Text style={styles.sectionLabel} accessibilityRole="header">
+          Integrantes ({integrantes.length})
+        </Text>
+      </View>
       {integrantes.length === 0 ? (
         <EmptyState message="No hay integrantes registrados." />
       ) : (
@@ -263,9 +269,12 @@ export default function FamilyListScreen({ navigation }) {
 
   const listaDeMascotas = (
     <View style={styles.section}>
-      <Text style={styles.sectionLabel} accessibilityRole="header">
-        Mascotas ({mascotas.length})
-      </Text>
+      <View style={styles.sectionHead}>
+        <Ionicons name="paw" size={20} color={colors.salvia} />
+        <Text style={styles.sectionLabel} accessibilityRole="header">
+          Mascotas ({mascotas.length})
+        </Text>
+      </View>
       {mascotas.length === 0 ? (
         <EmptyState message="No hay mascotas registradas." />
       ) : (
@@ -342,11 +351,11 @@ export default function FamilyListScreen({ navigation }) {
         contentContainerStyle={[
           styles.scroll,
           desktop ? styles.scrollDesktop : styles.scrollMobile,
-          { paddingTop: (desktop ? 24 : 12) + insets.top },
+          { paddingTop: (desktop ? 32 : 12) + insets.top },
         ]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.navy} />}
       >
-        <View style={styles.container}>
+        <View style={[styles.container, desktop && styles.containerIzq]}>
           {banner}
           {errores}
 
@@ -372,24 +381,26 @@ export default function FamilyListScreen({ navigation }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   scroll: { paddingBottom: 112 },
-  scrollDesktop: { paddingHorizontal: 32 },
+  scrollDesktop: { paddingHorizontal: 48 },
   scrollMobile: { paddingHorizontal: 20 },
   container: { width: '100%', maxWidth: CONTAINER_MAX_WIDTH, alignSelf: 'center', gap: 24 },
+  // Escritorio: alineado a la izquierda, pegado a la barra lateral (sin pasillo vacío).
+  containerIzq: { alignSelf: 'flex-start' },
 
   // ---- banner cálido
   banner: {
     position: 'relative',
     overflow: 'hidden',
-    backgroundColor: colors.terraPale,
+    backgroundColor: colors.arena,
     borderWidth: 1,
-    borderColor: '#EFE2D8',
+    borderColor: 'rgba(42, 36, 33, 0.08)',
     borderRadius: 16,
     paddingVertical: 24,
     paddingHorizontal: 28,
     minHeight: 168,
     justifyContent: 'center',
   },
-  bannerDoodle: { position: 'absolute', right: 0, bottom: 0, opacity: 1 },
+  bannerDoodle: { position: 'absolute', right: 16, bottom: 0, opacity: 1 },
   bannerDoodleMobile: { top: 0, bottom: undefined, opacity: 0.75 },
   bannerText: { zIndex: 1, gap: 4, maxWidth: '62%' },
   bannerTitle: { fontSize: 28, lineHeight: 36, fontFamily: poppinsWeight('700'), color: colors.ink },
@@ -402,27 +413,36 @@ const styles = StyleSheet.create({
   colRight: { flex: 36 },
   stack: { gap: 24 },
   section: { gap: 12 },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionLabel: { fontSize: 18, lineHeight: 26, fontFamily: poppinsWeight('700'), color: colors.ink },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
   gridItem: { flexBasis: 280, flexGrow: 1, flexShrink: 1 },
 
   // ---- tarjetas de integrantes y mascotas
-  cardWrap: { width: '100%' },
+  // Sombra de cartulina: en web, de dos capas vía theme/paper.js; en nativo, una corta y nítida.
+  cardWrap: {
+    width: '100%',
+    borderRadius: 16,
+    backgroundColor: colors.glassStrong,
+    shadowColor: '#2A2421',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.07,
+    shadowRadius: 0,
+    elevation: 2,
+  },
+  barra: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 4 },
   cardWrapWeb: { transitionProperty: 'transform', transitionDuration: '150ms', transitionTimingFunction: 'ease-out' },
   cardWrapHover: { transform: [{ translateY: -2 }] },
   memberCard: {
     gap: 12,
     minHeight: 80,
     padding: 16,
+    paddingLeft: 20,
+    overflow: 'hidden',
     backgroundColor: colors.glassStrong,
     borderWidth: 1,
     borderColor: colors.borderCard,
     borderRadius: 16,
-    shadowColor: '#2A2421',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 16,
-    elevation: 0,
   },
   memberCardHover: { borderColor: '#E8B9A5' },
   memberHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },

@@ -290,6 +290,29 @@ async function generarInvitacion(req, res) {
     }
 }
 
+// Código de invitación vigente (sólo el dueño). No genera uno nuevo: sirve para copiar el que ya existe
+// sin invalidar el anterior. `codigo_invitacion` es null si todavía no se generó ninguno.
+async function obtenerInvitacion(req, res) {
+    const usuarioId = req.usuario.id;
+    try {
+        const membresia = await resolverMembresia(usuarioId);
+        if (!membresia) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'No pertenecés a ningún grupo familiar.' });
+        }
+        if (membresia.rol !== 'dueno') {
+            return res.status(403).json({ codigo: 403, estado: 'error', datos: 'Sólo el dueño del grupo puede ver el código de invitación.' });
+        }
+        const grupo = await prisma.grupoFamiliar.findUnique({
+            where: { id: membresia.grupo_id },
+            select: { codigoInvitacion: true }
+        });
+        return res.status(200).json({ codigo: 200, estado: 'ok', datos: { codigo_invitacion: grupo?.codigoInvitacion || null } });
+    } catch (err) {
+        console.error('obtenerInvitacion=', err.message);
+        return res.status(500).json({ codigo: 500, estado: 'error', datos: 'Error interno del servidor.' });
+    }
+}
+
 async function unirseGrupo(req, res) {
     const usuarioId = req.usuario.id;
     const { codigo } = req.body;
@@ -754,7 +777,7 @@ async function eliminarMascota(req, res) {
 
 module.exports = {
     crearGrupo, obtenerGrupo, renombrarGrupo,
-    generarInvitacion, unirseGrupo, listarMiembros, eliminarMiembro, salirGrupo, eliminarGrupo,
+    generarInvitacion, obtenerInvitacion, unirseGrupo, listarMiembros, eliminarMiembro, salirGrupo, eliminarGrupo,
     agregarIntegrante, listarIntegrantes, editarIntegrante, eliminarIntegrante, editarEmergenciaIntegrante,
     agregarMascota, listarMascotas, editarMascota, eliminarMascota,
     tipoSegunEdad // también lo usan las estadísticas del admin
