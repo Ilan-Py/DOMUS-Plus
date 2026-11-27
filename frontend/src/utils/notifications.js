@@ -8,6 +8,17 @@ const TIPO_LABELS = { vacuna: 'Vacuna', control: 'Control', medicacion: 'Medicac
 
 const STORAGE_KEY = 'notificaciones_programadas';
 
+// Preferencia "Recordatorios anticipados" (Mi cuenta): avisar este tiempo antes de cada dosis o turno.
+const CLAVE_ANTICIPADOS = 'domus_pref_anticipados';
+const ANTICIPO_MIN = 30;
+async function anticipadosActivos() {
+  try {
+    return (await AsyncStorage.getItem(CLAVE_ANTICIPADOS)) === 'true';
+  } catch {
+    return false;
+  }
+}
+
 // Un solo blob JSON { [recordatorioId]: notificationId } en vez de una key
 // de AsyncStorage por recordatorio — el id que arma expo-notifications no
 // tiene relación con recordatorio.id, así que hay que guardar el mapeo para
@@ -73,10 +84,15 @@ export async function programarNotificacion(recordatorio) {
   const fecha = parseFechaHora(recordatorio.fecha_hora);
   if (Number.isNaN(fecha.getTime()) || fecha <= new Date()) return null;
 
+  // Con la preferencia activa se avisa 30 minutos antes; si ya falta menos que eso, se avisa a la hora de siempre.
+  const anticipado = new Date(fecha.getTime() - ANTICIPO_MIN * 60 * 1000);
+  const usarAnticipo = (await anticipadosActivos()) && anticipado > new Date();
+  const disparo = usarAnticipo ? anticipado : fecha;
+
   const id = await Notifications.scheduleNotificationAsync({
     content: {
       title: TIPO_LABELS[recordatorio.tipo] ?? recordatorio.tipo,
-      body: recordatorio.descripcion || 'Tenés un recordatorio pendiente.',
+      body: (usarAnticipo ? `En ${ANTICIPO_MIN} minutos: ` : '') + (recordatorio.descripcion || 'Tenés un recordatorio pendiente.'),
       data: { recordatorioId: recordatorio.id },
     },
     // Pasar el Date directo (no un objeto { type, date }) — la versión de
@@ -84,7 +100,7 @@ export async function programarNotificacion(recordatorio) {
     // fecha vía `instanceof Date` (ver scheduleNotificationAsync.js:
     // isDateTrigger/parseDateTrigger), no vía SchedulableTriggerInputTypes
     // (API de una versión más nueva que no existe acá).
-    trigger: fecha,
+    trigger: disparo,
   });
 
   const mapa = await leerMapa();

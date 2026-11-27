@@ -13,6 +13,8 @@ import {
 import { Lora_700Bold } from '@expo-google-fonts/lora';
 import * as Notifications from 'expo-notifications';
 
+import './src/theme/escalaTexto';
+import { PreferenciasProvider } from './src/context/PreferenciasContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { FamilyProvider } from './src/context/FamilyContext';
 import WelcomeScreen from './src/screens/WelcomeScreen';
@@ -34,6 +36,8 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
   const style = document.createElement('style');
   style.textContent = 'input::-ms-reveal, input::-ms-clear { display: none; } html, body { background: #FBF6EE; }';
   document.head.appendChild(style);
+  // El contenido está en español: los lectores de pantalla eligen la voz según este atributo.
+  document.documentElement.lang = 'es';
   // Utilidades "paper cutout" (grano de papel, tarjetas flotantes, paper-pop).
   injectPaperCss();
   // Favicon explícito (el corazón terracota) — sin esto el navegador cae al /favicon.ico por defecto.
@@ -225,6 +229,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
+      <PreferenciasProvider>
       <AuthProvider>
         <NavigationContainer
           ref={navigationRef}
@@ -238,6 +243,7 @@ export default function App() {
           <ToastHost />
         </NavigationContainer>
       </AuthProvider>
+      </PreferenciasProvider>
     </SafeAreaProvider>
   );
 }
