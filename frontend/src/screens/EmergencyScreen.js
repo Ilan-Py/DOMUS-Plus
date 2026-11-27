@@ -17,7 +17,7 @@ import { paper } from '../theme/paper';
 import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
 import api, { getList } from '../api/client';
 import { useFamily } from '../context/FamilyContext';
-import Avatar from '../components/Avatar';
+import EntityAvatar from '../components/EntityAvatar';
 import CrossfadeIcon from '../components/CrossfadeIcon';
 import { mostrarToast } from '../components/ToastHost';
 import * as Clipboard from 'expo-clipboard';
@@ -219,8 +219,10 @@ export default function EmergencyScreen({ navigation, route }) {
           <Text style={styles.volverText}>Volver</Text>
         </PressScale>
         <View style={styles.cabeceraFila}>
-          <Avatar
-            nombre={integrante?.nombre || nombre}
+          <EntityAvatar
+            avatarId={integrante?.avatar_id}
+            type="person"
+            name={integrante?.nombre || nombre}
             apellido={integrante?.apellido}
             tipo={integrante?.tipo}
             fotoUrl={integrante?.foto_url}

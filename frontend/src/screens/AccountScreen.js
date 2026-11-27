@@ -17,10 +17,10 @@ import FormField from '../components/FormField';
 import Pulse from '../components/Pulse';
 import CrossfadeIcon from '../components/CrossfadeIcon';
 import { confirmarDestructivo } from '../utils/confirm';
-import { iniciales } from '../utils/displayFormat';
-import { avatarTint } from '../theme/avatars';
 import { paper } from '../theme/paper';
 import CasaRecorte from '../components/CasaRecorte';
+import EntityAvatar from '../components/EntityAvatar';
+import AvatarPicker from '../components/AvatarPicker';
 
 // Layout (ver DESIGN.md): desde 1024px, dos columnas (38% perfil y seguridad / 62% grupo)
 // en un contenedor de hasta 1040px; debajo, una sola columna en el mismo orden.
@@ -84,26 +84,6 @@ function SettingRow({ icon, label, value, onPress, disabled, tone, accessibility
   );
 }
 
-// Círculo con iniciales: sólo para personas (no para filas de configuración).
-function Avatar({ nombre, apellido, size = 48 }) {
-  const tinte = avatarTint('adulto');
-  const ini = iniciales(nombre, apellido);
-  return (
-    <View
-      style={[
-        styles.avatar,
-        { width: size, height: size, borderRadius: size / 2, backgroundColor: tinte.bg },
-      ]}
-    >
-      {ini ? (
-        <Text style={[styles.avatarText, { color: tinte.text, fontSize: size * 0.36 }]}>{ini}</Text>
-      ) : (
-        <Ionicons name="person" size={size * 0.45} color={tinte.text} />
-      )}
-    </View>
-  );
-}
-
 export default function AccountScreen() {
   const { usuario, grupo, logout, salirDelGrupo, actualizarPerfil, renombrarGrupo } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -113,6 +93,7 @@ export default function AccountScreen() {
 
   const [editandoPerfil, setEditandoPerfil] = useState(false);
   const [perfilNombre, setPerfilNombre] = useState('');
+  const [perfilAvatar, setPerfilAvatar] = useState(null);
   const [perfilApellido, setPerfilApellido] = useState('');
   const [perfilEmail, setPerfilEmail] = useState('');
   const [perfilError, setPerfilError] = useState('');
@@ -195,6 +176,7 @@ export default function AccountScreen() {
     setPerfilNombre(usuario?.nombre || '');
     setPerfilApellido(usuario?.apellido || '');
     setPerfilEmail(usuario?.email || '');
+    setPerfilAvatar(usuario?.avatar_id || null);
     setPerfilError('');
     setEditandoPerfil(true);
   }
@@ -212,8 +194,10 @@ export default function AccountScreen() {
         nombre: perfilNombre.trim(),
         apellido: perfilApellido.trim(),
         email: perfilEmail.trim(),
+        avatar_id: perfilAvatar,
       });
       setEditandoPerfil(false);
+      fetchMiembros(); // la lista de miembros muestra el avatar nuevo
     } catch (err) {
       setPerfilError(err.mensaje);
     } finally {
@@ -361,6 +345,7 @@ export default function AccountScreen() {
       {editandoPerfil ? (
         <View style={styles.formPad}>
           <ErrorBanner message={perfilError} />
+          <AvatarPicker mode="all" value={perfilAvatar} onChange={setPerfilAvatar} name={perfilNombre} apellido={perfilApellido} />
           <FormField label="Nombre" value={perfilNombre} onChangeText={setPerfilNombre} />
           <FormField label="Apellido" value={perfilApellido} onChangeText={setPerfilApellido} />
           <FormField
@@ -378,7 +363,7 @@ export default function AccountScreen() {
         </View>
       ) : (
         <View style={styles.profileBody}>
-          <Avatar nombre={usuario?.nombre} apellido={usuario?.apellido} size={64} />
+          <EntityAvatar avatarId={usuario?.avatar_id} type="person" name={usuario?.nombre} apellido={usuario?.apellido} size={64} />
           <View style={styles.profileInfo}>
             <Text style={styles.profileNombre} numberOfLines={2}>
               {usuario?.nombre} {usuario?.apellido}
@@ -526,7 +511,7 @@ export default function AccountScreen() {
           </Text>
           {miembros.map((m, i) => (
             <View key={m.usuario_id} style={[styles.miembroRow, i < miembros.length - 1 && styles.rowDivider]}>
-              <Avatar nombre={m.nombre} apellido={m.apellido} size={40} />
+              <EntityAvatar avatarId={m.avatar_id} type="person" name={m.nombre} apellido={m.apellido} size={40} />
               <Text style={styles.miembroNombre} numberOfLines={1}>
                 {m.nombre} {m.apellido}
               </Text>

@@ -15,6 +15,7 @@ import { useFamily } from '../context/FamilyContext';
 import FormField from '../components/FormField';
 import PrimaryButton from '../components/PrimaryButton';
 import SegmentedControl from '../components/SegmentedControl';
+import AvatarPicker from '../components/AvatarPicker';
 import ErrorBanner from '../components/ErrorBanner';
 import DatePickerField, { formatDateOnly } from '../components/DatePickerField';
 import OptionPicker from '../components/OptionPicker';
@@ -89,6 +90,7 @@ export default function AddMemberScreen({ navigation, route }) {
   const [especie, setEspecie] = useState(() => memberToEdit?.especie || '');
   const [especieError, setEspecieError] = useState('');
   const [raza, setRaza] = useState(() => memberToEdit?.raza || '');
+  const [avatarId, setAvatarId] = useState(() => memberToEdit?.avatar_id || null);
 
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -105,6 +107,7 @@ export default function AddMemberScreen({ navigation, route }) {
     observaciones: memberToEdit?.observaciones || '',
     especie: memberToEdit?.especie || '',
     raza: memberToEdit?.raza || '',
+    avatarId: memberToEdit?.avatar_id || null,
   });
 
   const isDirty =
@@ -114,7 +117,8 @@ export default function AddMemberScreen({ navigation, route }) {
     !sameDate(fechaNacimiento, initialRef.current.fechaNacimiento) ||
     observaciones !== initialRef.current.observaciones ||
     especie !== initialRef.current.especie ||
-    raza !== initialRef.current.raza;
+    raza !== initialRef.current.raza ||
+    avatarId !== initialRef.current.avatarId;
 
   const { allowNextRemove } = useUnsavedChangesGuard(navigation, isDirty);
 
@@ -150,6 +154,7 @@ export default function AddMemberScreen({ navigation, route }) {
           fecha_nacimiento: fechaNacimiento ? formatDateOnly(fechaNacimiento) : undefined,
           tipo: tipoPorEdad(fechaNacimiento),
           observaciones: observaciones || undefined,
+          avatar_id: avatarId,
         };
         if (isEditing) {
           await api.patch(`/api/familia/integrantes/${memberToEdit.id}`, payload);
@@ -161,6 +166,7 @@ export default function AddMemberScreen({ navigation, route }) {
           nombre,
           especie,
           raza: raza || undefined,
+          avatar_id: avatarId,
         };
         if (isEditing) {
           await api.patch(`/api/familia/mascotas/${memberToEdit.id}`, payload);
@@ -213,9 +219,20 @@ export default function AddMemberScreen({ navigation, route }) {
           <SegmentedControl
             options={TIPO_MIEMBRO_OPTIONS}
             selectedValue={tipoMiembro}
-            onChange={setTipoMiembro}
+            onChange={(valor) => {
+              setTipoMiembro(valor);
+              setAvatarId(null); // los catálogos de personas y mascotas son distintos
+            }}
           />
         )}
+
+        <AvatarPicker
+          mode={tipoMiembro === 'mascota' ? 'pet' : 'person'}
+          value={avatarId}
+          onChange={setAvatarId}
+          name={nombre}
+          apellido={apellido}
+        />
 
         <FormField
           inputRef={ref('nombre')}

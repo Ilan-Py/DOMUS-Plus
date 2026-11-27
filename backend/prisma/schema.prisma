@@ -74,6 +74,8 @@ model Usuario {
   email        String   @unique @db.VarChar(150)
   passwordHash String   @map("password_hash") @db.VarChar(255)
   rol          RolSistema @default(usuario)
+  // Avatar elegido (id del catálogo de la app, ej. "dog-floppy"); null = iniciales o huellita.
+  avatarId     String?  @map("avatar_id") @db.VarChar(40)
   createdAt    DateTime @default(now()) @map("created_at")
 
   // Relaciones
@@ -141,6 +143,7 @@ model Integrante {
   // Foto de perfil: ruta relativa (ej. /fotos/moni.jpg) servida por el backend; la app la
   // antepone a la URL de la API. Sin foto, la app muestra las iniciales.
   fotoUrl          String?         @map("foto_url") @db.VarChar(500)
+  avatarId         String?         @map("avatar_id") @db.VarChar(40)
 
   // Relaciones
   grupo               GrupoFamiliar        @relation(fields: [grupoId], references: [id], onDelete: Cascade)
@@ -168,6 +171,7 @@ model Mascota {
 
   // Foto de perfil (ver Integrante.fotoUrl).
   fotoUrl      String?          @map("foto_url") @db.VarChar(500)
+  avatarId     String?          @map("avatar_id") @db.VarChar(40)
 
   // Relaciones
   grupo        GrupoFamiliar    @relation(fields: [grupoId], references: [id], onDelete: Cascade)

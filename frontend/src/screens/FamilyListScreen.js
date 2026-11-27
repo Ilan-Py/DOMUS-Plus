@@ -27,7 +27,7 @@ import Skeleton from '../components/Skeleton';
 import FadeSlideIn from '../components/FadeSlideIn';
 import FadeOutRow, { EXIT_DURATION } from '../components/FadeOutRow';
 import { confirmarDestructivo, elegirTarjetas } from '../utils/confirm';
-import Avatar from '../components/Avatar';
+import EntityAvatar from '../components/EntityAvatar';
 import { avatarTint } from '../theme/avatars';
 
 // Layout (ver DESIGN.md): desde 1024px, banner a todo el ancho y debajo dos
@@ -56,7 +56,7 @@ function calcularEdad(fechaNacimiento) {
 // Tarjeta de integrante o mascota: avatar circular con la paleta cálida de su categoría,
 // nombre y datos. En web, al pasar el mouse sube 2px y el borde se vuelve terracota
 // claro. Los integrantes llevan un botón rápido de «Emergencia».
-function MemberCard({ icon, nombre, apellido, nombreCompleto, fotoUrl, subt, tipo, mascota, onPress, onLongPress, onEmergencyPress, disabled }) {
+function MemberCard({ icon, nombre, apellido, nombreCompleto, fotoUrl, avatarId, subt, tipo, mascota, onPress, onLongPress, onEmergencyPress, disabled }) {
   const [hover, setHover] = useState(false);
   return (
     <View {...paper('cartulina')} style={[styles.cardWrap, Platform.OS === 'web' && styles.cardWrapWeb, hover && styles.cardWrapHover]}>
@@ -72,7 +72,7 @@ function MemberCard({ icon, nombre, apellido, nombreCompleto, fotoUrl, subt, tip
         {/* Barra lateral de 4 px: terracota para personas, verde salvia para mascotas */}
         <View pointerEvents="none" style={[styles.barra, { backgroundColor: mascota ? colors.salvia : colors.accentStrong }]} />
         <View style={styles.memberHead}>
-          <Avatar nombre={nombre} apellido={apellido} size={48} mascota={mascota} tipo={tipo} fotoUrl={fotoUrl} />
+          <EntityAvatar avatarId={avatarId} type={mascota ? 'pet' : 'person'} name={nombre} apellido={apellido} size={48} tipo={tipo} fotoUrl={fotoUrl} />
           <View style={styles.memberInfo}>
             <Text style={styles.memberName}>{nombreCompleto || nombre}</Text>
             <Text style={styles.memberSubt}>{subt}</Text>
@@ -248,6 +248,7 @@ export default function FamilyListScreen({ navigation }) {
                     nombre={item.nombre}
                     apellido={item.apellido}
                     fotoUrl={item.foto_url}
+                    avatarId={item.avatar_id}
                     nombreCompleto={nombreCompleto}
                     subt={`${TIPO_LABELS[item.tipo] ?? item.tipo}${edad !== null ? ` · ${edad} años` : ''}`}
                     tipo={item.tipo}
@@ -288,6 +289,7 @@ export default function FamilyListScreen({ navigation }) {
                     icon="paw"
                     mascota
                     fotoUrl={item.foto_url}
+                    avatarId={item.avatar_id}
                     nombre={item.nombre}
                     subt={item.raza ? `${item.especie} · ${item.raza}` : item.especie}
                     disabled={busy}

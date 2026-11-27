@@ -27,6 +27,17 @@ function tipoSegunEdad(fechaNacimiento) {
     return 'mayor';
 }
 const REGLAS_GRUPO      = { nombre: { tipo: 'texto', max: 150, etiqueta: 'nombre del grupo' } };
+// Avatar elegido (id del catálogo de la app, ej. "dog-floppy"). Es opcional: si no viene en el body no se
+// toca lo guardado; si viene vacío o null se borra (vuelve a iniciales/huellita).
+const AVATAR_ID_VALIDO = /^[a-z0-9-]{1,40}$/;
+function avatarIdInvalido(body) {
+    const v = body.avatar_id;
+    return v !== undefined && v !== null && v !== '' && !(typeof v === 'string' && AVATAR_ID_VALIDO.test(v));
+}
+function datosAvatar(body) {
+    return body.avatar_id === undefined ? {} : { avatarId: body.avatar_id || null };
+}
+const MSJ_AVATAR = 'El avatar elegido no es válido.';
 const REGLAS_INVITACION = { codigo: { tipo: 'texto', max: 20, etiqueta: 'código de invitación' } };
 const REGLAS_INTEGRANTE = {
     nombre:           { tipo: 'nombrePersona', max: 100 }, // ERR-008: sin números
@@ -361,7 +372,7 @@ async function listarMiembros(req, res) {
 
         const miembros = await prisma.grupoMiembro.findMany({
             where: { grupoId },
-            include: { usuario: { select: { id: true, nombre: true, apellido: true } } },
+            include: { usuario: { select: { id: true, nombre: true, apellido: true, avatarId: true } } },
             orderBy: [{ joinedAt: 'asc' }]
         });
 
@@ -372,6 +383,7 @@ async function listarMiembros(req, res) {
             usuario_id: m.usuario.id,
             nombre:     m.usuario.nombre,
             apellido:   m.usuario.apellido,
+            avatar_id:  m.usuario.avatarId,
             rol:        m.rol === 'dueno' ? 'dueño' : m.rol,
             joined_at:  m.joinedAt
         }));
@@ -477,6 +489,9 @@ async function agregarIntegrante(req, res) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'La fecha de nacimiento no puede ser una fecha futura.' });
     }
     const tipo = tipoSegunEdad(fecha_nacimiento);
+    if (avatarIdInvalido(req.body)) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: MSJ_AVATAR });
+    }
 
     try {
         const grupoId = await resolverGrupoId(usuarioId);
@@ -491,9 +506,10 @@ async function agregarIntegrante(req, res) {
                 apellido:        apellido.trim(),
                 fechaNacimiento: new Date(fecha_nacimiento),
                 tipo,
-                observaciones:   observaciones || null
+                observaciones:   observaciones || null,
+                ...datosAvatar(req.body)
             },
-            select: { id: true, nombre: true, apellido: true, fechaNacimiento: true, tipo: true }
+            select: { id: true, nombre: true, apellido: true, fechaNacimiento: true, tipo: true, avatarId: true }
         });
 
         return res.status(201).json({ codigo: 201, estado: 'ok', datos: nuevo });
@@ -542,6 +558,9 @@ async function editarIntegrante(req, res) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'La fecha de nacimiento no puede ser una fecha futura.' });
     }
     const tipo = tipoSegunEdad(fecha_nacimiento);
+    if (avatarIdInvalido(req.body)) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: MSJ_AVATAR });
+    }
 
     try {
         const grupoId = await resolverGrupoId(usuarioId);
@@ -558,7 +577,8 @@ async function editarIntegrante(req, res) {
                 apellido:        apellido.trim(),
                 fechaNacimiento: new Date(fecha_nacimiento),
                 tipo,
-                observaciones:   observaciones || null
+                observaciones:   observaciones || null,
+                ...datosAvatar(req.body)
             }
         });
         if (resultado.count === 0) {
@@ -659,6 +679,9 @@ async function agregarMascota(req, res) {
     if (!nombre || !especie) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre y especie son obligatorios.' });
     }
+    if (avatarIdInvalido(req.body)) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: MSJ_AVATAR });
+    }
     if (fecha_nacimiento && esFechaFutura(fecha_nacimiento)) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'La fecha de nacimiento no puede ser una fecha futura.' });
     }
@@ -675,7 +698,8 @@ async function agregarMascota(req, res) {
                 nombre:          nombre.trim(),
                 especie:         especie.trim(),
                 raza:            raza ? raza.trim() : null,
-                fechaNacimiento: fecha_nacimiento ? new Date(fecha_nacimiento) : null
+                fechaNacimiento: fecha_nacimiento ? new Date(fecha_nacimiento) : null,
+                ...datosAvatar(req.body)
             }
         });
 
@@ -721,6 +745,9 @@ async function editarMascota(req, res) {
     if (!nombre || !especie) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'nombre y especie son obligatorios.' });
     }
+    if (avatarIdInvalido(req.body)) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: MSJ_AVATAR });
+    }
     if (fecha_nacimiento && esFechaFutura(fecha_nacimiento)) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'La fecha de nacimiento no puede ser una fecha futura.' });
     }
@@ -737,7 +764,8 @@ async function editarMascota(req, res) {
                 nombre:          nombre.trim(),
                 especie:         especie.trim(),
                 raza:            raza ? raza.trim() : null,
-                fechaNacimiento: fecha_nacimiento ? new Date(fecha_nacimiento) : null
+                fechaNacimiento: fecha_nacimiento ? new Date(fecha_nacimiento) : null,
+                ...datosAvatar(req.body)
             }
         });
         if (resultado.count === 0) {

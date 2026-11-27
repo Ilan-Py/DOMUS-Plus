@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 import PressScale from '../components/PressScale';
-import Avatar from '../components/Avatar';
+import EntityAvatar from '../components/EntityAvatar';
 import { LogoConNombre } from '../components/Logo';
 import { useAuth } from '../context/AuthContext';
 import api, { getList } from '../api/client';
@@ -203,7 +203,7 @@ export default function SideBar({ state, navigation }) {
           accessibilityRole="link"
           accessibilityLabel={`Tu cuenta: ${usuario?.nombre || ''} ${usuario?.apellido || ''}${rol ? `, ${rol}` : ''}`}
         >
-          <Avatar nombre={usuario?.nombre} apellido={usuario?.apellido} size={40} />
+          <EntityAvatar avatarId={usuario?.avatar_id} type="person" name={usuario?.nombre} apellido={usuario?.apellido} size={40} />
           <View style={styles.userText}>
             <Text style={styles.userName} numberOfLines={1}>
               {usuario?.nombre} {usuario?.apellido}
