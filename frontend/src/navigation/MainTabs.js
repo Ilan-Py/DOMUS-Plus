@@ -151,7 +151,7 @@ export default function MainTabs() {
           paddingBottom: insets.bottom + 4,
           display: wide || tabBarHidden(route) ? 'none' : 'flex',
         },
-        tabBarItemStyle: { flexDirection: 'column', gap: 2 },
+        tabBarItemStyle: { flexDirection: 'column', gap: 4 },
         tabBarBackground: () => <TabBarBackground />,
       })}
     >

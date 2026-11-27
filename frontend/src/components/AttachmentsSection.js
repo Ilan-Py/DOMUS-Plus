@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
     marginBottom: 12,
   },
-  tituloConHint: { marginBottom: 2 },
+  tituloConHint: { marginBottom: 4 },
   hint: { fontSize: 15, lineHeight: 22, color: colors.textBody, marginBottom: 12 },
   tituloCompact: {
     fontSize: 14,

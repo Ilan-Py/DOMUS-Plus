@@ -34,7 +34,7 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
   },
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   text: { flex: 1, fontSize: 16, lineHeight: 22, color: colors.error, fontFamily: poppinsWeight('600') },
   retry: {
     alignSelf: 'flex-start',

@@ -280,7 +280,7 @@ export default function AddReminderScreen({ navigation, route }) {
     >
       <HealthFormTopbar navigation={navigation} title={isEditing ? 'Editar recordatorio' : 'Nuevo recordatorio'} />
 
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: 18 + inset }]}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: 20 + inset }]}>
         <View style={styles.card}>
           {miembros.length > 0 && (
             <OptionPicker
@@ -431,8 +431,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   scroll: {
-    padding: 18,
-    paddingBottom: 110,
+    padding: 20,
+    paddingBottom: 112,
   },
   // Formulario enmarcado: tarjeta blanca con borde fino cálido.
   card: {
@@ -469,7 +469,7 @@ const styles = StyleSheet.create({
     fontFamily: poppinsWeight('600'),
     color: colors.ink,
   },
-  switchHelp: { fontSize: 14, lineHeight: 20, color: colors.textBody, marginTop: 2 },
+  switchHelp: { fontSize: 14, lineHeight: 20, color: colors.textBody, marginTop: 4 },
   formActions: {
     gap: 8,
     marginTop: 4,

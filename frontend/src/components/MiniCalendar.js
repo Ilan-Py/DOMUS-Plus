@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: poppinsWeight('600'),
     color: colors.textMuted,
-    paddingVertical: 6,
+    paddingVertical: 8,
   },
   cell: { flex: 1, aspectRatio: 1, alignItems: 'center', justifyContent: 'center', minHeight: 44 },
   day: {
@@ -164,6 +164,6 @@ const styles = StyleSheet.create({
   },
   dayText: { fontVariant: ['tabular-nums'], fontSize: 15, color: colors.ink },
   dayTextSelected: { color: colors.onAccent, fontFamily: poppinsWeight('600') },
-  dots: { flexDirection: 'row', gap: 3, height: 6, marginTop: 2 },
+  dots: { flexDirection: 'row', gap: 4, height: 6, marginTop: 4 },
   dot: { width: 6, height: 6, borderRadius: 3 },
 });

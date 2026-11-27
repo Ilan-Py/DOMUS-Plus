@@ -98,7 +98,7 @@ function SkeletonMemberCard() {
       <View style={styles.memberCard}>
         <Skeleton width={48} height={48} borderRadius={24} />
         <View style={styles.memberInfo}>
-          <Skeleton width="60%" height={14} style={{ marginBottom: 6 }} />
+          <Skeleton width="60%" height={14} style={{ marginBottom: 8 }} />
           <Skeleton width="40%" height={11} />
         </View>
       </View>
@@ -361,9 +361,9 @@ export default function FamilyListScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  scroll: { paddingBottom: 110 },
+  scroll: { paddingBottom: 112 },
   scrollDesktop: { paddingHorizontal: 32 },
-  scrollMobile: { paddingHorizontal: 18 },
+  scrollMobile: { paddingHorizontal: 20 },
   container: { width: '100%', maxWidth: CONTAINER_MAX_WIDTH, alignSelf: 'center', gap: 24 },
 
   // ---- banner cálido
@@ -424,7 +424,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 8,
     minHeight: 48,
     paddingHorizontal: 12,
     borderRadius: 12,

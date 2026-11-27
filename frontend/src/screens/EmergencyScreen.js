@@ -201,7 +201,7 @@ export default function EmergencyScreen({ navigation, route }) {
       />
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: 18 + inset }]}>
+        <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: 20 + inset }]}>
           {!!error && <ErrorBanner message={error} onDismiss={() => setError('')} />}
 
           {!editing && angosto && (
@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
   editFichaBlock: { justifyContent: 'center', marginBottom: 16 },
   editFichaText: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
   scroll: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 100,
   },
@@ -453,10 +453,10 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   field: {
-    paddingBottom: 14,
+    paddingBottom: 16,
   },
   formActions: {
     gap: 12,
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   chip: {
     minHeight: 40,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     justifyContent: 'center',
     borderRadius: 10,
     backgroundColor: colors.badgeSand,
@@ -511,14 +511,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   loading: {
-    marginVertical: 10,
+    marginVertical: 12,
   },
   contactCard: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
     marginBottom: 8,
-    gap: 6,
+    gap: 8,
     ...cardBase,
   },
   // Sin flex:1 acá a propósito — ese flex vive en el `style` del PressScale
@@ -530,7 +530,7 @@ const styles = StyleSheet.create({
   contactTapArea: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   contactPhoneIcon: {
     width: 44,
@@ -551,12 +551,12 @@ const styles = StyleSheet.create({
     fontFamily: poppinsWeight('600'),
     color: colors.accentStrong,
     textDecorationLine: 'underline',
-    marginTop: 2,
+    marginTop: 4,
   },
   contactMeta: {
     fontSize: 14,
     color: colors.textMuted,
-    marginTop: 1,
+    marginTop: 0,
   },
   contactActionBtn: {
     width: 48,
@@ -566,7 +566,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   contactFormCard: {
-    padding: 14,
+    padding: 16,
     marginBottom: 8,
     ...cardBase,
   },

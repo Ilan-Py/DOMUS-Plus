@@ -9,7 +9,7 @@ import useColumnInset from '../hooks/useColumnInset';
 
 // Unifica el topbar hand-copiado en 6 screens (FamilyListScreen, AccountScreen,
 // CalendarScreen, AddMemberScreen, healthFormShared, ProfileDetailScreen) —
-// paddingTop:54/paddingHorizontal:18/paddingBottom:16 + bgBase + hairline
+// paddingTop:56/paddingHorizontal:20/paddingBottom:16 + bgBase + hairline
 // inferior, repetido idéntico en los 6. LoginScreen/RegisterScreen/
 // GroupSetupScreen usan el mismo `54` pero sobre authWrap (form centrado, sin
 // back/título/hairline) — no son este componente, ver layout.screenTopPadding
@@ -31,7 +31,7 @@ import useColumnInset from '../hooks/useColumnInset';
 // silenciosamente.
 export default function ScreenHeader({ title, subtitle, subtitleStyle, onBack, rightActions, style }) {
   const inset = useColumnInset();
-  const insetStyle = { paddingHorizontal: 18 + inset };
+  const insetStyle = { paddingHorizontal: 20 + inset };
   const divider = <View style={[styles.divider, { left: 18 + inset, right: 18 + inset }]} />;
   if (!onBack) {
     return (
@@ -69,7 +69,7 @@ export default function ScreenHeader({ title, subtitle, subtitleStyle, onBack, r
 const styles = StyleSheet.create({
   topbar: {
     paddingTop: layout.screenTopPadding,
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     paddingBottom: 16,
     // bgBase (no colors.glass, que ahora es blanco puro) — el header debe
     // leerse como parte de la página crema, no como blanco sin estilo. La
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
   backBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     minHeight: 48,
     paddingRight: 8,
   },
@@ -117,6 +117,6 @@ const styles = StyleSheet.create({
   topbarSubt: {
     fontSize: 14,
     color: colors.textMuted,
-    marginTop: 1,
+    marginTop: 0,
   },
 });

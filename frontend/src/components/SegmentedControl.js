@@ -193,7 +193,7 @@ export default function SegmentedControl({ options, selectedValue, onChange, sty
 
 const styles = StyleSheet.create({
   segmented: {
-    marginHorizontal: 18,
+    marginHorizontal: 20,
     marginTop: 16,
     marginBottom: 16,
     padding: 4,
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     flexBasis: 'auto',
     minHeight: 48,
-    paddingVertical: 10,
+    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     // le dé más espacio), igual que antes.
     // 24 (no 0, heredado de segItem) — el texto quedaba pegado a la curva
     // del pill activo con etiquetas largas ("Tratamientos").
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
   },
   // Capa independiente detrás de los segmentos — incluye el fill negro y la
   // sombra que antes vivían en segItemActive. top/bottom:4 refleja el mismo

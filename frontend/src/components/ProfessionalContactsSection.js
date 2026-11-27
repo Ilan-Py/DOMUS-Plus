@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
   emptyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   emptyText: { flex: 1, fontSize: 16, color: colors.textBody },
   loading: { alignSelf: 'flex-start', marginVertical: 8 },
-  item: { paddingVertical: 8, gap: 2 },
+  item: { paddingVertical: 8, gap: 4 },
   itemDivider: { borderBottomWidth: 1, borderBottomColor: colors.borderCard, marginBottom: 4 },
   itemHeader: { flexDirection: 'row', alignItems: 'center' },
   itemHeaderText: { flex: 1 },

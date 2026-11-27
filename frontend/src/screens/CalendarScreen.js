@@ -499,9 +499,9 @@ export default function CalendarScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  scroll: { paddingBottom: 110 },
+  scroll: { paddingBottom: 112 },
   scrollDesktop: { paddingHorizontal: 32 },
-  scrollMobile: { paddingHorizontal: 18 },
+  scrollMobile: { paddingHorizontal: 20 },
   container: { width: '100%', maxWidth: CONTAINER_MAX_WIDTH, alignSelf: 'center' },
 
   header: {
@@ -514,7 +514,7 @@ const styles = StyleSheet.create({
   headerMobile: { flexDirection: 'column', alignItems: 'stretch' },
   headerText: { flexShrink: 1 },
   title: { fontSize: 26, lineHeight: 34, fontFamily: poppinsWeight('600'), color: colors.ink },
-  subtitle: { fontSize: 16, lineHeight: 22, color: colors.textBody, marginTop: 2 },
+  subtitle: { fontSize: 16, lineHeight: 22, color: colors.textBody, marginTop: 4 },
 
   columns: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
   colLeft: { width: LEFT_COLUMN_WIDTH, gap: 16 },
@@ -552,7 +552,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     minHeight: 48,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     borderRadius: 12,
     backgroundColor: colors.badgeSand,
     borderWidth: 1,
@@ -612,7 +612,7 @@ const styles = StyleSheet.create({
   cardVencido: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.limeDeep },
   cardChevron: { marginRight: 12 },
   cardHora: { fontVariant: ['tabular-nums'], fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
-  cardDesc: { fontSize: 16, lineHeight: 22, color: colors.textBody, marginTop: 6 },
+  cardDesc: { fontSize: 16, lineHeight: 22, color: colors.textBody, marginTop: 8 },
   cardDescDone: { textDecorationLine: 'line-through' },
 
 

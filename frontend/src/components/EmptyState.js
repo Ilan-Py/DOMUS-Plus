@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: colors.line,
     opacity: 0.18,
-    marginBottom: 18,
+    marginBottom: 20,
   },
   message: {
     fontSize: 14,
@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   actionBtn: {
-    marginTop: 14,
+    marginTop: 16,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: radii.button,

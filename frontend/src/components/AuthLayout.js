@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
   panelCentro: { width: '100%', maxWidth: 480, alignSelf: 'center', gap: 28 },
   panelTitle: { fontSize: 36, lineHeight: 46, fontFamily: SERIF_BOLD, color: colors.ink },
   puntos: { gap: 8 },
-  punto: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 52 },
+  punto: { flexDirection: 'row', alignItems: 'center', gap: 16, minHeight: 52 },
   puntoIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   puntoText: { flex: 1, fontSize: 18, lineHeight: 26, color: colors.ink },
   miniCard: {
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
     gap: 12,
     alignSelf: 'flex-start',
     marginTop: 8,
-    padding: 14,
+    padding: 16,
     paddingRight: 20,
     borderRadius: 16,
     backgroundColor: '#FFFFFF',
