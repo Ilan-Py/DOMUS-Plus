@@ -38,6 +38,6 @@ export function LogoConNombre({ variante = 'terracota', size = 36, color = color
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   nombre: { fontFamily: poppinsWeight('700') },
 });

@@ -157,28 +157,6 @@ export function AllClearDoodle({ width = 120 }) {
   );
 }
 
-// Halo radial muy sutil en la esquina inferior derecha del lienzo (terracota al
-// 7%): acompaña el fondo crema sin recargar. Va detrás de todo y no recibe toques.
-export function AmbientHalo() {
-  return (
-    <Svg
-      width="100%"
-      height="100%"
-      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none' }}
-      accessibilityElementsHidden
-      importantForAccessibility="no"
-    >
-      <Defs>
-        <RadialGradient id="halo" cx="100%" cy="100%" r="70%" fx="100%" fy="100%">
-          <Stop offset="0" stopColor={TERRACOTA} stopOpacity={0.07} />
-          <Stop offset="1" stopColor={TERRACOTA} stopOpacity={0} />
-        </RadialGradient>
-      </Defs>
-      <Rect x="0" y="0" width="100%" height="100%" fill="url(#halo)" />
-    </Svg>
-  );
-}
-
 // Mini doodles para estados vacíos (48–64px): tenues, para que la tarjeta no
 // quede como un rectángulo con una sola línea gris. Mismo estilo y paleta.
 export function EmptyDoodle({ variant = 'hojas', size = 56 }) {

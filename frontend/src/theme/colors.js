@@ -178,10 +178,14 @@ export const colors = {
   badgeBlue: '#2563EB',
 };
 
+// Escala corta y estricta: 10 controles (inputs, botones, chips cuadrados), 16 tarjetas,
+// 24 contenedores grandes (paneles, modales, marcos de foto). Los círculos usan size / 2.
 export const radii = {
-  card: 32,      // sin cambios en esta pasada — es migración de color, no de forma
-  input: 16,
-  button: 12,
+  control: 10,
+  card: 16,
+  container: 24,
+  input: 10,   // alias de control
+  button: 10,  // alias de control
   pill: 999,
   avatar: 999,
 };
@@ -236,7 +240,7 @@ export const glassShadow = {
 // consumidor.
 export const glassPanel = {
   backgroundColor: colors.glass,
-  borderRadius: radii.card,
+  borderRadius: radii.container,
   borderWidth: 1,
   borderColor: colors.glassBorderSoft,
   ...glassShadow,
@@ -254,5 +258,5 @@ export const cardBase = {
   backgroundColor: colors.glassStrong,
   borderWidth: 1,
   borderColor: colors.borderCard,
-  borderRadius: 16,
+  borderRadius: radii.card,
 };

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SkeletonFilas } from './Skeleton';
 import { colors, radii, cardBase } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 import api, { getList } from '../api/client';
@@ -139,7 +140,7 @@ export default function ProfessionalContactsSection({ parentType, parentId }) {
           onRetry={fetchProfesionales}
         />
       ) : loading ? (
-        <ActivityIndicator color={colors.textMuted} style={styles.loading} />
+        <SkeletonFilas filas={2} />
       ) : (
         <>
           <ErrorBanner message={error} onDismiss={() => setError('')} />
@@ -276,7 +277,7 @@ const styles = StyleSheet.create({
   emptyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   emptyText: { flex: 1, fontSize: 16, color: colors.textBody },
   loading: { alignSelf: 'flex-start', marginVertical: 8 },
-  item: { paddingVertical: 8, gap: 2 },
+  item: { paddingVertical: 8, gap: 4 },
   itemDivider: { borderBottomWidth: 1, borderBottomColor: colors.borderCard, marginBottom: 4 },
   itemHeader: { flexDirection: 'row', alignItems: 'center' },
   itemHeaderText: { flex: 1 },
@@ -300,7 +301,7 @@ const styles = StyleSheet.create({
     gap: 8,
     minHeight: 48,
     marginTop: 12,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.borderCard,
     backgroundColor: colors.glassStrong,
@@ -309,7 +310,7 @@ const styles = StyleSheet.create({
   formCard: {
     padding: 16,
     marginBottom: 8,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.borderCard,
     backgroundColor: colors.bgBase,

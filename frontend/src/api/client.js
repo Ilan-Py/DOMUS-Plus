@@ -64,10 +64,15 @@ api.interceptors.response.use(
     }
 
     const data = error.response?.data;
-    const mensaje =
-      data?.estado === 'error' && typeof data.datos === 'string'
-        ? data.datos
-        : 'No se pudo conectar con el servidor.';
+    // Mensajes pensados para quien no es técnico: qué pasó y qué puede hacer.
+    let mensaje;
+    if (!error.response) {
+      mensaje = 'No pudimos conectarnos. Revisá tu conexión a internet y probá de nuevo.';
+    } else if (data?.estado === 'error' && typeof data.datos === 'string') {
+      mensaje = status >= 500 ? 'Algo salió mal de nuestro lado. Probá de nuevo en un momento.' : data.datos;
+    } else {
+      mensaje = 'Algo salió mal. Probá de nuevo en un momento.';
+    }
 
     return Promise.reject({ status, mensaje });
   }

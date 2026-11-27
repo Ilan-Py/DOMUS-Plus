@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, StyleSheet, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SkeletonFilas } from './Skeleton';
 import { colors } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 import { getList } from '../api/client';
@@ -68,7 +69,7 @@ export default function EmergencySummary({ integrante, integranteId, onAbrirFich
 
       <Text style={[styles.subLabel, styles.contactsLabel]}>Contactos de emergencia</Text>
       {loading ? (
-        <ActivityIndicator color={colors.textMuted} style={styles.loading} />
+        <SkeletonFilas filas={2} />
       ) : error ? (
         <InlineError message="No pudimos cargar los contactos de emergencia." onRetry={cargar} />
       ) : contactos.length === 0 ? (
@@ -107,7 +108,7 @@ const styles = StyleSheet.create({
   topRow: { gap: 16 },
   blood: {
     backgroundColor: colors.errorBg,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 16,
     flexDirection: 'row',
@@ -125,9 +126,9 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     minHeight: 40,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     justifyContent: 'center',
-    borderRadius: 20,
+    borderRadius: 16,
     backgroundColor: colors.badgeSand,
     borderWidth: 1,
     borderColor: colors.borderCard,
@@ -145,16 +146,16 @@ const styles = StyleSheet.create({
     fontFamily: poppinsWeight('600'),
     color: colors.accentStrong,
     textDecorationLine: 'underline',
-    marginTop: 2,
+    marginTop: 4,
   },
   openBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 8,
     minHeight: 48,
     marginTop: 16,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.borderCard,
     backgroundColor: colors.glassStrong,

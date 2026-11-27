@@ -20,7 +20,7 @@ import ErrorBanner from '../components/ErrorBanner';
 import EmptyState from '../components/EmptyState';
 import PrimaryButton from '../components/PrimaryButton';
 import TodayCard from '../components/TodayCard';
-import { BannerDoodle, AmbientHalo } from '../components/FamilyDoodles';
+import { BannerDoodle } from '../components/FamilyDoodles';
 import PressScale from '../components/PressScale';
 import Skeleton from '../components/Skeleton';
 import FadeSlideIn from '../components/FadeSlideIn';
@@ -98,7 +98,7 @@ function SkeletonMemberCard() {
       <View style={styles.memberCard}>
         <Skeleton width={48} height={48} borderRadius={24} />
         <View style={styles.memberInfo}>
-          <Skeleton width="60%" height={14} style={{ marginBottom: 6 }} />
+          <Skeleton width="60%" height={14} style={{ marginBottom: 8 }} />
           <Skeleton width="40%" height={11} />
         </View>
       </View>
@@ -294,6 +294,31 @@ export default function FamilyListScreen({ navigation }) {
     </View>
   );
 
+  // Primer ingreso: ni integrantes ni mascotas todavía — un solo bloque cálido con la acción directa
+  // en vez de dos listas vacías.
+  const vacio = !loading && !error && integrantes.length === 0 && mascotas.length === 0;
+  const primerIngreso = (
+    <EmptyState
+      titulo="¡Armemos tu familia!"
+      message="Sumá a tu primer familiar o mascota para empezar a guardar vacunas, tratamientos y recordatorios."
+      recortes={[
+        { icon: 'people', tinte: 'terracota' },
+        { icon: 'heart', tinte: 'arena' },
+        { icon: 'paw', tinte: 'salvia' },
+      ]}
+      acciones={[
+        { label: 'Agregar un familiar', onPress: () => navigation.navigate('AddMember', { tipoMiembro: 'integrante' }) },
+        { label: 'Agregar una mascota', onPress: () => navigation.navigate('AddMember', { tipoMiembro: 'mascota' }) },
+      ]}
+    />
+  );
+  const listas = vacio ? primerIngreso : (
+    <>
+      {listaDeIntegrantes}
+      {listaDeMascotas}
+    </>
+  );
+
   const cargando = (
     <View style={styles.section}>
       <View style={styles.grid}>
@@ -313,11 +338,6 @@ export default function FamilyListScreen({ navigation }) {
 
   return (
     <View style={styles.root}>
-      {/* Halo radial muy sutil en la esquina inferior derecha, detrás de todo. */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <AmbientHalo />
-      </View>
-
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
@@ -333,24 +353,14 @@ export default function FamilyListScreen({ navigation }) {
           {desktop ? (
             <View style={styles.columns}>
               <View style={styles.colLeft}>
-                {loading ? cargando : (
-                  <>
-                    {listaDeIntegrantes}
-                    {listaDeMascotas}
-                  </>
-                )}
+                {loading ? cargando : listas}
               </View>
               <View style={styles.colRight}>{hoyCard}</View>
             </View>
           ) : (
             <View style={styles.stack}>
               {hoyCard}
-              {loading ? cargando : (
-                <>
-                  {listaDeIntegrantes}
-                  {listaDeMascotas}
-                </>
-              )}
+              {loading ? cargando : listas}
             </View>
           )}
         </View>
@@ -361,9 +371,9 @@ export default function FamilyListScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  scroll: { paddingBottom: 110 },
+  scroll: { paddingBottom: 112 },
   scrollDesktop: { paddingHorizontal: 32 },
-  scrollMobile: { paddingHorizontal: 18 },
+  scrollMobile: { paddingHorizontal: 20 },
   container: { width: '100%', maxWidth: CONTAINER_MAX_WIDTH, alignSelf: 'center', gap: 24 },
 
   // ---- banner cálido
@@ -373,7 +383,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.terraPale,
     borderWidth: 1,
     borderColor: '#EFE2D8',
-    borderRadius: 20,
+    borderRadius: 16,
     paddingVertical: 24,
     paddingHorizontal: 28,
     minHeight: 168,
@@ -424,10 +434,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 8,
     minHeight: 48,
     paddingHorizontal: 12,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.borderCard,
     backgroundColor: colors.bgBase,

@@ -1,17 +1,22 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors } from '../theme/colors';
-import { SERIF_BOLD } from '../theme/typography';
+import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
 import { useAuth } from '../context/AuthContext';
 import FormField from '../components/FormField';
 import PrimaryButton from '../components/PrimaryButton';
 import ErrorBanner from '../components/ErrorBanner';
 import AuthLayout from '../components/AuthLayout';
+import CheckboxField from '../components/CheckboxField';
+import CodigoExpandible from '../components/CodigoExpandible';
+import PressScale from '../components/PressScale';
+import { openDialog } from '../components/DialogHost';
 
 export default function LoginScreen({ navigation }) {
-  const { login } = useAuth();
+  const { login, setCodigoPendiente } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [recordar, setRecordar] = useState(true);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -21,14 +26,25 @@ export default function LoginScreen({ navigation }) {
     try {
       // Al actualizarse `token`/`grupo` en AuthContext, App.js cambia de
       // navegador automáticamente — no se navega manualmente desde acá.
-      await login(email, password);
+      await login(email, password, recordar);
     } catch (err) {
       // client.js siempre normaliza a { status, mensaje } — para 401, mensaje
-      // ya es 'Credenciales incorrectas.' (authController.login), texto usable tal cual.
+      // ya es el texto amable de authController.login ("Ese correo o contraseña no coinciden…").
       setFormError(err.mensaje);
     } finally {
       setSaving(false);
     }
+  }
+
+  // El backend todavía no tiene recuperación de contraseña (no hay envío de mails):
+  // se avisa con claridad en vez de prometer algo que no existe.
+  function handleOlvidaste() {
+    openDialog({
+      title: 'Recuperar tu contraseña',
+      message:
+        'Todavía no podemos enviarte un mail para cambiarla. Escribile al equipo de DOMUS+ y te ayudamos a volver a entrar.',
+      actions: [{ label: 'Entendido', variant: 'accent' }],
+    });
   }
 
   return (
@@ -40,7 +56,7 @@ export default function LoginScreen({ navigation }) {
       panelTitulo="Qué bueno verte de nuevo."
     >
       <Text style={styles.title} accessibilityRole="header">Iniciá sesión</Text>
-      <Text style={styles.sub}>Ingresá para ver a tu familia y a tus mascotas.</Text>
+      <Text style={styles.sub}>Entrá para ver cómo está tu familia y tus mascotas.</Text>
 
       <FormField
         label="Correo electrónico"
@@ -56,7 +72,6 @@ export default function LoginScreen({ navigation }) {
         label="Contraseña"
         value={password}
         onChangeText={setPassword}
-        placeholder="Tu contraseña"
         secureTextEntry
         autoComplete="current-password"
         textContentType="password"
@@ -67,15 +82,50 @@ export default function LoginScreen({ navigation }) {
 
       <ErrorBanner message={formError} />
 
+      <View style={styles.opciones}>
+        <CheckboxField label="Mantener sesión iniciada" checked={recordar} onChange={setRecordar} style={styles.recordar} />
+        <PressScale contentStyle={styles.olvido} onPress={handleOlvidaste} accessibilityLabel="¿Olvidaste tu contraseña?">
+          <Text style={styles.olvidoText}>¿Olvidaste tu contraseña?</Text>
+        </PressScale>
+      </View>
+
       <View style={styles.submit}>
         <PrimaryButton title="Iniciar sesión" variant="accent" onPress={handleLogin} loading={saving} />
       </View>
+
+      <View style={styles.divisor} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <View style={styles.linea} />
+        <Text style={styles.divisorText}>o</Text>
+        <View style={styles.linea} />
+      </View>
+
+      {/* El botón se despliega acá mismo en el campo del código (no manda a otra pantalla). */}
+      <CodigoExpandible
+        onContinuar={(codigo) => {
+          setCodigoPendiente(codigo);
+          navigation.navigate('Register');
+        }}
+      />
     </AuthLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: 30, lineHeight: 38, fontFamily: SERIF_BOLD, color: colors.ink },
-  sub: { fontSize: 17, lineHeight: 25, color: colors.textBody, marginTop: 4, marginBottom: 24 },
-  submit: { marginTop: 24 },
+  title: { fontSize: 40, lineHeight: 48, fontFamily: SERIF_BOLD, color: colors.ink },
+  sub: { fontSize: 17, lineHeight: 26, color: colors.textBody, marginTop: 8, marginBottom: 32 },
+  opciones: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    columnGap: 8,
+    marginTop: 12,
+  },
+  // Una sola fila siempre: la casilla cede ancho (su texto baja de renglón) antes que el enlace.
+  recordar: { flexShrink: 1 },
+  olvido: { minHeight: 48, justifyContent: 'center', flexShrink: 0 },
+  olvidoText: { fontSize: 15, color: colors.accentStrong, fontFamily: poppinsWeight('600'), textDecorationLine: 'underline' },
+  submit: { marginTop: 12 },
+  divisor: { flexDirection: 'row', alignItems: 'center', gap: 16, marginVertical: 20 },
+  linea: { flex: 1, height: 1, backgroundColor: '#E8DFD5' },
+  divisorText: { fontSize: 16, color: colors.textMuted },
 });

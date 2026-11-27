@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Pressable } from 'react-native';
+import React, { useRef } from 'react';
+import { Animated, Pressable } from 'react-native';
+import useReducedMotion from '../hooks/useReducedMotion';
 
 // Feedback de presión compartido — reemplaza el "nada visible más que lo que
 // da gratis TouchableOpacity" en botones/cards/FABs. Pressable (no
@@ -35,12 +36,7 @@ export default function PressScale({
   const longPressFiredRef = useRef(false);
 
   // Respeta "reducir movimiento" del sistema: sin escala, sólo el cambio de opacidad.
-  const [reduceMotion, setReduceMotion] = useState(false);
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
-    return () => sub?.remove?.();
-  }, []);
+  const reduceMotion = useReducedMotion();
 
   function animateTo(toValue) {
     Animated.timing(anim, { toValue, duration: PRESS_DURATION, useNativeDriver: true }).start();

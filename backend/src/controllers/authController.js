@@ -64,7 +64,7 @@ async function registrar(req, res) {
             return res.status(409).json({
                 codigo: 409,
                 estado: 'error',
-                datos: 'El email ya está registrado.'
+                datos: 'Ese correo ya tiene una cuenta. Probá iniciar sesión.'
             });
         }
 
@@ -84,7 +84,7 @@ async function registrar(req, res) {
     } catch (err) {
         // P2002 = email repetido: dos registros casi simultáneos con el mismo email
         if (err.code === 'P2002') {
-            return res.status(409).json({ codigo: 409, estado: 'error', datos: 'El email ya está registrado.' });
+            return res.status(409).json({ codigo: 409, estado: 'error', datos: 'Ese correo ya tiene una cuenta. Probá iniciar sesión.' });
         }
         console.error('registrar=', err.message);
         return res.status(500).json({ codigo: 500, estado: 'error', datos: 'Error interno del servidor.' });
@@ -112,7 +112,7 @@ async function login(req, res) {
          const usuario = await prisma.usuario.findUnique({ where: { email: email.trim().toLowerCase() } });
 
         if (!usuario) {
-            return res.status(401).json({ codigo: 401, estado: 'error', datos: 'Credenciales incorrectas.' });
+            return res.status(401).json({ codigo: 401, estado: 'error', datos: 'Ese correo o contraseña no coinciden. Fijate si tenés las mayúsculas activadas.' });
         }
 
         const match = await bcrypt.compare(password, usuario.passwordHash);
@@ -121,7 +121,7 @@ async function login(req, res) {
             return res.status(401).json({
                 codigo: 401,
                 estado: 'error',
-                datos: 'Credenciales incorrectas.'
+                datos: 'Ese correo o contraseña no coinciden. Fijate si tenés las mayúsculas activadas.'
             });
         }
 

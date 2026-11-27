@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   field: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     paddingBottom: 20,
   },
   label: {
@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   lockedTipo: {
-    marginHorizontal: 18,
+    marginHorizontal: 20,
     marginTop: 16,
     marginBottom: 16,
     fontSize: 14,
@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   chip: {
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 16,
     minHeight: 48,
     justifyContent: 'center',
@@ -372,8 +372,8 @@ const styles = StyleSheet.create({
     color: colors.onAccent,
   },
   formActions: {
-    paddingHorizontal: 18,
-    paddingTop: 6,
-    gap: 10,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    gap: 12,
   },
 });

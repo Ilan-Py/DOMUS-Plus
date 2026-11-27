@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, radii, shadow, buttonColors } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 import PressScale from './PressScale';
+import useReducedMotion from '../hooks/useReducedMotion';
 
 // Mismo spring "con rebote" que RadialFab (bounciness 4, speed 20) — un
 // checkmark apareciendo es el mismo tipo de momento "algo aparece", no el
@@ -13,9 +14,13 @@ const CHECK_SPRING = { bounciness: 4, speed: 20, useNativeDriver: true };
 function SuccessCheck({ color }) {
   const anim = useRef(new Animated.Value(0)).current;
 
+  const reduceMotion = useReducedMotion();
+
   useEffect(() => {
-    Animated.spring(anim, { toValue: 1, ...CHECK_SPRING }).start();
-  }, [anim]);
+    // Reducir movimiento: el check aparece directo, sin rebote.
+    if (reduceMotion) anim.setValue(1);
+    else Animated.spring(anim, { toValue: 1, ...CHECK_SPRING }).start();
+  }, [anim, reduceMotion]);
 
   return (
     <Animated.View style={{ transform: [{ scale: anim }] }}>

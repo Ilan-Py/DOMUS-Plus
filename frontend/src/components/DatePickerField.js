@@ -59,6 +59,8 @@ export default function DatePickerField({
   style,
 }) {
   const [showPicker, setShowPicker] = useState(false);
+  const [webFocused, setWebFocused] = useState(false);
+  const webFocusProps = { onFocus: () => setWebFocused(true), onBlur: () => setWebFocused(false) };
 
   // @react-native-community/datetimepicker no tiene implementación web —
   // en su lugar se usa el input nativo del navegador. Convierte a/desde
@@ -86,7 +88,7 @@ export default function DatePickerField({
       const hh = value ? pad(value.getHours()) : '';
       const mm = value ? pad(value.getMinutes()) : '';
       const base = value || new Date();
-      const selectStyle = { ...webInputStyle, width: 'auto', flex: 1, paddingLeft: 12, paddingRight: 8, ...(error ? webInputErrorStyle : null) };
+      const selectStyle = { ...webInputStyle, width: 'auto', flex: 1, paddingLeft: 12, paddingRight: 8, ...(error ? webInputErrorStyle : null), ...(webFocused ? webInputFocusStyle : null) };
       const emit = (h, m) =>
         onChange(new Date(base.getFullYear(), base.getMonth(), base.getDate(), Number(h), Number(m), 0, 0));
       return (
@@ -100,6 +102,7 @@ export default function DatePickerField({
               value={hh}
               onChange={(e) => emit(e.target.value, mm || '00')}
               style={selectStyle}
+              {...webFocusProps}
             >
               {!value && <option value="">--</option>}
               {Array.from({ length: 24 }, (_, i) => (
@@ -112,6 +115,7 @@ export default function DatePickerField({
               value={mm}
               onChange={(e) => emit(hh || '00', e.target.value)}
               style={selectStyle}
+              {...webFocusProps}
             >
               {!value && <option value="">--</option>}
               {Array.from({ length: 60 }, (_, i) => (
@@ -139,7 +143,8 @@ export default function DatePickerField({
           onChange={handleWebChange}
           min={mode === 'date' && minimumDate ? formatDateOnly(minimumDate) : undefined}
           max={mode === 'date' && maximumDate ? formatDateOnly(maximumDate) : undefined}
-          style={{ ...webInputStyle, ...(error ? webInputErrorStyle : null) }}
+          style={{ ...webInputStyle, ...(error ? webInputErrorStyle : null), ...(webFocused ? webInputFocusStyle : null) }}
+          {...webFocusProps}
         />
         {!!error && (
             <Text style={styles.fieldErrorText} accessibilityLiveRegion="polite">
@@ -201,6 +206,8 @@ export default function DatePickerField({
             <TouchableOpacity
               style={styles.doneBtn}
               onPress={() => setShowPicker(false)}
+              accessibilityRole="button"
+              accessibilityLabel={`Listo, confirmar ${label}`}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
               <Text style={styles.doneBtnText}>Listo</Text>
@@ -218,10 +225,10 @@ const webInputStyle = {
   width: '100%',
   minHeight: 52,
   boxSizing: 'border-box',
-  paddingLeft: 14,
-  paddingRight: 14,
-  paddingTop: 13,
-  paddingBottom: 13,
+  paddingLeft: 16,
+  paddingRight: 16,
+  paddingTop: 12,
+  paddingBottom: 12,
   borderRadius: radii.input,
   border: `1.5px solid ${colors.borderInput}`,
   backgroundColor: colors.glassFillStrong,
@@ -229,6 +236,12 @@ const webInputStyle = {
   color: colors.navy,
   fontFamily: 'PlusJakartaSans_400Regular, sans-serif',
   outline: 'none',
+};
+
+// Reemplaza el outline apagado arriba — mismo foco que FormField.inputFocused.
+const webInputFocusStyle = {
+  border: `2px solid ${colors.accentStrong}`,
+  boxShadow: '0 0 0 4px rgba(194, 70, 35, 0.12)',
 };
 
 const webInputErrorStyle = {
@@ -251,8 +264,8 @@ const styles = StyleSheet.create({
   input: {
     width: '100%',
     minHeight: 52,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderRadius: radii.input,
     borderWidth: 1.5,
     borderColor: colors.borderInput,
@@ -275,14 +288,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.error,
     fontFamily: poppinsWeight('600'),
-    marginTop: 6,
+    marginTop: 8,
   },
   doneBtn: {
     alignSelf: 'flex-end',
     paddingVertical: 8,
-    paddingHorizontal: 14,
-    marginTop: 6,
-    borderRadius: radii.pill,
+    paddingHorizontal: 16,
+    marginTop: 8,
+    borderRadius: radii.control,
     backgroundColor: colors.lime,
   },
   doneBtnText: {

@@ -243,12 +243,12 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   field: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     paddingBottom: 16,
   },
   formActions: {
-    paddingHorizontal: 18,
-    paddingTop: 6,
-    gap: 10,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    gap: 12,
   },
 });

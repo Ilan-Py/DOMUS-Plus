@@ -15,6 +15,8 @@ import ErrorBanner from '../components/ErrorBanner';
 import Skeleton from '../components/Skeleton';
 import PressScale from '../components/PressScale';
 import FormField from '../components/FormField';
+import Pulse from '../components/Pulse';
+import CrossfadeIcon from '../components/CrossfadeIcon';
 import { confirmarDestructivo } from '../utils/confirm';
 import { iniciales } from '../utils/displayFormat';
 import { avatarTint } from '../theme/avatars';
@@ -514,17 +516,17 @@ export default function AccountScreen() {
           </PressScale>
 
           {codigoInvitacion ? (
-            <View style={styles.codigoBox}>
+            <Pulse trigger={copiado} style={styles.codigoBox}>
               <Text style={styles.codigoText} selectable>{codigoInvitacion}</Text>
               <View style={styles.codigoActions}>
                 <PressScale contentStyle={styles.codigoActionBtn} onPress={handleCopiarCodigo} accessibilityLabel="Copiar código">
-                  <Ionicons name={copiado ? 'checkmark' : 'copy-outline'} size={22} color={colors.ink} />
+                  <CrossfadeIcon a="copy-outline" b="checkmark" showB={copiado} size={22} color={colors.ink} />
                 </PressScale>
                 <PressScale contentStyle={styles.codigoActionBtn} onPress={handleCompartirCodigo} accessibilityLabel="Compartir código">
                   <Ionicons name="share-outline" size={22} color={colors.ink} />
                 </PressScale>
               </View>
-            </View>
+            </Pulse>
           ) : null}
         </View>
       )}
@@ -637,14 +639,14 @@ export default function AccountScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  scroll: { paddingBottom: 110 },
+  scroll: { paddingBottom: 112 },
   scrollDesktop: { paddingHorizontal: 32 },
-  scrollMobile: { paddingHorizontal: 18 },
+  scrollMobile: { paddingHorizontal: 20 },
   container: { width: '100%', maxWidth: CONTAINER_MAX_WIDTH, alignSelf: 'center' },
 
   header: { marginBottom: 24 },
   title: { fontSize: 26, lineHeight: 34, fontFamily: poppinsWeight('700'), color: colors.ink },
-  subtitle: { fontSize: 16, lineHeight: 22, color: colors.textBody, marginTop: 2 },
+  subtitle: { fontSize: 16, lineHeight: 22, color: colors.textBody, marginTop: 4 },
 
   columns: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
   colLeft: { flex: 38, gap: 16 },
@@ -692,7 +694,7 @@ const styles = StyleSheet.create({
 
   // ---- perfil
   profileBody: { padding: 16, gap: 16 },
-  profileInfo: { gap: 2 },
+  profileInfo: { gap: 4 },
   profileNombre: { fontSize: 20, lineHeight: 28, fontFamily: poppinsWeight('700'), color: colors.ink },
   profileEmail: { fontSize: 15, color: colors.textBody },
   avatar: { alignItems: 'center', justifyContent: 'center' },
@@ -702,22 +704,22 @@ const styles = StyleSheet.create({
   settingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 16,
     minHeight: 56,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
   rowDisabled: { opacity: 0.55 },
   rowTextWrap: { flex: 1 },
   rowLabel: { fontSize: 16, fontFamily: poppinsWeight('600') },
-  rowValue: { fontSize: 14, lineHeight: 20, color: colors.textBody, marginTop: 2 },
+  rowValue: { fontSize: 14, lineHeight: 20, color: colors.textBody, marginTop: 4 },
   logoutRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 16,
     minHeight: 64,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
   logoutText: { fontSize: 17, fontFamily: poppinsWeight('600'), color: colors.limeDeep },
   logoutHint: { fontSize: 14, lineHeight: 20, color: colors.textBody },
@@ -733,7 +735,7 @@ const styles = StyleSheet.create({
     minHeight: 132,
   },
   bannerDoodle: { position: 'absolute', right: 8, top: 8, opacity: 0.18 },
-  bannerText: { gap: 2 },
+  bannerText: { gap: 4 },
   bannerForm: { paddingRight: 0, marginRight: -104 },
   bannerAction: { marginTop: 12, alignSelf: 'flex-start' },
   groupEyebrow: { fontSize: 14, fontFamily: poppinsWeight('600'), color: colors.textBody },
@@ -745,14 +747,14 @@ const styles = StyleSheet.create({
   inviteBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 16,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 10,
     backgroundColor: colors.sandBlock,
     minHeight: 72,
   },
   inviteTitle: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
-  inviteHint: { fontSize: 14, lineHeight: 20, color: colors.textBody, marginTop: 2 },
+  inviteHint: { fontSize: 14, lineHeight: 20, color: colors.textBody, marginTop: 4 },
   codigoBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -760,7 +762,7 @@ const styles = StyleSheet.create({
     paddingLeft: 16,
     paddingRight: 4,
     minHeight: 64,
-    borderRadius: 12,
+    borderRadius: 10,
     backgroundColor: colors.dayTint,
   },
   codigoText: { fontSize: 22, fontFamily: poppinsWeight('700'), color: colors.ink, letterSpacing: 2 },
@@ -774,7 +776,7 @@ const styles = StyleSheet.create({
     color: colors.textBody,
     paddingHorizontal: 16,
     paddingTop: 20,
-    paddingBottom: 6,
+    paddingBottom: 8,
   },
   miembroRow: {
     flexDirection: 'row',

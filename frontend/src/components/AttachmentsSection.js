@@ -19,6 +19,8 @@ import PressScale from './PressScale';
 import ErrorBanner from './ErrorBanner';
 import InlineError from './InlineError';
 import { EmptyDoodle } from './FamilyDoodles';
+import Skeleton, { SkeletonFilas } from './Skeleton';
+import Pulse from './Pulse';
 import FadeSlideIn from './FadeSlideIn';
 import FadeOutRow, { EXIT_DURATION } from './FadeOutRow';
 import { confirmarDestructivo, elegirOpcion } from '../utils/confirm';
@@ -44,6 +46,8 @@ export default function AttachmentsSection({
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // Sube de a uno cada vez que un comprobante se guarda bien: dispara el pulso de confirmación.
+  const [guardados, setGuardados] = useState(0);
   const [eliminandoId, setEliminandoId] = useState(null);
   const [exitingId, setExitingId] = useState(null);
   const [visorUrl, setVisorUrl] = useState(null);
@@ -103,6 +107,7 @@ export default function AttachmentsSection({
       }
       await api.post('/api/adjuntos', formData);
       await fetchAdjuntos();
+      setGuardados((n) => n + 1);
     } catch (err) {
       // Un 5xx es un fallo del servidor (ej. el servicio de archivos): mensaje
       // claro en vez del texto técnico. Los 4xx traen un motivo útil (tipo de
@@ -214,7 +219,7 @@ export default function AttachmentsSection({
           <ErrorBanner message={error} onDismiss={() => setError('')} />
 
           {loading ? (
-            <ActivityIndicator color={colors.textMuted} style={styles.loadingSlot} />
+            <SkeletonFilas filas={2} miniatura />
           ) : (
             <>
               {adjuntos.length === 0 && !uploading && !compact && (
@@ -243,7 +248,7 @@ export default function AttachmentsSection({
                               <Ionicons name="document-text-outline" size={24} color={colors.iconWarm} />
                             </View>
                           ) : (
-                            <Image source={{ uri: item.url }} style={styles.thumbImage} />
+                            <Image source={{ uri: item.url }} style={styles.thumbImage} accessible={false} accessibilityIgnoresInvertColors />
                           )}
                           <Text style={styles.rowName} numberOfLines={2}>
                             {nombre}
@@ -271,11 +276,12 @@ export default function AttachmentsSection({
 
               {uploading && (
                 <View style={styles.uploadingRow}>
-                  <ActivityIndicator color={colors.textMuted} />
+                  <Skeleton width={48} height={48} borderRadius={10} />
                   <Text style={styles.rowName}>Subiendo…</Text>
                 </View>
               )}
 
+              <Pulse trigger={guardados} radio={radii.control}>
               <PressScale
                 contentStyle={[
                   styles.addBtn,
@@ -289,6 +295,7 @@ export default function AttachmentsSection({
                 <Ionicons name="add" size={20} color={colors.ink} />
                 <Text style={styles.addText}>{addLabel}</Text>
               </PressScale>
+              </Pulse>
             </>
           )}
         </>
@@ -304,7 +311,7 @@ export default function AttachmentsSection({
             <Ionicons name="close" size={24} color={colors.onAccent} />
           </PressScale>
           {!!visorUrl && (
-            <Image source={{ uri: visorUrl }} style={styles.visorImage} resizeMode="contain" />
+            <Image source={{ uri: visorUrl }} style={styles.visorImage} resizeMode="contain" accessibilityLabel="Foto adjunta ampliada" />
           )}
         </View>
       </Modal>
@@ -321,7 +328,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
     marginBottom: 12,
   },
-  tituloConHint: { marginBottom: 2 },
+  tituloConHint: { marginBottom: 4 },
   hint: { fontSize: 15, lineHeight: 22, color: colors.textBody, marginBottom: 12 },
   tituloCompact: {
     fontSize: 14,
@@ -357,7 +364,7 @@ const styles = StyleSheet.create({
     gap: 8,
     minHeight: 48,
     marginTop: 12,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.borderCard,
     backgroundColor: colors.glassStrong,

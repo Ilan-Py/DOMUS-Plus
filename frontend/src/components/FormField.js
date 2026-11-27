@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Platform, Pressable } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import CrossfadeIcon from './CrossfadeIcon';
 import { colors, radii } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 
@@ -80,11 +80,7 @@ export default function FormField({
             accessibilityRole="button"
             accessibilityLabel={revealed ? 'Ocultar contraseña' : 'Mostrar contraseña'}
           >
-            <Ionicons
-              name={revealed ? 'eye-off-outline' : 'eye-outline'}
-              size={22}
-              color={colors.ink}
-            />
+            <CrossfadeIcon a="eye-outline" b="eye-off-outline" showB={revealed} size={22} color={colors.ink} />
             <Text style={styles.toggleText}>{revealed ? 'Ocultar' : 'Mostrar'}</Text>
           </Pressable>
         )}
@@ -112,7 +108,7 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 52,
     paddingHorizontal: 16,
-    paddingVertical: 13,
+    paddingVertical: 12,
     borderRadius: radii.input,
     borderWidth: 1.5,
     borderColor: colors.borderInput,
@@ -146,7 +142,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   toggleText: {
     fontSize: 15,
@@ -157,7 +153,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.error,
     fontFamily: poppinsWeight('600'),
-    marginTop: 6,
+    marginTop: 8,
   },
   textarea: {
     minHeight: 80,

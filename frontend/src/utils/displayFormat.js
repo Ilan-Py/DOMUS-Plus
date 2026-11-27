@@ -79,6 +79,16 @@ export function parseFechaHora(str) {
 
 // Sólo para mostrar — no altera el valor guardado. Normaliza cualquier
 // combinación de mayúsculas ("aNTIRRABICA") a formato oración.
+// Teléfono legible bajo estrés: 3425551234 → "342 555-1234", 1155550101 → "11 5555-0101".
+// Si la persona ya lo escribió con espacios, guiones o "+", se respeta tal cual.
+export function formatearTelefono(telefono) {
+  const t = String(telefono || '').trim();
+  if (/[^\d]/.test(t)) return t;
+  if (t.length === 10 && t.startsWith('11')) return `${t.slice(0, 2)} ${t.slice(2, 6)}-${t.slice(6)}`;
+  if (t.length === 10) return `${t.slice(0, 3)} ${t.slice(3, 6)}-${t.slice(6)}`;
+  return t;
+}
+
 export function toSentenceCase(text) {
   if (!text) return '';
   const lower = text.toLowerCase();

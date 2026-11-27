@@ -84,20 +84,20 @@ const styles = StyleSheet.create({
     marginRight: 8,
     // El ícono acompaña la primera línea del texto, no el centro del bloque
     // (el aviso neutral puede ocupar 3-4 líneas).
-    marginTop: 1,
+    marginTop: 0,
   },
   text: {
     flex: 1,
     fontSize: 15,
   },
   dismissIcon: {
-    marginLeft: 10,
+    marginLeft: 12,
     fontSize: 18,
     fontFamily: poppinsWeight('700'),
   },
   action: { minHeight: 48, minWidth: 48, alignItems: 'center', justifyContent: 'center' },
   retryText: {
-    marginLeft: 10,
+    marginLeft: 12,
     fontSize: 15,
     fontFamily: poppinsWeight('700'),
     textDecorationLine: 'underline',

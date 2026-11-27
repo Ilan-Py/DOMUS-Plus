@@ -3,6 +3,7 @@ import { View, TouchableOpacity, StyleSheet, Platform, Animated } from 'react-na
 import { BlurView } from 'expo-blur';
 import { colors, shadow } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
+import useReducedMotion from '../hooks/useReducedMotion';
 
 // Generaliza el segmentado tipoMiembro ('integrante'/'mascota') de
 // AddMemberScreen. No asume dos opciones ni valores específicos —
@@ -44,6 +45,7 @@ const SPRING_CONFIG = { bounciness: 0, speed: 16, useNativeDriver: false };
 const Segment = React.forwardRef(function Segment({ option, active, onPress }, ref) {
   const colorAnim = useRef(new Animated.Value(active ? 1 : 0)).current;
   const mountedRef = useRef(false);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (!mountedRef.current) {
@@ -52,7 +54,8 @@ const Segment = React.forwardRef(function Segment({ option, active, onPress }, r
       mountedRef.current = true;
       return;
     }
-    Animated.spring(colorAnim, { toValue: active ? 1 : 0, ...SPRING_CONFIG }).start();
+    if (reduceMotion) colorAnim.setValue(active ? 1 : 0);
+    else Animated.spring(colorAnim, { toValue: active ? 1 : 0, ...SPRING_CONFIG }).start();
   }, [active, colorAnim]);
 
   const color = colorAnim.interpolate({
@@ -66,6 +69,7 @@ const Segment = React.forwardRef(function Segment({ option, active, onPress }, r
       style={[styles.segItem, active && styles.segItemActive]}
       onPress={onPress}
       accessibilityRole="button"
+      accessibilityLabel={option.label}
       accessibilityState={{ selected: active }}
     >
       <Animated.Text style={[styles.segItemText, { color }]}>{option.label}</Animated.Text>
@@ -80,9 +84,10 @@ export default function SegmentedControl({ options, selectedValue, onChange, sty
   const highlightX = useRef(new Animated.Value(0)).current;
   const highlightWidth = useRef(new Animated.Value(0)).current;
   const [highlightReady, setHighlightReady] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   function syncHighlightTo(x, width) {
-    if (!hasPositionedRef.current) {
+    if (!hasPositionedRef.current || reduceMotion) {
       // Primera vez que se conoce una posición real — directo ahí, sin
       // animar (evita un slide-in raro desde la esquina al montar).
       highlightX.setValue(x);
@@ -193,7 +198,7 @@ export default function SegmentedControl({ options, selectedValue, onChange, sty
 
 const styles = StyleSheet.create({
   segmented: {
-    marginHorizontal: 18,
+    marginHorizontal: 20,
     marginTop: 16,
     marginBottom: 16,
     padding: 4,
@@ -201,7 +206,7 @@ const styles = StyleSheet.create({
     // solo, sin nada detrás desenfocándose, no lee como vidrio (mismo
     // diagnóstico que Login/Register: blurear un fondo parejo no se nota).
     backgroundColor: colors.trackSand,
-    borderRadius: 14,
+    borderRadius: 10,
     overflow: 'hidden', // recorta el blur nativo al radio del track (Android)
   },
   // View plana interna — ver comentario junto a trackRef arriba. Lleva el
@@ -226,7 +231,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     flexBasis: 'auto',
     minHeight: 48,
-    paddingVertical: 10,
+    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -236,7 +241,7 @@ const styles = StyleSheet.create({
     // le dé más espacio), igual que antes.
     // 24 (no 0, heredado de segItem) — el texto quedaba pegado a la curva
     // del pill activo con etiquetas largas ("Tratamientos").
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
   },
   // Capa independiente detrás de los segmentos — incluye el fill negro y la
   // sombra que antes vivían en segItemActive. top/bottom:4 refleja el mismo

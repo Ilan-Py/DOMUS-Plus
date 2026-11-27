@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { SkeletonFilas } from './Skeleton';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, reminderBadge } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
@@ -62,7 +63,7 @@ export default function TodayCard({ onVerCalendario }) {
   if (items === null) {
     return (
       <View style={styles.card}>
-        <ActivityIndicator color={colors.textMuted} style={styles.loading} />
+        <SkeletonFilas filas={2} />
       </View>
     );
   }

@@ -8,7 +8,6 @@ import FormField from '../components/FormField';
 import PrimaryButton from '../components/PrimaryButton';
 import ErrorBanner from '../components/ErrorBanner';
 import SegmentedControl from '../components/SegmentedControl';
-import BackgroundBlobs from '../components/BackgroundBlobs';
 import Logo from '../components/Logo';
 import { confirmarDestructivo } from '../utils/confirm';
 
@@ -18,14 +17,15 @@ const MODO_OPTIONS = [
 ];
 
 export default function GroupSetupScreen() {
-  const { crearGrupo, unirseGrupo, logout } = useAuth();
+  const { crearGrupo, unirseGrupo, logout, codigoPendiente } = useAuth();
   const insets = useSafeAreaInsets();
-  const [modo, setModo] = useState('crear');
+  // Si la persona escribió un código en el Login antes de crear su cuenta, arranca en "Unirme" con el código cargado.
+  const [modo, setModo] = useState(codigoPendiente ? 'unirse' : 'crear');
 
   const [nombre, setNombre] = useState('');
   const [nombreError, setNombreError] = useState(false);
 
-  const [codigo, setCodigo] = useState('');
+  const [codigo, setCodigo] = useState(codigoPendiente || '');
   const [codigoError, setCodigoError] = useState(false);
 
   const [formError, setFormError] = useState('');
@@ -90,8 +90,6 @@ export default function GroupSetupScreen() {
       style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <BackgroundBlobs />
-
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
@@ -101,7 +99,7 @@ export default function GroupSetupScreen() {
       >
         <View style={styles.column}>
           <View style={styles.brand}>
-            <Logo variante="color" size={72} style={styles.brandLogo} />
+            <Logo variante="terracota" size={72} style={styles.brandLogo} />
             <Text style={styles.brandTitle} accessibilityLabel="DOMUS+">
               DOMUS+
             </Text>

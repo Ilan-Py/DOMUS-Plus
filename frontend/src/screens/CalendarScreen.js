@@ -21,6 +21,7 @@ import InlineError from '../components/InlineError';
 import PrimaryButton from '../components/PrimaryButton';
 import PressScale from '../components/PressScale';
 import Skeleton from '../components/Skeleton';
+import EmptyState from '../components/EmptyState';
 import MiniCalendar, { dayKey } from '../components/MiniCalendar';
 import { EmptyDoodle } from '../components/FamilyDoodles';
 import { cancelarNotificacion, sincronizarNotificaciones } from '../utils/notifications';
@@ -186,22 +187,33 @@ export default function CalendarScreen({ navigation }) {
     setRefreshing(false);
   }
 
-  async function handleDesactivar(id) {
+  // Interfaz optimista (Doherty < 400 ms): la fila empieza a salir en el acto, mientras el pedido
+  // viaja al servidor en paralelo. Si el servidor falla, la fila vuelve y se muestra el error —
+  // no se le miente a la persona sobre lo que quedó guardado.
+  async function salirOptimista(id, pedido) {
     setActionError('');
     setDismissingId(id);
-    try {
-      await api.patch(`/api/recordatorios/${id}/desactivar`);
-      mostrarToast('Marcado como hecho');
-      await cancelarNotificacion(id);
-      setExitingId(id);
-      await new Promise((resolve) => setTimeout(resolve, EXIT_DURATION));
-      await fetchRecordatorios();
-    } catch (err) {
-      setActionError(err.mensaje);
-    } finally {
-      setDismissingId(null);
+    setExitingId(id);
+    const [resultado] = await Promise.allSettled([
+      pedido(),
+      new Promise((resolve) => setTimeout(resolve, EXIT_DURATION)),
+    ]);
+    if (resultado.status === 'rejected') {
+      setActionError(resultado.reason?.mensaje || 'No pudimos guardar el cambio. Probá de nuevo.');
       setExitingId(null);
+      setDismissingId(null);
+      return false;
     }
+    await cancelarNotificacion(id);
+    await fetchRecordatorios();
+    setExitingId(null);
+    setDismissingId(null);
+    return true;
+  }
+
+  async function handleDesactivar(id) {
+    const ok = await salirOptimista(id, () => api.patch(`/api/recordatorios/${id}/desactivar`));
+    if (ok) mostrarToast('Marcado como hecho');
   }
 
   function handleEditar(item) {
@@ -209,20 +221,7 @@ export default function CalendarScreen({ navigation }) {
   }
 
   async function handleEliminar(id) {
-    setActionError('');
-    setDismissingId(id);
-    try {
-      await api.delete(`/api/recordatorios/${id}`);
-      await cancelarNotificacion(id);
-      setExitingId(id);
-      await new Promise((resolve) => setTimeout(resolve, EXIT_DURATION));
-      await fetchRecordatorios();
-    } catch (err) {
-      setActionError(err.mensaje);
-    } finally {
-      setDismissingId(null);
-      setExitingId(null);
-    }
+    await salirOptimista(id, () => api.delete(`/api/recordatorios/${id}`));
   }
 
   function confirmEliminar(item) {
@@ -381,6 +380,16 @@ export default function CalendarScreen({ navigation }) {
         </View>
       ) : loadError ? (
         <InlineError message="No pudimos cargar los recordatorios." onRetry={fetchRecordatorios} />
+      ) : sections.length === 0 && !hayFiltros ? (
+        <EmptyState
+          titulo="Todavía no hay recordatorios"
+          message="Anotá la próxima vacuna, control o dosis y te avisamos a tiempo."
+          recortes={[
+            { icon: 'calendar', tinte: 'terracota' },
+            { icon: 'notifications', tinte: 'arena' },
+          ]}
+          acciones={[{ label: '+ Nuevo recordatorio', onPress: nuevo }]}
+        />
       ) : sections.length === 0 ? (
         <View style={styles.empty}>
           <EmptyDoodle variant="calendario" size={64} />
@@ -499,9 +508,9 @@ export default function CalendarScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  scroll: { paddingBottom: 110 },
+  scroll: { paddingBottom: 112 },
   scrollDesktop: { paddingHorizontal: 32 },
-  scrollMobile: { paddingHorizontal: 18 },
+  scrollMobile: { paddingHorizontal: 20 },
   container: { width: '100%', maxWidth: CONTAINER_MAX_WIDTH, alignSelf: 'center' },
 
   header: {
@@ -514,7 +523,7 @@ const styles = StyleSheet.create({
   headerMobile: { flexDirection: 'column', alignItems: 'stretch' },
   headerText: { flexShrink: 1 },
   title: { fontSize: 26, lineHeight: 34, fontFamily: poppinsWeight('600'), color: colors.ink },
-  subtitle: { fontSize: 16, lineHeight: 22, color: colors.textBody, marginTop: 2 },
+  subtitle: { fontSize: 16, lineHeight: 22, color: colors.textBody, marginTop: 4 },
 
   columns: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
   colLeft: { width: LEFT_COLUMN_WIDTH, gap: 16 },
@@ -536,7 +545,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1.5,
     borderColor: colors.borderInput,
     backgroundColor: colors.glassFillStrong,
@@ -552,8 +561,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     minHeight: 48,
-    paddingHorizontal: 14,
-    borderRadius: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
     backgroundColor: colors.badgeSand,
     borderWidth: 1,
     borderColor: colors.borderCard,
@@ -612,7 +621,7 @@ const styles = StyleSheet.create({
   cardVencido: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.limeDeep },
   cardChevron: { marginRight: 12 },
   cardHora: { fontVariant: ['tabular-nums'], fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
-  cardDesc: { fontSize: 16, lineHeight: 22, color: colors.textBody, marginTop: 6 },
+  cardDesc: { fontSize: 16, lineHeight: 22, color: colors.textBody, marginTop: 8 },
   cardDescDone: { textDecorationLine: 'line-through' },
 
 
