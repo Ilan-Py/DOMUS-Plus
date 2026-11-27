@@ -6,7 +6,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { colors } from '../theme/colors';
-import { poppinsWeight } from '../theme/typography';
+import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
 import { useAuth } from '../context/AuthContext';
 import api, { getList } from '../api/client';
 import PrimaryButton from '../components/PrimaryButton';
@@ -21,6 +21,10 @@ import { paper } from '../theme/paper';
 import CasaRecorte from '../components/CasaRecorte';
 import EntityAvatar from '../components/EntityAvatar';
 import AvatarPicker from '../components/AvatarPicker';
+import PaperCutout from '../components/PaperCutout';
+import Logo from '../components/Logo';
+import { openDialog } from '../components/DialogHost';
+import { LEGAL } from '../utils/legal';
 import { useFamily } from '../context/FamilyContext';
 import { usePreferencias } from '../context/PreferenciasContext';
 import { armarResumenFichas, entregarTexto } from '../utils/resumenFichas';
@@ -109,6 +113,8 @@ export default function AccountScreen() {
   const [armandoResumen, setArmandoResumen] = useState(false);
 
   const [editandoPerfil, setEditandoPerfil] = useState(false);
+  // true cuando se abrió desde el avatar: el formulario muestra sólo el selector de ícono.
+  const [soloIcono, setSoloIcono] = useState(false);
   const [perfilNombre, setPerfilNombre] = useState('');
   const [perfilAvatar, setPerfilAvatar] = useState(null);
   const [perfilApellido, setPerfilApellido] = useState('');
@@ -174,7 +180,8 @@ export default function AccountScreen() {
       'Cerrar sesión',
       '¿Seguro que querés cerrar sesión?',
       handleLogout,
-      'Cerrar sesión'
+      'Cerrar sesión',
+      'logout'
     );
   }
 
@@ -220,7 +227,13 @@ export default function AccountScreen() {
     }
   }
 
+  function abrirCambiarIcono() {
+    abrirEditarPerfil();
+    setSoloIcono(true);
+  }
+
   function abrirEditarPerfil() {
+    setSoloIcono(false);
     setPerfilNombre(usuario?.nombre || '');
     setPerfilApellido(usuario?.apellido || '');
     setPerfilEmail(usuario?.email || '');
@@ -390,39 +403,62 @@ export default function AccountScreen() {
   // ---------------- bloques ----------------
   const perfilCard = (
     <View {...paper('cartulina')} style={styles.card}>
+      {/* Pestaña de papel en terracota suave, colgando del borde superior */}
+      <View pointerEvents="none" style={styles.pestana} />
       {editandoPerfil ? (
         <View style={styles.formPad}>
+          <Text style={styles.tituloTarjeta} accessibilityRole="header">{soloIcono ? 'Cambiar ícono' : 'Mi perfil'}</Text>
           <ErrorBanner message={perfilError} />
-          <AvatarPicker mode="all" value={perfilAvatar} onChange={setPerfilAvatar} name={perfilNombre} apellido={perfilApellido} />
-          <FormField label="Nombre" value={perfilNombre} onChangeText={setPerfilNombre} />
-          <FormField label="Apellido" value={perfilApellido} onChangeText={setPerfilApellido} />
-          <FormField
-            label="Correo electrónico"
-            value={perfilEmail}
-            onChangeText={setPerfilEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            style={{ paddingBottom: 0 }}
-          />
-          <View style={styles.formActions}>
-            <PrimaryButton title="Guardar" onPress={guardarPerfil} loading={guardandoPerfil} variant="accent" />
-            <PrimaryButton title="Cancelar" onPress={cancelarEditarPerfil} variant="secondary" disabled={guardandoPerfil} />
+          {soloIcono ? (
+            <AvatarPicker mode="all" value={perfilAvatar} onChange={setPerfilAvatar} name={perfilNombre} apellido={perfilApellido} />
+          ) : (
+            <>
+              <View style={styles.filaDos}>
+                <FormField label="Nombre" value={perfilNombre} onChangeText={setPerfilNombre} style={styles.mitad} />
+                <FormField label="Apellido" value={perfilApellido} onChangeText={setPerfilApellido} style={styles.mitad} />
+              </View>
+              <FormField
+                label="Correo electrónico"
+                value={perfilEmail}
+                onChangeText={setPerfilEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                style={{ paddingBottom: 0 }}
+              />
+            </>
+          )}
+          <View style={styles.formActionsFila}>
+            <View style={styles.mitad}>
+              <PrimaryButton title="Guardar" onPress={guardarPerfil} loading={guardandoPerfil} variant="accent" />
+            </View>
+            <View style={styles.mitad}>
+              <PrimaryButton title="Cancelar" onPress={cancelarEditarPerfil} variant="secondary" disabled={guardandoPerfil} />
+            </View>
           </View>
         </View>
       ) : (
         <View style={styles.profileBody}>
-          <View style={styles.avatarWrap}>
-            <EntityAvatar avatarId={usuario?.avatar_id} type="person" name={usuario?.nombre} apellido={usuario?.apellido} size={64} />
-            {/* Mini botón para cambiar el ícono rápido (abre la edición, que arranca con el selector de ícono). */}
-            <PressScale
-              contentStyle={styles.avatarEdit}
-              onPress={abrirEditarPerfil}
-              hitSlop={12}
-              accessibilityLabel="Cambiar mi ícono"
-            >
-              <Ionicons name="pencil" size={13} color={colors.onAccent} />
+          {/* Título a la izquierda y "Editar" chico en la esquina superior derecha (patrón de siempre). */}
+          <View style={styles.perfilCab}>
+            <Text style={styles.tituloPerfil} accessibilityRole="header">Mi perfil</Text>
+            <PressScale contentStyle={styles.editarEsquina} onPress={abrirEditarPerfil} accessibilityLabel="Editar perfil">
+              <View style={styles.editarChip}>
+                <Text style={styles.editarChipText}>Editar</Text>
+              </View>
             </PressScale>
           </View>
+          {/* Tocar el avatar sirve sólo para cambiar el ícono. */}
+          <PressScale
+            style={styles.avatarWrap}
+            contentStyle={styles.avatarBtn}
+            onPress={abrirCambiarIcono}
+            accessibilityLabel="Cambiar mi ícono"
+          >
+            <EntityAvatar avatarId={usuario?.avatar_id} type="person" name={usuario?.nombre} apellido={usuario?.apellido} size={64} />
+            <View pointerEvents="none" style={styles.avatarEdit}>
+              <Ionicons name="pencil" size={13} color={colors.onAccent} />
+            </View>
+          </PressScale>
           <View style={styles.profileInfo}>
             <Text style={styles.profileNombre} numberOfLines={2}>
               {usuario?.nombre} {usuario?.apellido}
@@ -433,7 +469,6 @@ export default function AccountScreen() {
               <Ionicons name="chevron-forward" size={16} color={colors.accentStrong} />
             </PressScale>
           </View>
-          <TextButton label="Editar" onPress={abrirEditarPerfil} accessibilityLabel="Editar perfil" />
         </View>
       )}
     </View>
@@ -464,27 +499,30 @@ export default function AccountScreen() {
         <SettingRow icon="key-outline" label="Cambiar contraseña" onPress={abrirPasswordForm} last />
       )}
 
-      <View style={styles.hairline} />
-
-      <PressScale
-        contentStyle={styles.logoutRow}
-        onPress={confirmLogout}
-        disabled={loggingOut}
-        accessibilityLabel="Cerrar sesión"
-      >
-        {loggingOut ? (
-          <ActivityIndicator size="small" color={colors.limeDeep} />
-        ) : (
-          <>
-            <Ionicons name="log-out-outline" size={22} color={colors.limeDeep} />
-            <View style={styles.rowTextWrap}>
-              <Text style={styles.logoutText}>Cerrar sesión</Text>
-              <Text style={styles.logoutHint}>Salir de tu cuenta en este dispositivo.</Text>
-            </View>
-          </>
-        )}
-      </PressScale>
     </View>
+  );
+
+  // Botón independiente, bien separado de "Cambiar contraseña" para evitar toques accidentales.
+  const cerrarSesionBtn = (
+    <PressScale
+      style={styles.logoutWrap}
+      contentStyle={styles.logoutBtn}
+      onPress={confirmLogout}
+      disabled={loggingOut}
+      accessibilityLabel="Cerrar sesión"
+    >
+      {loggingOut ? (
+        <ActivityIndicator size="small" color={colors.limeDeep} />
+      ) : (
+        <>
+          <Ionicons name="log-out-outline" size={22} color={colors.limeDeep} />
+          <View style={styles.rowTextWrap}>
+            <Text style={styles.logoutText}>Cerrar sesión</Text>
+            <Text style={styles.logoutHint}>Salir de tu cuenta en este dispositivo.</Text>
+          </View>
+        </>
+      )}
+    </PressScale>
   );
 
   const grupoCard = (
@@ -627,6 +665,7 @@ export default function AccountScreen() {
       <View style={styles.formPad}>
         <Text style={styles.prefTitulo}>Tamaño de texto</Text>
         <Text style={styles.prefAyuda}>Se aplica a toda la app, en este dispositivo.</Text>
+        {/* Riel arena con los tres botones adentro: un segmented control como el de cualquier app. */}
         <View style={styles.escalas} accessibilityRole="radiogroup" accessibilityLabel="Tamaño de texto">
           {OPCIONES_TEXTO.map((o) => {
             const on = escala === o.value;
@@ -673,9 +712,7 @@ export default function AccountScreen() {
     <View {...paper('cartulina')} style={styles.card}>
       <View style={styles.privCuerpo}>
         <View style={styles.privHead}>
-          <View style={styles.escudo}>
-            <Ionicons name="shield-checkmark" size={24} color={colors.salvia} />
-          </View>
+          <PaperCutout icon="shield" tinte="salvia" size={52} rotate={-3} />
           <Text style={styles.privTitulo} accessibilityRole="header">Privacidad y datos</Text>
         </View>
         <Text style={styles.privTexto}>
@@ -699,8 +736,67 @@ export default function AccountScreen() {
     </View>
   );
 
+  // Ayuda rápida: dos explicaciones cortas, en un cuadro de diálogo (no hay páginas de ayuda aparte).
+  function verAyuda(tema) {
+    const textos = {
+      invitar: {
+        title: 'Cómo invitar a tu familia',
+        message:
+          '1. Si sos el dueño del grupo, tocá «Copiar código» en el menú o «Invitar miembro» en esta pantalla.\n\n2. Pasale el código a quien quieras sumar.\n\n3. Esa persona crea su cuenta y elige «Unirme con un código de invitación».',
+      },
+      ficha: {
+        title: 'Cómo usar la ficha de emergencia',
+        message:
+          'En Familia, tocá «Emergencia» en la tarjeta de la persona. Cargá tipo de sangre, alergias y notas, y sumá contactos para llamar con un toque.\n\nPara pasársela a un médico, usá «Copiar resumen» arriba a la derecha de la ficha.',
+      },
+    };
+    const t = textos[tema];
+    openDialog({ variante: 'info', title: t.title, message: t.message, actions: [{ label: 'Entendido', variant: 'accent' }] });
+  }
+  function verLegal(clave) {
+    const t = LEGAL[clave];
+    openDialog({ variante: 'info', title: t.titulo, message: t.parrafos.join('\n\n'), actions: [{ label: 'Entendido', variant: 'accent' }] });
+  }
+
+  const ayudaCard = (
+    <View {...paper('cartulina')} style={styles.card}>
+      <Text style={styles.cardLabel} accessibilityRole="header">Ayuda rápida</Text>
+      <PressScale contentStyle={styles.ayudaFila} onPress={() => verAyuda('invitar')} accessibilityLabel="Cómo invitar a tu familia">
+        <Ionicons name="help-circle-outline" size={22} color={colors.salvia} />
+        <Text style={styles.ayudaTexto}>Cómo invitar a tu familia</Text>
+        <Ionicons name="chevron-forward" size={20} color={colors.iconWarm} />
+      </PressScale>
+      <View style={styles.hairline} />
+      <PressScale contentStyle={styles.ayudaFila} onPress={() => verAyuda('ficha')} accessibilityLabel="Cómo usar la ficha de emergencia">
+        <Ionicons name="help-circle-outline" size={22} color={colors.salvia} />
+        <Text style={styles.ayudaTexto}>Cómo usar la ficha de emergencia</Text>
+        <Ionicons name="chevron-forward" size={20} color={colors.iconWarm} />
+      </PressScale>
+    </View>
+  );
+
+  // Pie discreto al fondo del área principal.
+  const pie = (
+    <View style={styles.pie}>
+      <Text style={styles.pieMarca}>DOMUS+ · Salud familiar</Text>
+      <View style={styles.pieLinks}>
+        <PressScale contentStyle={styles.pieLink} onPress={() => verLegal('privacidad')} accessibilityLabel="Privacidad">
+          <Text style={styles.pieLinkText}>Privacidad</Text>
+        </PressScale>
+        <Text style={styles.pieSep}>·</Text>
+        <PressScale contentStyle={styles.pieLink} onPress={() => verLegal('terminos')} accessibilityLabel="Términos">
+          <Text style={styles.pieLinkText}>Términos</Text>
+        </PressScale>
+      </View>
+    </View>
+  );
+
   return (
     <View style={styles.root}>
+      {/* Marca de agua: el corazón de DOMUS+ al 3,5 %, en la esquina inferior derecha del fondo. */}
+      <View style={styles.marcaAgua} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no">
+        <Logo variante="terracota" size={380} />
+      </View>
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
@@ -720,11 +816,15 @@ export default function AccountScreen() {
               <View style={styles.col}>
                 {perfilCard}
                 {seguridadCard}
+                {cerrarSesionBtn}
               </View>
-              <View style={styles.col}>{grupoCard}</View>
+              <View style={styles.col}>
+                {grupoCard}
+                {privacidadCard}
+              </View>
               <View style={styles.col}>
                 {preferenciasCard}
-                {privacidadCard}
+                {ayudaCard}
               </View>
             </View>
           ) : columnas === 2 ? (
@@ -733,23 +833,33 @@ export default function AccountScreen() {
                 <View style={styles.col}>
                   {perfilCard}
                   {seguridadCard}
+                  {cerrarSesionBtn}
                 </View>
-                <View style={styles.col}>{grupoCard}</View>
+                <View style={styles.col}>
+                  {grupoCard}
+                  {privacidadCard}
+                </View>
               </View>
               <View style={styles.columns}>
                 <View style={styles.col}>{preferenciasCard}</View>
-                <View style={styles.col}>{privacidadCard}</View>
+                <View style={styles.col}>{ayudaCard}</View>
               </View>
             </View>
           ) : (
             <View style={styles.stack}>
               {perfilCard}
               {seguridadCard}
+              {cerrarSesionBtn}
               {grupoCard}
-              {preferenciasCard}
               {privacidadCard}
+              {preferenciasCard}
+              {ayudaCard}
             </View>
           )}
+
+          {/* Separador flexible: empuja el pie al fondo cuando el contenido es corto. */}
+          <View style={styles.pieEspacio} />
+          {pie}
         </View>
       </ScrollView>
     </View>
@@ -758,20 +868,20 @@ export default function AccountScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  scroll: { paddingBottom: 112 },
+  scroll: { flexGrow: 1, paddingBottom: 112 },
   scrollDesktop: { paddingHorizontal: 48 },
   scrollMobile: { paddingHorizontal: 20 },
-  container: { width: '100%', maxWidth: CONTAINER_MAX_WIDTH, alignSelf: 'center' },
+  container: { width: '100%', maxWidth: CONTAINER_MAX_WIDTH, alignSelf: 'center', flexGrow: 1 },
   // Escritorio: alineado a la izquierda, pegado a la barra lateral (sin pasillo vacío).
   containerIzq: { alignSelf: 'flex-start' },
 
-  header: { marginBottom: 24 },
+  header: { marginBottom: 28 },
   title: { fontSize: 26, lineHeight: 34, fontFamily: poppinsWeight('700'), color: colors.ink },
   subtitle: { fontSize: 16, lineHeight: 22, color: colors.textBody, marginTop: 4 },
 
-  columns: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
-  col: { flex: 1, gap: 16, minWidth: 0 },
-  stack: { gap: 16 },
+  columns: { flexDirection: 'row', gap: 28, alignItems: 'flex-start' },
+  col: { flex: 1, gap: 28, minWidth: 0 },
+  stack: { gap: 28 },
 
   // Nivel 2: tarjeta blanca con borde fino y una sombra cálida casi imperceptible.
   card: {
@@ -788,19 +898,50 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   cardNoPad: { paddingBottom: 0 },
+  // Título de tarjeta en la serif de la marca.
   cardLabel: {
-    fontSize: 14,
-    fontFamily: poppinsWeight('600'),
-    color: colors.textBody,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 4,
+    fontSize: 22,
+    lineHeight: 30,
+    fontFamily: SERIF_BOLD,
+    color: colors.ink,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 8,
   },
-  hairline: { height: 1, backgroundColor: '#EFE8DF', marginHorizontal: 16 },
-  rowDivider: { borderBottomWidth: 1, borderBottomColor: '#EFE8DF' },
-  formPad: { padding: 16 },
+  tituloTarjeta: { fontSize: 22, lineHeight: 30, fontFamily: SERIF_BOLD, color: colors.ink, marginBottom: 12 },
+  // Divisores punteados cálidos en lugar de líneas sólidas.
+  hairline: { height: 0, borderTopWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(42, 36, 33, 0.16)', marginHorizontal: 24 },
+  rowDivider: { borderBottomWidth: 1, borderStyle: 'dashed', borderBottomColor: 'rgba(42, 36, 33, 0.16)' },
+  formPad: { padding: 24 },
   formTitle: { fontSize: 17, fontFamily: poppinsWeight('700'), color: colors.ink, marginBottom: 12 },
   formActions: { gap: 12, marginTop: 20 },
+  filaDos: { flexDirection: 'row', gap: 12 },
+  mitad: { flex: 1, minWidth: 0 },
+  formActionsFila: { flexDirection: 'row', gap: 12, marginTop: 20 },
+
+  // ---- ayuda rápida
+  ayudaFila: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 24, paddingVertical: 14 },
+  ayudaTexto: { flex: 1, fontSize: 16, lineHeight: 22, fontFamily: poppinsWeight('600'), color: colors.ink },
+
+  // ---- pie y marca de agua
+  marcaAgua: { position: 'absolute', right: -60, bottom: -60, opacity: 0.035 },
+  pieEspacio: { flexGrow: 1, minHeight: 40 },
+  pie: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderStyle: 'dashed',
+    borderTopColor: 'rgba(42, 36, 33, 0.14)',
+  },
+  pieMarca: { fontSize: 14, lineHeight: 20, color: colors.textBody },
+  pieLinks: { flexDirection: 'row', alignItems: 'center' },
+  pieLink: { minHeight: 48, paddingHorizontal: 8, justifyContent: 'center' },
+  pieLinkText: { fontSize: 14, lineHeight: 20, color: colors.textBody, textDecorationLine: 'underline' },
+  pieSep: { fontSize: 14, color: colors.textBody },
 
   // Botón de sólo texto (Editar / Renombrar): fondo arena, 48dp.
   textBtn: {
@@ -814,7 +955,25 @@ const styles = StyleSheet.create({
   textBtnText: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
 
   // ---- perfil
-  profileBody: { padding: 16, gap: 16 },
+  profileBody: { padding: 24, paddingTop: 28, gap: 16 },
+  // Pestaña de papel colgando del borde superior de la tarjeta de perfil.
+  pestana: {
+    position: 'absolute',
+    top: 0,
+    left: 24,
+    width: 64,
+    height: 12,
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+    backgroundColor: 'rgba(194, 70, 35, 0.32)',
+  },
+  perfilCab: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  tituloPerfil: { fontSize: 22, lineHeight: 30, fontFamily: SERIF_BOLD, color: colors.ink },
+  // El área táctil mide 48 px; el chip visible es más chico.
+  editarEsquina: { minHeight: 48, justifyContent: 'center', paddingLeft: 8 },
+  editarChip: { height: 36, paddingHorizontal: 16, borderRadius: 10, backgroundColor: colors.emptyBg, alignItems: 'center', justifyContent: 'center' },
+  editarChipText: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.ink },
+  avatarBtn: { alignSelf: 'flex-start' },
   profileInfo: { gap: 4 },
   avatarWrap: { alignSelf: 'flex-start' },
   avatarEdit: {
@@ -836,32 +995,39 @@ const styles = StyleSheet.create({
   // ---- preferencias
   prefTitulo: { fontSize: 16, lineHeight: 24, fontFamily: poppinsWeight('600'), color: colors.ink },
   prefAyuda: { fontSize: 14, lineHeight: 20, color: colors.textBody, marginTop: 2 },
-  escalas: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  // Riel arena: un solo contenedor para los tres botones.
+  escalas: { flexDirection: 'row', gap: 4, marginTop: 12, padding: 4, borderRadius: 12, backgroundColor: '#F3EAE0' },
   escalaCelda: { flex: 1 },
   escalaBtn: {
     minHeight: 48,
     paddingHorizontal: 8,
     borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: colors.borderInput,
-    backgroundColor: colors.glassStrong,
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  escalaBtnOn: { backgroundColor: colors.accentStrong, borderColor: colors.accentStrong },
+  // Elegido: pieza blanca apoyada sobre el riel, con sombra corta.
+  escalaBtnOn: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#2A2421',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 0,
+    elevation: 1,
+  },
   escalaTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.ink },
-  escalaTextoOn: { color: colors.onAccent },
-  toggleFila: { flexDirection: 'row', alignItems: 'center', gap: 16, minHeight: 72, padding: 16 },
+  escalaTextoOn: { color: colors.accentStrong },
+  toggleFila: { flexDirection: 'row', alignItems: 'center', gap: 16, minHeight: 72, paddingHorizontal: 24, paddingVertical: 14 },
   pista: { width: 52, height: 30, borderRadius: 15, backgroundColor: '#D9D0C5', justifyContent: 'center', paddingHorizontal: 3 },
   pistaOn: { backgroundColor: colors.salvia },
   perilla: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#FFFFFF' },
   perillaOn: { alignSelf: 'flex-end' },
 
   // ---- privacidad y datos
-  privCuerpo: { padding: 16, gap: 12 },
+  privCuerpo: { padding: 24, gap: 12 },
   privHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   escudo: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.salviaSoft, alignItems: 'center', justifyContent: 'center' },
-  privTitulo: { fontSize: 17, lineHeight: 24, fontFamily: poppinsWeight('700'), color: colors.ink },
+  privTitulo: { flex: 1, fontSize: 22, lineHeight: 30, fontFamily: SERIF_BOLD, color: colors.ink },
   privTexto: { fontSize: 15, lineHeight: 22, color: colors.textBody },
   privBtn: {
     flexDirection: 'row',
@@ -885,22 +1051,28 @@ const styles = StyleSheet.create({
   settingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 12,
     minHeight: 56,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
   },
   rowDisabled: { opacity: 0.55 },
   rowTextWrap: { flex: 1 },
   rowLabel: { fontSize: 16, fontFamily: poppinsWeight('600') },
   rowValue: { fontSize: 14, lineHeight: 20, color: colors.textBody, marginTop: 4 },
-  logoutRow: {
+  // Botón de cerrar sesión: independiente, con borde punteado y aire arriba para no tocarlo sin querer.
+  logoutWrap: { marginTop: 8 },
+  logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 12,
     minHeight: 64,
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
     paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(170, 69, 29, 0.45)',
   },
   logoutText: { fontSize: 17, fontFamily: poppinsWeight('600'), color: colors.limeDeep },
   logoutHint: { fontSize: 14, lineHeight: 20, color: colors.textBody },
@@ -909,22 +1081,23 @@ const styles = StyleSheet.create({
   banner: {
     backgroundColor: colors.arena,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(42, 36, 33, 0.08)',
+    borderStyle: 'dashed',
+    borderBottomColor: 'rgba(42, 36, 33, 0.16)',
     overflow: 'hidden',
-    padding: 16,
-    paddingRight: 120, // deja libre la esquina del doodle
+    padding: 24,
+    paddingRight: 128, // deja libre la esquina del doodle
     minHeight: 132,
   },
   bannerDoodle: { position: 'absolute', right: 16, top: 12 },
   bannerText: { gap: 4 },
   bannerForm: { paddingRight: 0, marginRight: -104 },
   bannerAction: { marginTop: 12, alignSelf: 'flex-start' },
-  groupEyebrow: { fontSize: 14, fontFamily: poppinsWeight('600'), color: colors.textBody },
-  groupName: { fontSize: 22, lineHeight: 30, fontFamily: poppinsWeight('700'), color: colors.ink },
+  groupEyebrow: { fontSize: 22, lineHeight: 30, fontFamily: SERIF_BOLD, color: colors.ink },
+  groupName: { fontSize: 17, lineHeight: 24, fontFamily: poppinsWeight('600'), color: colors.textBody },
   groupSummary: { fontSize: 15, lineHeight: 22, color: colors.textBody },
 
   // ---- bloque "Invitar miembro" (nivel 3: arena)
-  inviteWrap: { padding: 16, paddingBottom: 0, gap: 12 },
+  inviteWrap: { padding: 24, paddingBottom: 0, gap: 12 },
   inviteLift: { borderRadius: 10 },
   // Destacado con acento salvia: borde punteado suave sobre fondo salvia claro.
   inviteBox: {
@@ -960,7 +1133,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: poppinsWeight('600'),
     color: colors.textBody,
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
     paddingTop: 20,
     paddingBottom: 8,
   },
@@ -969,8 +1142,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     minHeight: 64,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
   },
   miembroNombre: { flex: 1, fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
   rolBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.badgeSand },
@@ -982,6 +1155,6 @@ const styles = StyleSheet.create({
   deleteBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', marginRight: -8 },
 
   // ---- pie: salir del grupo
-  footer: { marginTop: 8, borderTopWidth: 1, borderTopColor: '#EFE8DF' },
+  footer: { marginTop: 8, borderTopWidth: 1, borderStyle: 'dashed', borderTopColor: 'rgba(42, 36, 33, 0.16)' },
   sosDueno: { fontSize: 14, lineHeight: 20, color: colors.textBody, textAlign: 'center', paddingVertical: 16 },
 });
