@@ -200,7 +200,9 @@ export default function AddReminderScreen({ navigation, route }) {
 
     setSaving(true);
     try {
-      const fechaHoraStr = `${formatDateOnly(fechaHoraLocal)} ${formatTimeOnly(fechaHoraLocal)}:00`;
+      // Se manda un instante absoluto (ISO con zona): el servidor lo interpreta igual sin importar en qué zona
+      // horaria corra. Antes iba "AAAA-MM-DD HH:mm:00" sin zona y quedaba corrido si el servidor estaba en UTC.
+      const fechaHoraStr = fechaHoraLocal.toISOString();
       let recordatorioId;
       if (isEditing) {
         // vacuna_id/tratamiento_id no se mandan — el vínculo no es
