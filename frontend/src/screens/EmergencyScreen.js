@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radii, cardBase } from '../theme/colors';
+import { paper } from '../theme/paper';
 import { poppinsWeight } from '../theme/typography';
 import api, { getList } from '../api/client';
 import { useFamily } from '../context/FamilyContext';
@@ -53,12 +54,13 @@ export default function EmergencyScreen({ navigation, route }) {
 
   const { width } = useWindowDimensions();
   const columnas = width >= 768; // dos columnas (sangre | alergias) en escritorio
-  const angosto = width < 600; // en pantallas angostas "Editar ficha" va debajo del título
   const sangre = integrante?.tipo_sangre;
   const listaAlergias = listaDeAlergias(integrante?.alergias);
   const notasGuardadas = integrante?.notas_emergencia;
   const sinDatos = !sangre && listaAlergias.length === 0 && !notasGuardadas;
   const [editing, setEditing] = useState(false);
+  // Qué se está editando: 'todos' (botón Editar) o un solo dato (clic en su espacio vacío).
+  const [campoEdit, setCampoEdit] = useState('todos');
   const [alergias, setAlergias] = useState([]);
   const [tipoSangre, setTipoSangre] = useState('');
   const [notas, setNotas] = useState('');
@@ -91,7 +93,8 @@ export default function EmergencyScreen({ navigation, route }) {
     fetchContactos();
   }, [fetchContactos]);
 
-  function iniciarEdicion() {
+  function iniciarEdicion(campo = 'todos') {
+    setCampoEdit(campo);
     setAlergias(listaDeAlergias(integrante?.alergias));
     setTipoSangre(integrante?.tipo_sangre || '');
     setNotas(integrante?.notas_emergencia || '');
@@ -187,39 +190,34 @@ export default function EmergencyScreen({ navigation, route }) {
         title={nombre}
         subtitle="Ficha de emergencia"
         onBack={() => navigation.goBack()}
-        rightActions={
-          !editing && !angosto ? (
-            <PressScale
-              contentStyle={styles.editFichaBtn}
-              onPress={iniciarEdicion}
-              accessibilityLabel="Editar ficha de emergencia"
-            >
-              <Ionicons name="pencil-outline" size={20} color={colors.iconWarm} />
-              <Text style={styles.editFichaText}>Editar ficha</Text>
-            </PressScale>
-          ) : null
-        }
       />
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: 20 + inset }]}>
           {!!error && <ErrorBanner message={error} onDismiss={() => setError('')} />}
 
-          {!editing && angosto && (
-            <PressScale
-              contentStyle={[styles.editFichaBtn, styles.editFichaBlock]}
-              onPress={iniciarEdicion}
-              accessibilityLabel="Editar ficha de emergencia"
-            >
-              <Ionicons name="pencil-outline" size={20} color={colors.iconWarm} />
-              <Text style={styles.editFichaText}>Editar ficha</Text>
-            </PressScale>
-          )}
-
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Datos médicos</Text>
+          {/* Ficha de cartulina: borde superior terracota, sombra de papel en dos capas y una hoja
+              apenas asomando detrás. Sin giros ni animaciones: es una ficha clínica, se lee primero. */}
+          <View style={styles.fichaWrap}>
+            <View style={styles.hojaDetras} pointerEvents="none" />
+            <View {...paper('ficha')} style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.sectionTitle}>Datos médicos</Text>
+              {/* Un solo Editar, en la tarjeta, y sólo cuando ya hay algún dato cargado */}
+              {!editing && !sinDatos && (
+                <PressScale
+                  contentStyle={styles.editarBtn}
+                  onPress={() => iniciarEdicion('todos')}
+                  accessibilityLabel="Editar datos médicos"
+                >
+                  <Ionicons name="pencil-outline" size={18} color={colors.iconWarm} />
+                  <Text style={styles.editarText}>Editar</Text>
+                </PressScale>
+              )}
+            </View>
             {editing ? (
               <>
+                {(campoEdit === 'todos' || campoEdit === 'alergias') && (
                 <OptionPicker
                   label="Alergias"
                   options={ALERGIAS_FRECUENTES}
@@ -231,6 +229,8 @@ export default function EmergencyScreen({ navigation, route }) {
                   otherPlaceholder="Ej. Ibuprofeno, Kiwi (separadas por coma)"
                   style={styles.field}
                 />
+                )}
+                {(campoEdit === 'todos' || campoEdit === 'sangre') && (
                 <OptionPicker
                   label="Tipo de sangre"
                   options={GRUPOS_SANGUINEOS}
@@ -238,7 +238,10 @@ export default function EmergencyScreen({ navigation, route }) {
                   onChange={setTipoSangre}
                   style={styles.field}
                 />
+                )}
+                {(campoEdit === 'todos' || campoEdit === 'notas') && (
                 <FormField label="Notas de emergencia" value={notas} onChangeText={setNotas} placeholder="Condiciones crónicas, medicación habitual, etc." multiline style={styles.field} />
+                )}
                 <View style={styles.formActions}>
                   <PrimaryButton title="Guardar" onPress={guardarEmergencia} loading={saving} variant="accent" />
                   <PrimaryButton title="Cancelar" onPress={() => setEditing(false)} variant="secondary" disabled={saving} />
@@ -247,20 +250,23 @@ export default function EmergencyScreen({ navigation, route }) {
             ) : (
               <>
                 <View style={[styles.medTop, columnas && styles.medTopRow]}>
-                  {/* Tipo de sangre: caja destacada; rosada sólo si hay dato. */}
-                  <View style={[styles.bloodBox, columnas && styles.bloodCol, !sangre && styles.bloodBoxEmpty]}>
-                    <Text style={styles.medLabel}>Tipo de sangre</Text>
-                    {sangre ? (
+                  {/* Tipo de sangre: caja destacada si hay dato; si no, un espacio para completar. */}
+                  {sangre ? (
+                    <View style={[styles.bloodBox, columnas && styles.bloodCol]}>
+                      <Text style={styles.medLabel}>Tipo de sangre</Text>
                       <Text style={styles.bloodValue}>{sangre}</Text>
-                    ) : (
-                      <Text style={styles.emptyText}>Sin cargar</Text>
-                    )}
-                  </View>
+                    </View>
+                  ) : (
+                    <View style={columnas && styles.bloodCol}>
+                      <Text style={styles.medLabel}>Tipo de sangre</Text>
+                      <EspacioVacio texto="Agregar tipo de sangre" onPress={() => iniciarEdicion('sangre')} />
+                    </View>
+                  )}
 
                   <View style={columnas && styles.allergyCol}>
                     <Text style={styles.medLabel}>Alergias</Text>
                     {listaAlergias.length === 0 ? (
-                      <Text style={styles.emptyText}>Sin cargar</Text>
+                      <EspacioVacio texto="Agregar alergias" onPress={() => iniciarEdicion('alergias')} />
                     ) : (
                       <View style={styles.chips}>
                         {listaAlergias.map((t) => (
@@ -278,17 +284,12 @@ export default function EmergencyScreen({ navigation, route }) {
                   {notasGuardadas ? (
                     <Text style={styles.notesText}>{notasGuardadas}</Text>
                   ) : (
-                    <Text style={styles.emptyText}>Sin cargar</Text>
+                    <EspacioVacio texto="Agregar notas" onPress={() => iniciarEdicion('notas')} />
                   )}
                 </View>
-
-                {sinDatos && (
-                  <PressScale contentStyle={styles.secondaryBtn} onPress={iniciarEdicion} accessibilityLabel="Completar datos médicos">
-                    <Text style={styles.secondaryBtnText}>Completar datos médicos</Text>
-                  </PressScale>
-                )}
               </>
             )}
+            </View>
           </View>
 
           <Text style={styles.titulo}>Contactos de emergencia</Text>
@@ -313,7 +314,7 @@ export default function EmergencyScreen({ navigation, route }) {
                         guardando={guardandoContacto}
                       />
                     ) : (
-                      <View style={styles.contactCard}>
+                      <View {...paper('carton')} style={styles.contactCard}>
                         <PressScale
                           style={styles.flex}
                           contentStyle={styles.contactTapArea}
@@ -321,7 +322,7 @@ export default function EmergencyScreen({ navigation, route }) {
                           accessibilityLabel={`Llamar a ${item.nombre}`}
                         >
                           <View style={styles.contactPhoneIcon}>
-                            <Ionicons name="call" size={20} color={colors.accentStrong} />
+                            <Ionicons name="call" size={22} color={colors.onAccent} />
                           </View>
                           <View style={styles.flex}>
                             <Text style={styles.contactNombre}>
@@ -373,6 +374,20 @@ export default function EmergencyScreen({ navigation, route }) {
   );
 }
 
+// Espacio para completar: borde punteado suave y texto accionable. Un clic abre ese dato.
+function EspacioVacio({ texto, onPress }) {
+  return (
+    <PressScale
+      contentStyle={styles.espacioVacio}
+      onPress={onPress}
+      accessibilityLabel={texto}
+    >
+      <Ionicons name="add" size={20} color={colors.accentStrong} />
+      <Text style={styles.espacioVacioText}>{texto}</Text>
+    </PressScale>
+  );
+}
+
 // Ícono de editar / eliminar de un contacto: gris cálido neutro con área de 48dp;
 // el de eliminar pasa a rojo recién al pasar el mouse (o presionar).
 function ContactAction({ icon, label, onPress, disabled, loading, danger }) {
@@ -421,32 +436,60 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
-  editFichaBtn: {
+  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 48, marginBottom: 8 },
+  editarBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    height: 48,
+    height: 44,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: colors.badgeSand,
+  },
+  editarText: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.ink },
+  espacioVacio: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 52,
     paddingHorizontal: 16,
     borderRadius: 10,
-    backgroundColor: colors.glassStrong,
-    borderWidth: 1,
-    borderColor: colors.borderCard,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(42, 36, 33, 0.18)',
   },
-  editFichaBlock: { justifyContent: 'center', marginBottom: 16 },
-  editFichaText: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
+  espacioVacioText: { fontSize: 16, lineHeight: 22, fontFamily: poppinsWeight('600'), color: colors.accentStrong },
+  fichaWrap: { position: 'relative', marginBottom: 24 },
+  hojaDetras: {
+    position: 'absolute',
+    top: 4,
+    bottom: -4,
+    left: '2%',
+    right: '2%',
+    borderRadius: 16,
+    backgroundColor: '#F3EAE0',
+    borderWidth: 1,
+    borderColor: 'rgba(42, 36, 33, 0.1)',
+  },
   scroll: {
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 100,
   },
   card: {
+    zIndex: 1,
     padding: 16,
-    marginBottom: 20,
     ...cardBase,
     borderRadius: 16,
     borderColor: colors.borderCard,
-    shadowOpacity: 0,
-    elevation: 0,
+    borderTopWidth: 4,
+    borderTopColor: colors.accentStrong,
+    // Sombra de papel (en web, de dos capas vía theme/paper.js): corta y nítida abajo.
+    shadowColor: '#2A2421',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.07,
+    shadowRadius: 0,
+    elevation: 2,
   },
   sectionTitle: {
     fontSize: 14,
@@ -454,7 +497,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-    marginBottom: 12,
   },
   field: {
     paddingBottom: 16,
@@ -466,7 +508,6 @@ const styles = StyleSheet.create({
   medTop: { gap: 16 },
   medTopRow: { flexDirection: 'row', alignItems: 'flex-start' },
   bloodBox: { borderRadius: 10, padding: 16, backgroundColor: colors.bloodBg },
-  bloodBoxEmpty: { backgroundColor: colors.emptyBg },
   bloodCol: { flex: 35 },
   allergyCol: { flex: 65 },
   medLabel: { fontSize: 14, fontFamily: poppinsWeight('600'), color: colors.textBody, marginBottom: 8 },
@@ -518,9 +559,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    marginBottom: 8,
+    marginBottom: 12,
     gap: 8,
     ...cardBase,
+    // Cartulina: sombra corta y nítida abajo (en web, más micro-elevación al pasar el mouse).
+    shadowColor: '#2A2421',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.07,
+    shadowRadius: 0,
+    elevation: 2,
   },
   // Sin flex:1 acá a propósito — ese flex vive en el `style` del PressScale
   // (el Pressable real, que participa del flexbox de contactCard), no en
@@ -533,11 +580,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+  // Botón redondo sólido en terracota suave: llamar tiene que verse como la acción, sobre todo con apuro.
   contactPhoneIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.bloodBg,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',
   },

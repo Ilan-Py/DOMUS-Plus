@@ -62,7 +62,25 @@ body::after {
 [data-paper~="d4"] { animation-delay: 360ms; }
 [data-paper~="d5"] { animation-delay: 450ms; }
 
+/* Ficha de cartulina (ficha de emergencia): sombra corta y nítida pegada abajo + difusa cálida.
+   Sin giros ni entrada animada. Los contactos ("carton") suman una micro-elevación al pasar el mouse. */
+[data-paper~="ficha"] {
+  box-shadow: 0 3px 0 rgba(42, 36, 33, 0.07), 0 10px 24px rgba(42, 36, 33, 0.06) !important;
+}
+[data-paper~="carton"] {
+  box-shadow: 0 3px 0 rgba(42, 36, 33, 0.07), 0 6px 14px rgba(42, 36, 33, 0.05) !important;
+  transition: translate 160ms ease-out, box-shadow 160ms ease-out;
+}
+@media (hover: hover) {
+  [data-paper~="carton"]:hover {
+    translate: 0 -2px;
+    box-shadow: 0 5px 0 rgba(42, 36, 33, 0.07), 0 10px 20px rgba(42, 36, 33, 0.07) !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  [data-paper~="carton"] { transition: none; }
+  [data-paper~="carton"]:hover { translate: none; }
   .paper-pop,
   [data-paper~="pop"] { animation: none; }
   .paper-cutout,
