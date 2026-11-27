@@ -22,6 +22,9 @@ import CasaRecorte from '../components/CasaRecorte';
 import EntityAvatar from '../components/EntityAvatar';
 import AvatarPicker from '../components/AvatarPicker';
 import PaperCutout from '../components/PaperCutout';
+import Logo from '../components/Logo';
+import { openDialog } from '../components/DialogHost';
+import { LEGAL } from '../utils/legal';
 import { useFamily } from '../context/FamilyContext';
 import { usePreferencias } from '../context/PreferenciasContext';
 import { armarResumenFichas, entregarTexto } from '../utils/resumenFichas';
@@ -409,8 +412,10 @@ export default function AccountScreen() {
             <AvatarPicker mode="all" value={perfilAvatar} onChange={setPerfilAvatar} name={perfilNombre} apellido={perfilApellido} />
           ) : (
             <>
-              <FormField label="Nombre" value={perfilNombre} onChangeText={setPerfilNombre} />
-              <FormField label="Apellido" value={perfilApellido} onChangeText={setPerfilApellido} />
+              <View style={styles.filaDos}>
+                <FormField label="Nombre" value={perfilNombre} onChangeText={setPerfilNombre} style={styles.mitad} />
+                <FormField label="Apellido" value={perfilApellido} onChangeText={setPerfilApellido} style={styles.mitad} />
+              </View>
               <FormField
                 label="Correo electrónico"
                 value={perfilEmail}
@@ -421,9 +426,13 @@ export default function AccountScreen() {
               />
             </>
           )}
-          <View style={styles.formActions}>
-            <PrimaryButton title="Guardar" onPress={guardarPerfil} loading={guardandoPerfil} variant="accent" />
-            <PrimaryButton title="Cancelar" onPress={cancelarEditarPerfil} variant="secondary" disabled={guardandoPerfil} />
+          <View style={styles.formActionsFila}>
+            <View style={styles.mitad}>
+              <PrimaryButton title="Guardar" onPress={guardarPerfil} loading={guardandoPerfil} variant="accent" />
+            </View>
+            <View style={styles.mitad}>
+              <PrimaryButton title="Cancelar" onPress={cancelarEditarPerfil} variant="secondary" disabled={guardandoPerfil} />
+            </View>
           </View>
         </View>
       ) : (
@@ -726,8 +735,67 @@ export default function AccountScreen() {
     </View>
   );
 
+  // Ayuda rápida: dos explicaciones cortas, en un cuadro de diálogo (no hay páginas de ayuda aparte).
+  function verAyuda(tema) {
+    const textos = {
+      invitar: {
+        title: 'Cómo invitar a tu familia',
+        message:
+          '1. Si sos el dueño del grupo, tocá «Copiar código» en el menú o «Invitar miembro» en esta pantalla.\n\n2. Pasale el código a quien quieras sumar.\n\n3. Esa persona crea su cuenta y elige «Unirme con un código de invitación».',
+      },
+      ficha: {
+        title: 'Cómo usar la ficha de emergencia',
+        message:
+          'En Familia, tocá «Emergencia» en la tarjeta de la persona. Cargá tipo de sangre, alergias y notas, y sumá contactos para llamar con un toque.\n\nPara pasársela a un médico, usá «Copiar resumen» arriba a la derecha de la ficha.',
+      },
+    };
+    const t = textos[tema];
+    openDialog({ title: t.title, message: t.message, actions: [{ label: 'Entendido', variant: 'accent' }] });
+  }
+  function verLegal(clave) {
+    const t = LEGAL[clave];
+    openDialog({ title: t.titulo, message: t.parrafos.join('\n\n'), actions: [{ label: 'Entendido', variant: 'accent' }] });
+  }
+
+  const ayudaCard = (
+    <View {...paper('cartulina')} style={styles.card}>
+      <Text style={styles.cardLabel} accessibilityRole="header">Ayuda rápida</Text>
+      <PressScale contentStyle={styles.ayudaFila} onPress={() => verAyuda('invitar')} accessibilityLabel="Cómo invitar a tu familia">
+        <Ionicons name="help-circle-outline" size={22} color={colors.salvia} />
+        <Text style={styles.ayudaTexto}>Cómo invitar a tu familia</Text>
+        <Ionicons name="chevron-forward" size={20} color={colors.iconWarm} />
+      </PressScale>
+      <View style={styles.hairline} />
+      <PressScale contentStyle={styles.ayudaFila} onPress={() => verAyuda('ficha')} accessibilityLabel="Cómo usar la ficha de emergencia">
+        <Ionicons name="help-circle-outline" size={22} color={colors.salvia} />
+        <Text style={styles.ayudaTexto}>Cómo usar la ficha de emergencia</Text>
+        <Ionicons name="chevron-forward" size={20} color={colors.iconWarm} />
+      </PressScale>
+    </View>
+  );
+
+  // Pie discreto al fondo del área principal.
+  const pie = (
+    <View style={styles.pie}>
+      <Text style={styles.pieMarca}>DOMUS+ · Salud familiar</Text>
+      <View style={styles.pieLinks}>
+        <PressScale contentStyle={styles.pieLink} onPress={() => verLegal('privacidad')} accessibilityLabel="Privacidad">
+          <Text style={styles.pieLinkText}>Privacidad</Text>
+        </PressScale>
+        <Text style={styles.pieSep}>·</Text>
+        <PressScale contentStyle={styles.pieLink} onPress={() => verLegal('terminos')} accessibilityLabel="Términos">
+          <Text style={styles.pieLinkText}>Términos</Text>
+        </PressScale>
+      </View>
+    </View>
+  );
+
   return (
     <View style={styles.root}>
+      {/* Marca de agua: el corazón de DOMUS+ al 3,5 %, en la esquina inferior derecha del fondo. */}
+      <View style={styles.marcaAgua} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no">
+        <Logo variante="terracota" size={380} />
+      </View>
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
@@ -749,10 +817,13 @@ export default function AccountScreen() {
                 {seguridadCard}
                 {cerrarSesionBtn}
               </View>
-              <View style={styles.col}>{grupoCard}</View>
+              <View style={styles.col}>
+                {grupoCard}
+                {privacidadCard}
+              </View>
               <View style={styles.col}>
                 {preferenciasCard}
-                {privacidadCard}
+                {ayudaCard}
               </View>
             </View>
           ) : columnas === 2 ? (
@@ -763,11 +834,14 @@ export default function AccountScreen() {
                   {seguridadCard}
                   {cerrarSesionBtn}
                 </View>
-                <View style={styles.col}>{grupoCard}</View>
+                <View style={styles.col}>
+                  {grupoCard}
+                  {privacidadCard}
+                </View>
               </View>
               <View style={styles.columns}>
                 <View style={styles.col}>{preferenciasCard}</View>
-                <View style={styles.col}>{privacidadCard}</View>
+                <View style={styles.col}>{ayudaCard}</View>
               </View>
             </View>
           ) : (
@@ -776,10 +850,15 @@ export default function AccountScreen() {
               {seguridadCard}
               {cerrarSesionBtn}
               {grupoCard}
-              {preferenciasCard}
               {privacidadCard}
+              {preferenciasCard}
+              {ayudaCard}
             </View>
           )}
+
+          {/* Separador flexible: empuja el pie al fondo cuando el contenido es corto. */}
+          <View style={styles.pieEspacio} />
+          {pie}
         </View>
       </ScrollView>
     </View>
@@ -788,10 +867,10 @@ export default function AccountScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  scroll: { paddingBottom: 112 },
+  scroll: { flexGrow: 1, paddingBottom: 112 },
   scrollDesktop: { paddingHorizontal: 48 },
   scrollMobile: { paddingHorizontal: 20 },
-  container: { width: '100%', maxWidth: CONTAINER_MAX_WIDTH, alignSelf: 'center' },
+  container: { width: '100%', maxWidth: CONTAINER_MAX_WIDTH, alignSelf: 'center', flexGrow: 1 },
   // Escritorio: alineado a la izquierda, pegado a la barra lateral (sin pasillo vacío).
   containerIzq: { alignSelf: 'flex-start' },
 
@@ -835,6 +914,33 @@ const styles = StyleSheet.create({
   formPad: { padding: 24 },
   formTitle: { fontSize: 17, fontFamily: poppinsWeight('700'), color: colors.ink, marginBottom: 12 },
   formActions: { gap: 12, marginTop: 20 },
+  filaDos: { flexDirection: 'row', gap: 12 },
+  mitad: { flex: 1, minWidth: 0 },
+  formActionsFila: { flexDirection: 'row', gap: 12, marginTop: 20 },
+
+  // ---- ayuda rápida
+  ayudaFila: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 24, paddingVertical: 14 },
+  ayudaTexto: { flex: 1, fontSize: 16, lineHeight: 22, fontFamily: poppinsWeight('600'), color: colors.ink },
+
+  // ---- pie y marca de agua
+  marcaAgua: { position: 'absolute', right: -60, bottom: -60, opacity: 0.035 },
+  pieEspacio: { flexGrow: 1, minHeight: 40 },
+  pie: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderStyle: 'dashed',
+    borderTopColor: 'rgba(42, 36, 33, 0.14)',
+  },
+  pieMarca: { fontSize: 14, lineHeight: 20, color: colors.textBody },
+  pieLinks: { flexDirection: 'row', alignItems: 'center' },
+  pieLink: { minHeight: 48, paddingHorizontal: 8, justifyContent: 'center' },
+  pieLinkText: { fontSize: 14, lineHeight: 20, color: colors.textBody, textDecorationLine: 'underline' },
+  pieSep: { fontSize: 14, color: colors.textBody },
 
   // Botón de sólo texto (Editar / Renombrar): fondo arena, 48dp.
   textBtn: {
