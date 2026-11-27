@@ -1,13 +1,20 @@
 import React, { useRef, useState } from 'react';
+import { mostrarToast } from '../components/ToastHost';
+import useColumnInset from '../hooks/useColumnInset';
+import useFirstErrorFocus from '../hooks/useFirstErrorFocus';
 import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { colors } from '../theme/colors';
 import api from '../api/client';
 import FormField from '../components/FormField';
 import PrimaryButton from '../components/PrimaryButton';
+import DeleteLink from '../components/DeleteLink';
+import { confirmarDestructivo } from '../utils/confirm';
 import ErrorBanner from '../components/ErrorBanner';
 import DatePickerField, { formatDateOnly } from '../components/DatePickerField';
 import { HealthFormTopbar, ownerField } from './healthFormShared';
 import { parseApiDate } from '../utils/displayFormat';
+import { rangoInicioTratamiento, rangoFinTratamiento, validarInicioTratamiento, validarFinTratamiento } from '../utils/dateRules';
+
 import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
 
 function sameDate(a, b) {
@@ -17,6 +24,8 @@ function sameDate(a, b) {
 }
 
 export default function AddTreatmentScreen({ navigation, route }) {
+  const inset = useColumnInset();
+  const { ref, focusFirst } = useFirstErrorFocus();
   const { ownerId, ownerTipo, ownerNombre, editando } = route.params;
   const isEditing = !!editando;
 
@@ -31,7 +40,7 @@ export default function AddTreatmentScreen({ navigation, route }) {
 
   const [descripcionError, setDescripcionError] = useState(false);
   const [medicacionError, setMedicacionError] = useState(false);
-  const [fechaInicioError, setFechaInicioError] = useState(false);
+  const [fechaInicioError, setFechaInicioError] = useState('');
   const [fechaFinError, setFechaFinError] = useState('');
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -51,6 +60,28 @@ export default function AddTreatmentScreen({ navigation, route }) {
     !sameDate(fechaFin, initialRef.current.fechaFin);
 
   const { allowNextRemove } = useUnsavedChangesGuard(navigation, isDirty);
+  const [eliminando, setEliminando] = useState(false);
+
+  // Eliminar desde la propia pantalla de edición (las tarjetas de la lista sólo
+  // tienen el lápiz).
+  function confirmarEliminar() {
+    confirmarDestructivo(
+      'Eliminar tratamiento',
+      '¿Seguro que querés eliminar este tratamiento? No se puede deshacer.',
+      async () => {
+        setEliminando(true);
+        setFormError('');
+        try {
+          await api.delete(`/api/salud/tratamientos/${editando.id}`);
+          allowNextRemove();
+          navigation.goBack();
+        } catch (err) {
+          setFormError(err.mensaje);
+          setEliminando(false);
+        }
+      }
+    );
+  }
 
   async function handleGuardar() {
     const faltaDescripcion = !descripcion.trim();
@@ -58,16 +89,23 @@ export default function AddTreatmentScreen({ navigation, route }) {
     const faltaFechaInicio = !fechaInicio;
     setDescripcionError(faltaDescripcion);
     setMedicacionError(faltaMedicacion);
-    setFechaInicioError(faltaFechaInicio);
+    setFechaInicioError(faltaFechaInicio ? 'Este campo es obligatorio' : validarInicioTratamiento(fechaInicio));
     setFechaFinError('');
     setFormError('');
 
-    if (faltaDescripcion || faltaMedicacion || faltaFechaInicio) return;
+    if (faltaDescripcion || faltaMedicacion || faltaFechaInicio) {
+      focusFirst([[faltaDescripcion, 'descripcion'], [faltaMedicacion, 'medicacion'], [faltaFechaInicio, 'inicio']]);
+      return;
+    }
 
-    // El backend no valida esto (a diferencia del CHECK de vacuna) — es la
-    // única validación de que fecha_fin no sea anterior a fecha_inicio.
-    if (fechaFin && fechaFin < fechaInicio) {
-      setFechaFinError('La fecha de fin no puede ser anterior a la fecha de inicio.');
+    // Fechas razonables (ver utils/dateRules.js). El backend no valida que
+    // fecha_fin no sea anterior a fecha_inicio: es la única validación.
+    const errInicio = validarInicioTratamiento(fechaInicio);
+    const errFin = fechaFin ? validarFinTratamiento(fechaFin, fechaInicio) : '';
+    if (errInicio || errFin) {
+      setFechaInicioError(errInicio);
+      setFechaFinError(errFin);
+      focusFirst([[errInicio, 'inicio'], [errFin, 'fin']]);
       return;
     }
 
@@ -88,6 +126,7 @@ export default function AddTreatmentScreen({ navigation, route }) {
       }
       // ProfileDetailScreen refetch al recuperar el foco (useFocusEffect)
       allowNextRemove();
+      mostrarToast(isEditing ? 'Cambios guardados' : 'Tratamiento guardado');
       setSaved(true);
       setTimeout(() => navigation.goBack(), 380);
       return;
@@ -108,8 +147,9 @@ export default function AddTreatmentScreen({ navigation, route }) {
         title={isEditing ? `Editar tratamiento · ${ownerNombre}` : `Nuevo tratamiento · ${ownerNombre}`}
       />
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: inset }]}>
         <FormField
+          inputRef={ref('descripcion')}
           label="Descripción"
           value={descripcion}
           onChangeText={(text) => {
@@ -121,6 +161,7 @@ export default function AddTreatmentScreen({ navigation, route }) {
           style={styles.field}
         />
         <FormField
+          inputRef={ref('medicacion')}
           label="Medicación"
           value={medicacion}
           onChangeText={(text) => {
@@ -132,18 +173,22 @@ export default function AddTreatmentScreen({ navigation, route }) {
           style={styles.field}
         />
         <DatePickerField
+          inputRef={ref('inicio')}
           label="Fecha de inicio"
           value={fechaInicio}
           onChange={(date) => {
             setFechaInicio(date);
-            setFechaInicioError(false);
+            setFechaInicioError('');
             if (fechaFinError) setFechaFinError('');
           }}
           mode="date"
-          error={fechaInicioError ? 'Este campo es obligatorio' : ''}
+          minimumDate={rangoInicioTratamiento().min}
+          maximumDate={rangoInicioTratamiento().max}
+          error={fechaInicioError}
           style={styles.field}
         />
         <DatePickerField
+          inputRef={ref('fin')}
           label="Fecha de fin (opcional)"
           value={fechaFin}
           onChange={(date) => {
@@ -151,7 +196,8 @@ export default function AddTreatmentScreen({ navigation, route }) {
             if (fechaFinError) setFechaFinError('');
           }}
           mode="date"
-          minimumDate={fechaInicio || undefined}
+          minimumDate={rangoFinTratamiento(fechaInicio).min}
+          maximumDate={rangoFinTratamiento(fechaInicio).max}
           error={fechaFinError}
           style={styles.field}
         />
@@ -168,13 +214,17 @@ export default function AddTreatmentScreen({ navigation, route }) {
             onPress={handleGuardar}
             loading={saving}
             success={saved}
-            variant="success"
+            disabled={eliminando}
+            variant="accent"
           />
-          <PrimaryButton
-            title="Cancelar"
-            onPress={() => navigation.goBack()}
-            variant="secondary"
-          />
+          {isEditing && (
+            <DeleteLink
+              label="Eliminar tratamiento"
+              onPress={confirmarEliminar}
+              disabled={saving || eliminando}
+              busy={eliminando}
+            />
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

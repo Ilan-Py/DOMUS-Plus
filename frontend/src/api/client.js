@@ -23,9 +23,30 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
+// El backend (Prisma) responde con claves camelCase (fechaHora, grupoId,
+// fechaNacimiento...) pero las pantallas leen snake_case (fecha_hora,
+// grupo_id...). Sin esto, por ejemplo, CalendarScreen recibía `undefined`
+// en fecha_hora y se caía al renderizar. Se agrega el alias snake_case junto
+// a cada clave camelCase, sin quitar la original, para que ambos nombres
+// funcionen.
+function withSnakeAliases(value) {
+  if (Array.isArray(value)) return value.map(withSnakeAliases);
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const [key, val] of Object.entries(value)) {
+      const converted = withSnakeAliases(val);
+      out[key] = converted;
+      const snake = key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+      if (snake !== key && !(snake in value)) out[snake] = converted;
+    }
+    return out;
+  }
+  return value;
+}
+
 // 2 — Desenvuelve { codigo, estado, datos } y normaliza errores
 api.interceptors.response.use(
-  (response) => response.data?.datos,
+  (response) => withSnakeAliases(response.data?.datos),
   async (error) => {
     const status = error.response?.status;
 

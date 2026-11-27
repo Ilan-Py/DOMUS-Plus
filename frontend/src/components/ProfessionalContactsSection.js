@@ -6,7 +6,16 @@ import { poppinsWeight } from '../theme/typography';
 import api, { getList } from '../api/client';
 import PressScale from './PressScale';
 import ErrorBanner from './ErrorBanner';
+import InlineError from './InlineError';
+import { EmptyDoodle } from './FamilyDoodles';
 import FormField from './FormField';
+import OptionPicker from './OptionPicker';
+
+// Misma lista que valida el backend (profesionalSaludController.js).
+const ESPECIALIDADES = [
+  'Medicina general', 'Pediatría', 'Cardiología', 'Dermatología', 'Ginecología',
+  'Traumatología', 'Oftalmología', 'Odontología', 'Psicología', 'Nutrición', 'Veterinario',
+];
 import PrimaryButton from './PrimaryButton';
 import FadeSlideIn from './FadeSlideIn';
 import FadeOutRow, { EXIT_DURATION } from './FadeOutRow';
@@ -24,6 +33,7 @@ export default function ProfessionalContactsSection({ parentType, parentId }) {
   const [profesionales, setProfesionales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState(false);
   // false | 'nuevo' | <id del profesional en edición>
   const [formAbierto, setFormAbierto] = useState(false);
   const [nombre, setNombre] = useState('');
@@ -37,11 +47,13 @@ export default function ProfessionalContactsSection({ parentType, parentId }) {
 
   const fetchProfesionales = useCallback(async () => {
     setError('');
+    setLoadError(false);
+    setLoading(true);
     try {
       const datos = await getList('/api/salud/profesionales', { params: { [`${parentType}_id`]: parentId } });
       setProfesionales(datos);
-    } catch (err) {
-      setError(err.mensaje);
+    } catch {
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -118,14 +130,28 @@ export default function ProfessionalContactsSection({ parentType, parentId }) {
   }
 
   return (
-    <View style={styles.root}>
+    <View>
       <Text style={styles.titulo}>{esMascota ? 'Veterinario' : 'Profesionales de salud'}</Text>
-      <ErrorBanner message={error} onDismiss={() => setError('')} />
 
-      {loading ? (
+      {loadError ? (
+        <InlineError
+          message={esMascota ? 'No pudimos cargar el veterinario.' : 'No pudimos cargar los profesionales.'}
+          onRetry={fetchProfesionales}
+        />
+      ) : loading ? (
         <ActivityIndicator color={colors.textMuted} style={styles.loading} />
       ) : (
         <>
+          <ErrorBanner message={error} onDismiss={() => setError('')} />
+          {profesionales.length === 0 && formAbierto !== 'nuevo' && (
+            <View style={styles.emptyRow}>
+              <EmptyDoodle variant="hojas" size={48} />
+              <Text style={styles.emptyText}>
+                {esMascota ? 'Todavía no hay veterinario cargado.' : 'Todavía no hay profesionales cargados.'}
+              </Text>
+            </View>
+          )}
+
           {profesionales.map((item, i) => (
             <FadeSlideIn key={item.id} index={i}>
               <FadeOutRow exiting={exitingId === item.id}>
@@ -141,31 +167,29 @@ export default function ProfessionalContactsSection({ parentType, parentId }) {
                     guardando={guardando}
                   />
                 ) : (
-                  <View style={styles.card}>
-                    <View style={styles.cardHeader}>
-                      <View style={styles.cardHeaderText}>
+                  <View style={[styles.item, i < profesionales.length - 1 && styles.itemDivider]}>
+                    <View style={styles.itemHeader}>
+                      <View style={styles.itemHeaderText}>
                         <Text style={styles.nombre}>{item.nombre}</Text>
                         {!!item.especialidad && <Text style={styles.meta}>{item.especialidad}</Text>}
                       </View>
                       <PressScale
                         contentStyle={styles.actionBtn}
                         onPress={() => abrirEditar(item)}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         accessibilityLabel={`Editar ${item.nombre}`}
                       >
-                        <Ionicons name="pencil-outline" size={14} color={colors.textMuted} />
+                        <Ionicons name="pencil-outline" size={20} color={colors.iconWarm} />
                       </PressScale>
                       <PressScale
                         contentStyle={styles.actionBtn}
                         onPress={() => confirmEliminar(item)}
                         disabled={eliminandoId === item.id}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         accessibilityLabel={`Eliminar ${item.nombre}`}
                       >
                         {eliminandoId === item.id ? (
                           <ActivityIndicator size="small" color={colors.danger} />
                         ) : (
-                          <Ionicons name="trash-outline" size={14} color={colors.danger} />
+                          <Ionicons name="trash-outline" size={20} color={colors.danger} />
                         )}
                       </PressScale>
                     </View>
@@ -175,7 +199,7 @@ export default function ProfessionalContactsSection({ parentType, parentId }) {
                         onPress={() => Linking.openURL(`tel:${item.telefono}`)}
                         accessibilityLabel={`Llamar a ${item.nombre}`}
                       >
-                        <Ionicons name="call" size={13} color={colors.sageDeep} />
+                        <Ionicons name="call-outline" size={20} color={colors.sageDeep} />
                         <Text style={styles.callText}>{item.telefono}</Text>
                       </PressScale>
                     )}
@@ -204,7 +228,7 @@ export default function ProfessionalContactsSection({ parentType, parentId }) {
               onPress={abrirNuevo}
               accessibilityLabel={esMascota ? 'Agregar veterinario' : 'Agregar profesional'}
             >
-              <Ionicons name="add" size={16} color={colors.textMuted} />
+              <Ionicons name="add" size={20} color={colors.ink} />
               <Text style={styles.addText}>Agregar {esMascota ? 'veterinario' : 'profesional'}</Text>
             </PressScale>
           )}
@@ -221,112 +245,75 @@ function ProfesionalForm({
   return (
     <View style={styles.formCard}>
       <FormField label="Nombre" value={nombre} onChangeText={setNombre} placeholder="Ej. Dr. Juan Gómez" style={styles.field} />
-      <FormField label="Especialidad (opcional)" value={especialidad} onChangeText={setEspecialidad} placeholder="Ej. Pediatría" style={styles.field} />
+      <OptionPicker
+        label="Especialidad (opcional)"
+        options={ESPECIALIDADES}
+        value={especialidad}
+        onChange={setEspecialidad}
+        otherLabel="Otra"
+        otherFieldLabel="¿Cuál especialidad?"
+        otherPlaceholder="Ej. Fonoaudiología"
+        style={styles.field}
+      />
       <FormField label="Teléfono (opcional)" value={telefono} onChangeText={setTelefono} placeholder="Ej. 11 5555 5555" keyboardType="phone-pad" style={styles.field} />
       <FormField label="Dirección (opcional)" value={direccion} onChangeText={setDireccion} placeholder="Ej. Av. Siempre Viva 123" style={styles.field} />
       <FormField label="Notas (opcional)" value={notas} onChangeText={setNotas} multiline style={styles.field} />
       <View style={styles.formActions}>
-        <PrimaryButton title="Guardar" onPress={onGuardar} loading={guardando} variant="success" fullWidth={false} />
-        <PrimaryButton title="Cancelar" onPress={onCancelar} variant="secondary" fullWidth={false} disabled={guardando} />
+        <PrimaryButton title="Guardar" onPress={onGuardar} loading={guardando} variant="accent" />
+        <PrimaryButton title="Cancelar" onPress={onCancelar} variant="secondary" disabled={guardando} />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    marginTop: 12,
-  },
   titulo: {
-    fontSize: 12.5,
-    fontWeight: '700',
+    fontSize: 16,
     fontFamily: poppinsWeight('700'),
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: 8,
+    color: colors.ink,
+    marginBottom: 12,
   },
-  loading: {
-    marginVertical: 10,
-  },
-  card: {
-    padding: 12,
-    marginBottom: 8,
-    ...cardBase,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 6,
-  },
-  cardHeaderText: {
-    flex: 1,
-  },
-  nombre: {
-    fontSize: 14,
-    fontWeight: '600',
-    fontFamily: poppinsWeight('600'),
-    color: colors.navy,
-  },
-  meta: {
-    fontSize: 12.5,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  notas: {
-    fontSize: 12.5,
-    color: colors.textMuted,
-    marginTop: 4,
-    fontStyle: 'italic',
-  },
-  actionBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  callRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 6,
-    alignSelf: 'flex-start',
-  },
-  callText: {
-    fontSize: 12.5,
-    fontWeight: '600',
+  emptyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  emptyText: { flex: 1, fontSize: 16, color: colors.textBody },
+  loading: { alignSelf: 'flex-start', marginVertical: 8 },
+  item: { paddingVertical: 8, gap: 2 },
+  itemDivider: { borderBottomWidth: 1, borderBottomColor: colors.borderCard, marginBottom: 4 },
+  itemHeader: { flexDirection: 'row', alignItems: 'center' },
+  itemHeaderText: { flex: 1 },
+  nombre: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
+  meta: { fontSize: 15, lineHeight: 22, color: colors.textBody },
+  notas: { fontSize: 15, lineHeight: 22, color: colors.textBody, marginTop: 4 },
+  actionBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  callRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48 },
+  // Subrayado: es un enlace (tel:). Verde para consulta común; la urgencia usa terracota.
+  callText: { fontVariant: ['tabular-nums'],
+    fontSize: 17,
     fontFamily: poppinsWeight('600'),
     color: colors.sageDeep,
     textDecorationLine: 'underline',
   },
+  // Botón secundario de ancho completo al pie.
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 12,
-    borderRadius: radii.input,
-    borderStyle: 'dashed',
-    borderWidth: 1.5,
-    borderColor: colors.line,
+    gap: 8,
+    minHeight: 48,
+    marginTop: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
+    backgroundColor: colors.glassStrong,
   },
-  addText: {
-    fontSize: 13,
-    fontWeight: '600',
-    fontFamily: poppinsWeight('600'),
-    color: colors.textMuted,
-  },
+  addText: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
   formCard: {
-    padding: 14,
+    padding: 16,
     marginBottom: 8,
-    ...cardBase,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
+    backgroundColor: colors.bgBase,
   },
-  field: {
-    paddingBottom: 12,
-  },
-  formActions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
+  field: { paddingBottom: 16 },
+  formActions: { gap: 12 },
 });

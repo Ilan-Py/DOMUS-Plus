@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import useColumnInset from '../hooks/useColumnInset';
 import {
   View,
   Text,
@@ -8,6 +9,7 @@ import {
   Linking,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radii, cardBase } from '../theme/colors';
@@ -23,6 +25,18 @@ import EmptyState from '../components/EmptyState';
 import FadeSlideIn from '../components/FadeSlideIn';
 import FadeOutRow, { EXIT_DURATION } from '../components/FadeOutRow';
 import { confirmarDestructivo } from '../utils/confirm';
+import OptionPicker from '../components/OptionPicker';
+
+// Listas cerradas — mismas que valida el backend (familiaController.js).
+const GRUPOS_SANGUINEOS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+const ALERGIAS_FRECUENTES = [
+  'Penicilina', 'AINEs', 'Maní', 'Frutos secos', 'Mariscos', 'Lácteos',
+  'Huevo', 'Gluten', 'Polen', 'Ácaros', 'Látex', 'Picadura de abeja',
+];
+
+function listaDeAlergias(texto) {
+  return (texto || '').split(',').map((a) => a.trim()).filter(Boolean);
+}
 
 // alergias/tipo_sangre/notas_emergencia ya vienen en el mismo
 // /api/familia/integrantes que alimenta FamilyContext (ver SELECT ampliado
@@ -30,13 +44,21 @@ import { confirmarDestructivo } from '../utils/confirm';
 // GET aparte, mismo criterio que ProfileDetailScreen usa para `member`.
 // refresh() (post-PATCH) es lo que mantiene esto al día sin duplicar fetch.
 export default function EmergencyScreen({ navigation, route }) {
+  const inset = useColumnInset();
   const { id, nombre: nombreParam } = route.params;
   const { integrantes, refresh } = useFamily();
   const integrante = integrantes.find((i) => i.id === id);
   const nombre = integrante ? `${integrante.nombre} ${integrante.apellido}` : nombreParam || '';
 
+  const { width } = useWindowDimensions();
+  const columnas = width >= 768; // dos columnas (sangre | alergias) en escritorio
+  const angosto = width < 600; // en pantallas angostas "Editar ficha" va debajo del título
+  const sangre = integrante?.tipo_sangre;
+  const listaAlergias = listaDeAlergias(integrante?.alergias);
+  const notasGuardadas = integrante?.notas_emergencia;
+  const sinDatos = !sangre && listaAlergias.length === 0 && !notasGuardadas;
   const [editing, setEditing] = useState(false);
-  const [alergias, setAlergias] = useState('');
+  const [alergias, setAlergias] = useState([]);
   const [tipoSangre, setTipoSangre] = useState('');
   const [notas, setNotas] = useState('');
   const [saving, setSaving] = useState(false);
@@ -69,7 +91,7 @@ export default function EmergencyScreen({ navigation, route }) {
   }, [fetchContactos]);
 
   function iniciarEdicion() {
-    setAlergias(integrante?.alergias || '');
+    setAlergias(listaDeAlergias(integrante?.alergias));
     setTipoSangre(integrante?.tipo_sangre || '');
     setNotas(integrante?.notas_emergencia || '');
     setError('');
@@ -81,7 +103,7 @@ export default function EmergencyScreen({ navigation, route }) {
     setError('');
     try {
       await api.patch(`/api/familia/integrantes/${id}/emergencia`, {
-        alergias: alergias || null,
+        alergias: alergias.length ? alergias.join(', ') : null,
         tipo_sangre: tipoSangre || null,
         notas_emergencia: notas || null,
       });
@@ -165,40 +187,105 @@ export default function EmergencyScreen({ navigation, route }) {
         subtitle="Ficha de emergencia"
         onBack={() => navigation.goBack()}
         rightActions={
-          !editing ? (
+          !editing && !angosto ? (
             <PressScale
-              contentStyle={styles.topbarIconBtn}
+              contentStyle={styles.editFichaBtn}
               onPress={iniciarEdicion}
-              hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
               accessibilityLabel="Editar ficha de emergencia"
             >
-              <Ionicons name="pencil-outline" size={18} color={colors.navy} />
+              <Ionicons name="pencil-outline" size={20} color={colors.iconWarm} />
+              <Text style={styles.editFichaText}>Editar ficha</Text>
             </PressScale>
           ) : null
         }
       />
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: 18 + inset }]}>
           {!!error && <ErrorBanner message={error} onDismiss={() => setError('')} />}
+
+          {!editing && angosto && (
+            <PressScale
+              contentStyle={[styles.editFichaBtn, styles.editFichaBlock]}
+              onPress={iniciarEdicion}
+              accessibilityLabel="Editar ficha de emergencia"
+            >
+              <Ionicons name="pencil-outline" size={20} color={colors.iconWarm} />
+              <Text style={styles.editFichaText}>Editar ficha</Text>
+            </PressScale>
+          )}
 
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Datos médicos</Text>
             {editing ? (
               <>
-                <FormField label="Alergias" value={alergias} onChangeText={setAlergias} placeholder="Ej. Penicilina, maní" multiline style={styles.field} />
-                <FormField label="Tipo de sangre" value={tipoSangre} onChangeText={setTipoSangre} placeholder="Ej. O+" autoCapitalize="characters" style={styles.field} />
+                <OptionPicker
+                  label="Alergias"
+                  options={ALERGIAS_FRECUENTES}
+                  value={alergias}
+                  onChange={setAlergias}
+                  multiple
+                  otherLabel="Otras"
+                  otherFieldLabel="¿Cuáles otras?"
+                  otherPlaceholder="Ej. Ibuprofeno, Kiwi (separadas por coma)"
+                  style={styles.field}
+                />
+                <OptionPicker
+                  label="Tipo de sangre"
+                  options={GRUPOS_SANGUINEOS}
+                  value={tipoSangre}
+                  onChange={setTipoSangre}
+                  style={styles.field}
+                />
                 <FormField label="Notas de emergencia" value={notas} onChangeText={setNotas} placeholder="Condiciones crónicas, medicación habitual, etc." multiline style={styles.field} />
                 <View style={styles.formActions}>
-                  <PrimaryButton title="Guardar" onPress={guardarEmergencia} loading={saving} variant="success" />
+                  <PrimaryButton title="Guardar" onPress={guardarEmergencia} loading={saving} variant="accent" />
                   <PrimaryButton title="Cancelar" onPress={() => setEditing(false)} variant="secondary" disabled={saving} />
                 </View>
               </>
             ) : (
               <>
-                <DatoRow label="Alergias" valor={integrante?.alergias} />
-                <DatoRow label="Tipo de sangre" valor={integrante?.tipo_sangre} />
-                <DatoRow label="Notas" valor={integrante?.notas_emergencia} />
+                <View style={[styles.medTop, columnas && styles.medTopRow]}>
+                  {/* Tipo de sangre: caja destacada; rosada sólo si hay dato. */}
+                  <View style={[styles.bloodBox, columnas && styles.bloodCol, !sangre && styles.bloodBoxEmpty]}>
+                    <Text style={styles.medLabel}>Tipo de sangre</Text>
+                    {sangre ? (
+                      <Text style={styles.bloodValue}>{sangre}</Text>
+                    ) : (
+                      <Text style={styles.emptyText}>Sin cargar</Text>
+                    )}
+                  </View>
+
+                  <View style={columnas && styles.allergyCol}>
+                    <Text style={styles.medLabel}>Alergias</Text>
+                    {listaAlergias.length === 0 ? (
+                      <Text style={styles.emptyText}>Sin cargar</Text>
+                    ) : (
+                      <View style={styles.chips}>
+                        {listaAlergias.map((t) => (
+                          <View key={t} style={styles.chip}>
+                            <Text style={styles.chipText}>{t}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                <View style={styles.notesBlock}>
+                  <Text style={styles.medLabel}>Notas médicas</Text>
+                  {notasGuardadas ? (
+                    <Text style={styles.notesText}>{notasGuardadas}</Text>
+                  ) : (
+                    <Text style={styles.emptyText}>Sin cargar</Text>
+                  )}
+                </View>
+
+                {sinDatos && (
+                  <PressScale contentStyle={styles.secondaryBtn} onPress={iniciarEdicion} accessibilityLabel="Completar datos médicos">
+                    <Text style={styles.secondaryBtnText}>Completar datos médicos</Text>
+                  </PressScale>
+                )}
               </>
             )}
           </View>
@@ -233,36 +320,29 @@ export default function EmergencyScreen({ navigation, route }) {
                           accessibilityLabel={`Llamar a ${item.nombre}`}
                         >
                           <View style={styles.contactPhoneIcon}>
-                            <Ionicons name="call" size={16} color={colors.onAccent} />
+                            <Ionicons name="call" size={20} color={colors.accentStrong} />
                           </View>
                           <View style={styles.flex}>
-                            <Text style={styles.contactNombre}>{item.nombre}</Text>
-                            <Text style={styles.contactMeta}>
-                              {item.relacion ? `${item.relacion} · ` : ''}{item.telefono}
+                            <Text style={styles.contactNombre}>
+                              {item.nombre}
+                              {item.relacion ? <Text style={styles.contactMeta}>{`  ·  ${item.relacion}`}</Text> : null}
                             </Text>
+                            <Text style={styles.contactPhone}>{item.telefono}</Text>
                           </View>
                         </PressScale>
-                        <PressScale
-                          contentStyle={styles.contactActionBtn}
+                        <ContactAction
+                          icon="pencil-outline"
+                          label={`Editar contacto ${item.nombre}`}
                           onPress={() => abrirEditarContacto(item)}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          accessibilityLabel={`Editar contacto ${item.nombre}`}
-                        >
-                          <Ionicons name="pencil-outline" size={14} color={colors.textMuted} />
-                        </PressScale>
-                        <PressScale
-                          contentStyle={styles.contactActionBtn}
+                        />
+                        <ContactAction
+                          icon="trash-outline"
+                          label={`Eliminar contacto ${item.nombre}`}
                           onPress={() => confirmEliminarContacto(item)}
                           disabled={eliminandoId === item.id}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          accessibilityLabel={`Eliminar contacto ${item.nombre}`}
-                        >
-                          {eliminandoId === item.id ? (
-                            <ActivityIndicator size="small" color={colors.danger} />
-                          ) : (
-                            <Ionicons name="trash-outline" size={14} color={colors.danger} />
-                          )}
-                        </PressScale>
+                          loading={eliminandoId === item.id}
+                          danger
+                        />
                       </View>
                     )}
                   </FadeOutRow>
@@ -279,9 +359,9 @@ export default function EmergencyScreen({ navigation, route }) {
                   guardando={guardandoContacto}
                 />
               ) : (
-                <PressScale contentStyle={styles.addContactBtn} onPress={abrirNuevoContacto} accessibilityLabel="Agregar contacto de emergencia">
-                  <Ionicons name="add" size={18} color={colors.textMuted} />
-                  <Text style={styles.addContactText}>Agregar contacto</Text>
+                <PressScale contentStyle={styles.secondaryBtn} onPress={abrirNuevoContacto} accessibilityLabel="Agregar contacto de emergencia">
+                  <Ionicons name="add" size={20} color={colors.ink} />
+                  <Text style={styles.secondaryBtnText}>Agregar contacto</Text>
                 </PressScale>
               )}
             </>
@@ -292,12 +372,27 @@ export default function EmergencyScreen({ navigation, route }) {
   );
 }
 
-function DatoRow({ label, valor }) {
+// Ícono de editar / eliminar de un contacto: gris cálido neutro con área de 48dp;
+// el de eliminar pasa a rojo recién al pasar el mouse (o presionar).
+function ContactAction({ icon, label, onPress, disabled, loading, danger }) {
+  const [activo, setActivo] = useState(false);
+  const color = danger && activo ? colors.danger : colors.iconWarm;
   return (
-    <View style={styles.datoRow}>
-      <Text style={styles.datoLabel}>{label}</Text>
-      <Text style={styles.datoValor}>{valor || '—'}</Text>
-    </View>
+    <PressScale
+      contentStyle={[styles.contactActionBtn, activo && styles.contactActionActive]}
+      onPress={onPress}
+      onPressedChange={setActivo}
+      onHoverIn={() => setActivo(true)}
+      onHoverOut={() => setActivo(false)}
+      disabled={disabled}
+      accessibilityLabel={label}
+    >
+      {loading ? (
+        <ActivityIndicator size="small" color={colors.danger} />
+      ) : (
+        <Ionicons name={icon} size={20} color={color} />
+      )}
+    </PressScale>
   );
 }
 
@@ -310,8 +405,8 @@ function ContactForm({
       <FormField label="Teléfono" value={telefono} onChangeText={setTelefono} placeholder="Ej. 11 5555 5555" keyboardType="phone-pad" style={styles.field} />
       <FormField label="Relación (opcional)" value={relacion} onChangeText={setRelacion} placeholder="Ej. Madre, vecino" style={styles.field} />
       <View style={styles.formActions}>
-        <PrimaryButton title="Guardar" onPress={onGuardar} loading={guardando} variant="success" fullWidth={false} />
-        <PrimaryButton title="Cancelar" onPress={onCancelar} variant="secondary" fullWidth={false} disabled={guardando} />
+        <PrimaryButton title="Guardar" onPress={onGuardar} loading={guardando} variant="accent" />
+        <PrimaryButton title="Cancelar" onPress={onCancelar} variant="secondary" disabled={guardando} />
       </View>
     </View>
   );
@@ -325,29 +420,35 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
-  topbarIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  editFichaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 48,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     backgroundColor: colors.glassStrong,
     borderWidth: 1,
-    borderColor: colors.glassBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: colors.borderCard,
   },
+  editFichaBlock: { justifyContent: 'center', marginBottom: 16 },
+  editFichaText: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
   scroll: {
     paddingHorizontal: 18,
     paddingTop: 16,
     paddingBottom: 100,
   },
   card: {
-    padding: 14,
+    padding: 16,
     marginBottom: 20,
     ...cardBase,
+    borderRadius: 16,
+    borderColor: colors.borderCard,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   sectionTitle: {
-    fontSize: 12.5,
-    fontWeight: '700',
+    fontSize: 14,
     fontFamily: poppinsWeight('700'),
     color: colors.textMuted,
     textTransform: 'uppercase',
@@ -358,26 +459,51 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
   },
   formActions: {
+    gap: 12,
+    marginTop: 8,
+  },
+  medTop: { gap: 16 },
+  medTopRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  bloodBox: { borderRadius: 12, padding: 16, backgroundColor: colors.bloodBg },
+  bloodBoxEmpty: { backgroundColor: colors.emptyBg },
+  bloodCol: { flex: 35 },
+  allergyCol: { flex: 65 },
+  medLabel: { fontSize: 14, fontFamily: poppinsWeight('600'), color: colors.textBody, marginBottom: 8 },
+  bloodValue: { fontSize: 32, lineHeight: 40, fontFamily: poppinsWeight('700'), color: colors.bloodText },
+  emptyText: { fontSize: 16, lineHeight: 22, color: colors.textEmpty },
+  notesBlock: { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#EFE8DF' },
+  notesText: { fontSize: 16, lineHeight: 24, color: colors.ink },
+  secondaryBtn: {
     flexDirection: 'row',
-    gap: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 48,
+    marginTop: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
+    backgroundColor: colors.glassStrong,
   },
-  datoRow: {
-    marginBottom: 10,
+  secondaryBtnText: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
+  contactActionActive: { backgroundColor: colors.badgeSand },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  chip: {
+    minHeight: 40,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    borderRadius: 10,
+    backgroundColor: colors.badgeSand,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
   },
-  datoLabel: {
-    fontSize: 12,
-    color: colors.textMuted,
-    marginBottom: 2,
-  },
-  datoValor: {
-    fontSize: 14.5,
-    fontWeight: '500',
+  chipText: {
+    fontSize: 16,
     fontFamily: poppinsWeight('600'),
-    color: colors.navy,
+    color: colors.badgeSandText,
   },
   titulo: {
-    fontSize: 12.5,
-    fontWeight: '700',
+    fontSize: 14,
     fontFamily: poppinsWeight('700'),
     color: colors.textMuted,
     textTransform: 'uppercase',
@@ -407,48 +533,37 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   contactPhoneIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.sageDeep,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.bloodBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
   contactNombre: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
     fontFamily: poppinsWeight('600'),
     color: colors.navy,
   },
+  contactPhone: { fontVariant: ['tabular-nums'],
+    fontSize: 20,
+    lineHeight: 28,
+    fontFamily: poppinsWeight('600'),
+    color: colors.accentStrong,
+    textDecorationLine: 'underline',
+    marginTop: 2,
+  },
   contactMeta: {
-    fontSize: 12.5,
+    fontSize: 14,
     color: colors.textMuted,
     marginTop: 1,
   },
   contactActionBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 48,
+    height: 48,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  addContactBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 13,
-    borderRadius: radii.input,
-    borderStyle: 'dashed',
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    marginTop: 4,
-  },
-  addContactText: {
-    fontSize: 13.5,
-    fontWeight: '600',
-    fontFamily: poppinsWeight('600'),
-    color: colors.textMuted,
   },
   contactFormCard: {
     padding: 14,

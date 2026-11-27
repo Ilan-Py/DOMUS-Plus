@@ -1,10 +1,16 @@
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Text, TextInput, Animated } from 'react-native';
+import { View, StyleSheet, Text, TextInput, Animated, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
+import {
+  useFonts,
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+} from '@expo-google-fonts/plus-jakarta-sans';
+import { Lora_700Bold } from '@expo-google-fonts/lora';
 import * as Notifications from 'expo-notifications';
 
 import { AuthProvider, useAuth } from './src/context/AuthContext';
@@ -14,8 +20,18 @@ import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import GroupSetupScreen from './src/screens/GroupSetupScreen';
 import MainTabs from './src/navigation/MainTabs';
-import BlobSpinner from './src/components/BlobSpinner';
+import Logo from './src/components/Logo';
+import DialogHost from './src/components/DialogHost';
+import ToastHost from './src/components/ToastHost';
 import { colors } from './src/theme/colors';
+
+// Edge dibuja su propio ojo dentro de los inputs de contraseña; ya tenemos
+// el botón "Mostrar", así que se oculta el nativo para no duplicar.
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = 'input::-ms-reveal, input::-ms-clear { display: none; } html, body { background: #FBF6EE; }';
+  document.head.appendChild(style);
+}
 
 const AuthStack = createNativeStackNavigator();
 const OnboardingStack = createNativeStackNavigator();
@@ -39,21 +55,37 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// Default global de fontFamily — Poppins en vez del sans-serif del sistema.
+// Default global de fontFamily — Plus Jakarta Sans en vez del sans-serif del sistema.
 // Se pisa vía defaultProps en lugar de un componente Text propio (fuera de
 // alcance acá); los componentes ya usan `fontWeight` en sus estilos, que
 // React Native ignora en fuentes custom, pero el peso visual sigue viniendo
 // del nombre de familia (Regular/SemiBold/Bold) cargado más abajo.
 Text.defaultProps = Text.defaultProps || {};
-Text.defaultProps.style = [{ fontFamily: 'Poppins_400Regular' }, Text.defaultProps.style];
+Text.defaultProps.style = [{ fontFamily: 'PlusJakartaSans_400Regular' }, Text.defaultProps.style];
 TextInput.defaultProps = TextInput.defaultProps || {};
-TextInput.defaultProps.style = [{ fontFamily: 'Poppins_400Regular' }, TextInput.defaultProps.style];
+TextInput.defaultProps.style = [{ fontFamily: 'PlusJakartaSans_400Regular' }, TextInput.defaultProps.style];
 
 // 1 — booting === true: rehidratando sesión desde AuthContext
+// Pantalla de carga: el logo con un latido muy suave (escala 1 → 1,04), sin movimiento
+// brusco. Se usa mientras cargan las fuentes y la sesión.
 function SplashScreen() {
+  const latido = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(latido, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(latido, { toValue: 0, duration: 900, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [latido]);
+  const scale = latido.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] });
   return (
     <View style={styles.splash}>
-      <BlobSpinner size={56} color={colors.ink} />
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <Logo variante="color" size={104} />
+      </Animated.View>
     </View>
   );
 }
@@ -118,7 +150,11 @@ function RootNavigator() {
       {phase === 'onboarding' && <OnboardingNavigator />}
       {phase === 'main' && (
         <FamilyProvider>
-          <MainTabs />
+          {/* En pantallas anchas (web) MainTabs muestra una barra lateral y
+              centra el contenido en una columna de hasta 880px. */}
+          <View style={styles.mainColumn}>
+            <MainTabs />
+          </View>
         </FamilyProvider>
       )}
     </PhaseFade>
@@ -127,9 +163,10 @@ function RootNavigator() {
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
-    Poppins_400Regular,
-    Poppins_600SemiBold,
-    Poppins_700Bold,
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    Lora_700Bold,
   });
 
   // Tap en una notificación (app en background o recién abierta desde ahí)
@@ -158,6 +195,8 @@ export default function App() {
         <NavigationContainer ref={navigationRef}>
           <StatusBar style="dark" />
           <RootNavigator />
+          <DialogHost />
+          <ToastHost />
         </NavigationContainer>
       </AuthProvider>
     </SafeAreaProvider>
@@ -173,5 +212,9 @@ const styles = StyleSheet.create({
   },
   phaseFade: {
     flex: 1,
+  },
+  mainColumn: {
+    flex: 1,
+    width: '100%',
   },
 });

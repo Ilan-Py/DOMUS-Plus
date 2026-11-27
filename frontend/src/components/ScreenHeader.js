@@ -1,9 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 import { layout } from '../theme/spacing';
 import PressScale from './PressScale';
+import useColumnInset from '../hooks/useColumnInset';
 
 // Unifica el topbar hand-copiado en 6 screens (FamilyListScreen, AccountScreen,
 // CalendarScreen, AddMemberScreen, healthFormShared, ProfileDetailScreen) —
@@ -28,30 +30,38 @@ import PressScale from './PressScale';
 // acá) y se preserva pasando su propio subtitleStyle en vez de unificarse
 // silenciosamente.
 export default function ScreenHeader({ title, subtitle, subtitleStyle, onBack, rightActions, style }) {
+  const inset = useColumnInset();
+  const insetStyle = { paddingHorizontal: 18 + inset };
+  const divider = <View style={[styles.divider, { left: 18 + inset, right: 18 + inset }]} />;
   if (!onBack) {
     return (
-      <View style={[styles.topbar, style]}>
-        <Text style={styles.topbarTitle}>{title}</Text>
-        {!!subtitle && <Text style={[styles.topbarSubt, subtitleStyle]}>{subtitle}</Text>}
+      <View style={[styles.topbar, !!rightActions && styles.topbarRoot, insetStyle, style]}>
+        <View style={styles.topbarTextWrap}>
+          <Text style={styles.topbarTitle}>{title}</Text>
+          {!!subtitle && <Text style={[styles.topbarSubt, subtitleStyle]}>{subtitle}</Text>}
+        </View>
+        {rightActions}
+        {divider}
       </View>
     );
   }
 
   return (
-    <View style={[styles.topbar, styles.topbarRow, style]}>
+    <View style={[styles.topbar, styles.topbarRow, insetStyle, style]}>
       <PressScale
         contentStyle={styles.backBtn}
         onPress={onBack}
-        hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
         accessibilityLabel="Volver"
       >
-        <Text style={styles.backBtnIcon}>‹</Text>
+        <Ionicons name="arrow-back" size={22} color={colors.ink} />
+        <Text style={styles.backBtnText}>Volver</Text>
       </PressScale>
       <View style={styles.topbarTextWrap}>
         <Text style={styles.topbarTitle}>{title}</Text>
         {!!subtitle && <Text style={[styles.topbarSubt, subtitleStyle]}>{subtitle}</Text>}
       </View>
       {rightActions}
+      {divider}
     </View>
   );
 }
@@ -65,40 +75,47 @@ const styles = StyleSheet.create({
     // leerse como parte de la página crema, no como blanco sin estilo. La
     // separación visual la da el hairline de abajo, no un cambio de tono.
     backgroundColor: colors.bgBase,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.glassBorderSoft,
+  },
+  // Línea divisoria: sólo del ancho del contenido (no de punta a punta de la ventana).
+  divider: {
+    position: 'absolute',
+    bottom: 0,
+    height: 1,
+    backgroundColor: colors.borderCard,
+  },
+  topbarRoot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
   },
   topbarRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 20,
   },
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.glassStrong,
-    borderWidth: 1,
-    borderColor: colors.glassBorder,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: -6,
+    gap: 6,
+    minHeight: 48,
+    paddingRight: 8,
   },
-  backBtnIcon: {
-    fontSize: 22,
-    color: colors.navy,
+  backBtnText: {
+    fontSize: 16,
+    fontFamily: poppinsWeight('400'),
+    color: colors.ink,
   },
   topbarTextWrap: {
     flex: 1,
   },
   topbarTitle: {
-    fontSize: 19,
-    fontWeight: '600',
-    fontFamily: poppinsWeight('600'),
+    fontSize: 20,
+    fontFamily: poppinsWeight('700'),
     color: colors.navy,
   },
   topbarSubt: {
-    fontSize: 12,
+    fontSize: 14,
     color: colors.textMuted,
     marginTop: 1,
   },

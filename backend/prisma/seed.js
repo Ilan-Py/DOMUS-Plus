@@ -24,6 +24,10 @@
 //   El registro de actividad trae ingresos y altas del 24 al 30/11 (y el alta de Paola
 //   el 1/12) para que el panel no arranque vacío.
 //
+// Modo "sólo demo" (no borra nada): SEED_SOLO_DEMO=1 node prisma/seed.js agrega las
+// familias Argento y Herrera, a Paola y al admin en una base que ya tiene datos (por
+// ejemplo las cuentas del equipo). Si la demo ya está cargada, no hace nada.
+//
 // Las fechas de recordatorios, vacunas y tratamientos están armadas alrededor
 // del día de la presentación: martes 1 de diciembre de 2026 (FECHA_DEMO).
 // Ese día hay recordatorios próximos, tratamientos en curso y vacunas por
@@ -35,6 +39,7 @@ const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 
 const prisma = new PrismaClient();
+const SOLO_DEMO = process.env.SEED_SOLO_DEMO === '1';
 
 // ------------------------------------------------------------
 // Fechas: todo se cuenta en días desde el día de la presentación
@@ -72,17 +77,22 @@ function integrante(grupoId, datos) {
 }
 
 // Serie de recordatorios periódicos (MEJ-005): una fila por repetición
-function serie({ grupoId, creadoPor, tipo, descripcion, desdeDias, hora, cadaDias, veces, vacunaId = null, tratamientoId = null }) {
+function serie({ grupoId, creadoPor, tipo, descripcion, desdeDias, hora, cadaDias, veces, vacunaId = null, tratamientoId = null, integranteId = null, mascotaId = null }) {
   const serieId = randomUUID();
   return Array.from({ length: veces }, (_, i) => ({
-    grupoId, creadoPor, tipo, descripcion, vacunaId, tratamientoId,
+    grupoId, creadoPor, tipo, descripcion, vacunaId, tratamientoId, integranteId, mascotaId,
     fechaHora: enDias(desdeDias + i * cadaDias, hora),
     serieId, repeticionDias: cadaDias, activo: true
   }));
 }
 
 async function main() {
-  console.log('Sembrando datos de prueba...');
+  console.log(SOLO_DEMO ? 'Agregando la familia de la demo...' : 'Sembrando datos de prueba...');
+
+  if (SOLO_DEMO && (await prisma.usuario.findUnique({ where: { email: 'monica@domus.test' } }))) {
+    console.log('La demo ya está cargada (existe monica@domus.test). No se hizo nada.');
+    return;
+  }
 
   const hash = await bcrypt.hash('Admin123', 10);
   // creadoEn: fecha de alta de la cuenta, para las estadísticas del admin (nuevos usuarios del mes)
@@ -92,9 +102,16 @@ async function main() {
   // ============================================================
   // FAMILIAS DEL EQUIPO (igual que antes, recordatorios con fechas de hoy en adelante)
   // ============================================================
-  const ilan = await usuario('Ilan', 'Pitashny', 'ilan@domus.test', enDias(-82, '10:00'));
-  const agus = await usuario('Agustina', 'Di Pasquale', 'agus@domus.test', enDias(-82, '10:20'));
-  const alan = await usuario('Alan', 'Acevedo', 'alan@domus.test', enDias(-81, '18:45'));
+  // En modo demo las cuentas del equipo ya existen: se buscan (sólo para el registro de actividad).
+  let ilan, agus, alan;
+  if (SOLO_DEMO) {
+    ilan = await prisma.usuario.findUnique({ where: { email: 'ilan@domus.test' } });
+    agus = await prisma.usuario.findUnique({ where: { email: 'agus@domus.test' } });
+    alan = await prisma.usuario.findUnique({ where: { email: 'alan@domus.test' } });
+  } else {
+  ilan = await usuario('Ilan', 'Pitashny', 'ilan@domus.test', enDias(-82, '10:00'));
+  agus = await usuario('Agustina', 'Di Pasquale', 'agus@domus.test', enDias(-82, '10:20'));
+  alan = await usuario('Alan', 'Acevedo', 'alan@domus.test', enDias(-81, '18:45'));
 
   const grupoPitashny = await prisma.grupoFamiliar.create({
     data: { nombre: 'Familia Pitashny', miembros: { create: { usuarioId: ilan.id, rol: 'dueno' } } }
@@ -172,13 +189,15 @@ async function main() {
 
   await prisma.recordatorio.createMany({
     data: [
-      { grupoId: grupoPitashny.id,   creadoPor: ilan.id, vacunaId: dobleViral.id,     tipo: 'vacuna',     fechaHora: enDias(25, '09:00'), descripcion: 'Refuerzo doble viral de Alduin' },
-      { grupoId: grupoPitashny.id,   creadoPor: ilan.id, tratamientoId: enalapril.id, tipo: 'medicacion', fechaHora: enDias(6, '08:00'),  descripcion: 'Control mensual Enalapril Gotenks' },
-      { grupoId: grupoDiPasquale.id, creadoPor: agus.id, tratamientoId: insulina.id,  tipo: 'medicacion', fechaHora: enDias(1, '22:00'),  descripcion: 'Insulina nocturna Maximiliano' },
-      { grupoId: grupoPitashny.id,   creadoPor: ilan.id, vacunaId: antirrabica.id,    tipo: 'vacuna',     fechaHora: enDias(15, '10:00'), descripcion: 'Antirrábica anual Rufus' },
+      { grupoId: grupoPitashny.id,   creadoPor: ilan.id, integranteId: alduin.id, vacunaId: dobleViral.id,     tipo: 'vacuna',     fechaHora: enDias(25, '09:00'), descripcion: 'Refuerzo doble viral de Alduin' },
+      { grupoId: grupoPitashny.id,   creadoPor: ilan.id, integranteId: gotenks.id, tratamientoId: enalapril.id, tipo: 'medicacion', fechaHora: enDias(6, '08:00'),  descripcion: 'Control mensual Enalapril Gotenks' },
+      { grupoId: grupoDiPasquale.id, creadoPor: agus.id, integranteId: maxi.id, tratamientoId: insulina.id,  tipo: 'medicacion', fechaHora: enDias(1, '22:00'),  descripcion: 'Insulina nocturna Maximiliano' },
+      { grupoId: grupoPitashny.id,   creadoPor: ilan.id, mascotaId: rufus.id, vacunaId: antirrabica.id,    tipo: 'vacuna',     fechaHora: enDias(15, '10:00'), descripcion: 'Antirrábica anual Rufus' },
       { grupoId: grupoAcevedo.id,    creadoPor: alan.id, tipo: 'control', fechaHora: enDias(9, '11:00'), descripcion: 'Turno veterinario Bruno — revisión' },
     ]
   });
+
+  } // fin de las familias del equipo (se omiten en modo demo)
 
   // ============================================================
   // FAMILIA ARGENTO — la familia de la demo
@@ -201,15 +220,15 @@ async function main() {
   });
 
   const monicaI = await integrante(grupoArgento.id, {
-    nombre: 'Mónica', apellido: 'Argento', fechaNacimiento: '1985-04-18',
+    nombre: 'Mónica', apellido: 'Argento', fechaNacimiento: '1985-04-18', fotoUrl: '/fotos/moni.webp',
     tipoSangre: 'A+', alergias: null, observaciones: 'Hipotiroidismo controlado.'
   });
   await integrante(grupoArgento.id, {
-    nombre: 'José', apellido: 'Argento', fechaNacimiento: '1982-09-02',
+    nombre: 'José', apellido: 'Argento', fechaNacimiento: '1982-09-02', fotoUrl: '/fotos/pepe.webp',
     tipoSangre: 'O+', alergias: 'Polen', observaciones: null
   });
   const paolaI = await integrante(grupoArgento.id, {
-    nombre: 'Paola', apellido: 'Argento', fechaNacimiento: '2007-06-10',
+    nombre: 'Paola', apellido: 'Argento', fechaNacimiento: '2007-06-10', fotoUrl: '/fotos/paola.webp',
     tipoSangre: 'A+', alergias: null, observaciones: 'Estudia en otra ciudad.'
   });
   const alfio = await integrante(grupoArgento.id, {
@@ -219,14 +238,14 @@ async function main() {
     observaciones: 'Asma leve. Usa aerosol en invierno.'
   });
   const mariaElena = await integrante(grupoArgento.id, {
-    nombre: 'María Elena', apellido: 'Argento', fechaNacimiento: '1947-11-05',
+    nombre: 'María Elena', apellido: 'Argento', fechaNacimiento: '1947-11-05', fotoUrl: '/fotos/coqui.webp',
     tipoSangre: 'A+', alergias: 'Penicilina, AINEs',
     notasEmergencia: 'Tiene marcapasos desde 2021. Usa audífono en el oído izquierdo.',
     observaciones: 'Abuela paterna. Vive con la familia.'
   });
 
   const fatiga = await prisma.mascota.create({
-    data: { grupoId: grupoArgento.id, nombre: 'Fatiga', especie: 'Perro', raza: 'Mestizo', fechaNacimiento: new Date('2019-12-01') }
+    data: { grupoId: grupoArgento.id, nombre: 'Fatiga', fotoUrl: '/fotos/fatiga.webp', especie: 'Perro', raza: 'Mestizo', fechaNacimiento: new Date('2019-12-01') }
   });
   const dardo = await prisma.mascota.create({
     data: { grupoId: grupoArgento.id, nombre: 'Dardo', especie: 'Gato', raza: null, fechaNacimiento: new Date('2023-03-15') }
@@ -306,16 +325,16 @@ async function main() {
   await prisma.recordatorio.createMany({
     data: [
       // Puntuales
-      { grupoId: grupoArgento.id, creadoPor: monica.id,  tipo: 'control', fechaHora: enDias(3, '16:30'), descripcion: 'Turno con la cardióloga — María Elena' },
-      { grupoId: grupoArgento.id, creadoPor: jose.id, vacunaId: tripleViral.id, tipo: 'vacuna', fechaHora: enDias(20, '10:00'), descripcion: 'Refuerzo triple viral — Alfio' },
-      { grupoId: grupoArgento.id, creadoPor: monica.id,  vacunaId: antirrabicaFatiga.id, tipo: 'vacuna', fechaHora: enDias(45, '18:00'), descripcion: 'Antirrábica de Fatiga' },
-      { grupoId: grupoArgento.id, creadoPor: jose.id, tipo: 'control', fechaHora: enDias(14, '11:00'), descripcion: 'Control pediátrico — Alfio' },
-      { grupoId: grupoArgento.id, creadoPor: monica.id,  tipo: 'control', fechaHora: enDias(8, '09:30'), descripcion: 'Análisis de sangre en ayunas — Mónica', activo: false },
+      { grupoId: grupoArgento.id, creadoPor: monica.id,  integranteId: mariaElena.id, tipo: 'control', fechaHora: enDias(3, '16:30'), descripcion: 'Turno con la cardióloga — María Elena' },
+      { grupoId: grupoArgento.id, creadoPor: jose.id, integranteId: alfio.id, vacunaId: tripleViral.id, tipo: 'vacuna', fechaHora: enDias(20, '10:00'), descripcion: 'Refuerzo triple viral — Alfio' },
+      { grupoId: grupoArgento.id, creadoPor: monica.id,  mascotaId: fatiga.id, vacunaId: antirrabicaFatiga.id, tipo: 'vacuna', fechaHora: enDias(45, '18:00'), descripcion: 'Antirrábica de Fatiga' },
+      { grupoId: grupoArgento.id, creadoPor: jose.id, integranteId: alfio.id, tipo: 'control', fechaHora: enDias(14, '11:00'), descripcion: 'Control pediátrico — Alfio' },
+      { grupoId: grupoArgento.id, creadoPor: monica.id,  integranteId: monicaI.id, tipo: 'control', fechaHora: enDias(8, '09:30'), descripcion: 'Análisis de sangre en ayunas — Mónica', activo: false },
       // Periódicos (MEJ-005)
       ...serie({ grupoId: grupoArgento.id, creadoPor: jose.id, tratamientoId: amoxicilina.id, tipo: 'medicacion',
-                 descripcion: 'Amoxicilina de Alfio', desdeDias: 0, hora: '20:00', cadaDias: 1, veces: 5 }),
+                 descripcion: 'Amoxicilina de Alfio', integranteId: alfio.id, desdeDias: 0, hora: '20:00', cadaDias: 1, veces: 5 }),
       ...serie({ grupoId: grupoArgento.id, creadoPor: monica.id, tratamientoId: losartan.id, tipo: 'control',
-                 descripcion: 'Tomar la presión a María Elena', desdeDias: 1, hora: '09:00', cadaDias: 7, veces: 8 }),
+                 descripcion: 'Tomar la presión a María Elena', integranteId: mariaElena.id, desdeDias: 1, hora: '09:00', cadaDias: 7, veces: 8 }),
     ]
   });
 
@@ -351,8 +370,8 @@ async function main() {
   });
   await prisma.recordatorio.createMany({
     data: [
-      { grupoId: grupoHerrera.id, creadoPor: valeria.id, vacunaId: pentavalente.id, tipo: 'vacuna', fechaHora: enDias(10, '09:00'), descripcion: 'Refuerzo pentavalente — Lucas' },
-      { grupoId: grupoHerrera.id, creadoPor: pablo.id, tipo: 'control', fechaHora: enDias(7, '17:00'), descripcion: 'Pediatra — control de Lucas' },
+      { grupoId: grupoHerrera.id, creadoPor: valeria.id, integranteId: lucas.id, vacunaId: pentavalente.id, tipo: 'vacuna', fechaHora: enDias(10, '09:00'), descripcion: 'Refuerzo pentavalente — Lucas' },
+      { grupoId: grupoHerrera.id, creadoPor: pablo.id, integranteId: lucas.id, tipo: 'control', fechaHora: enDias(7, '17:00'), descripcion: 'Pediatra — control de Lucas' },
     ]
   });
 
@@ -377,7 +396,7 @@ async function main() {
     [monica, [7, 6, 5, 4, 3, 2, 1]], [jose, [7, 5, 4, 2, 1]],
     [pablo, [6, 3, 1]], [valeria, [4]],
     [ilan, [5, 2]], [agus, [3]], [alan, [6]]
-  ];
+  ].filter(([u]) => !!u);
   ingresos.forEach(([u, dias], i) => dias.forEach((d) =>
     registrar(u.id, 'login', enDias(-d, `${8 + i}:${String((d * 7) % 60).padStart(2, '0')}`))));
 

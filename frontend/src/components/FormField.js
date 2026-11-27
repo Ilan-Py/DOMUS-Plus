@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Platform } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Platform, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, radii } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 
@@ -27,58 +28,96 @@ export default function FormField({
   keyboardType,
   autoCapitalize,
   multiline,
+  autoComplete,
+  textContentType,
+  returnKeyType,
+  onSubmitEditing,
+  blurOnSubmit,
+  inputRef,
   style,
 }) {
   const [focused, setFocused] = useState(false);
+  // Contraseñas: botón visible Mostrar/Ocultar para revisar lo escrito.
+  const [revealed, setRevealed] = useState(false);
+  const isPassword = !!secureTextEntry;
 
   return (
     <View style={[styles.field, style]}>
       <Text style={styles.label}>{label}</Text>
-      <TextInput
-        style={[
-          styles.input,
-          multiline && styles.textarea,
-          !!error && styles.inputError,
-          focused && styles.inputFocused,
-          webOutlineStyle,
-        ]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.textMuted}
-        secureTextEntry={secureTextEntry}
-        keyboardType={keyboardType}
-        autoCapitalize={autoCapitalize}
-        multiline={multiline}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-      />
-      {!!error && <Text style={styles.fieldErrorText}>{error}</Text>}
+      <View>
+        <TextInput
+          ref={inputRef}
+          style={[
+            styles.input,
+            multiline && styles.textarea,
+            isPassword && styles.inputWithToggle,
+            !!error && styles.inputError,
+            focused && styles.inputFocused,
+            webOutlineStyle,
+          ]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={colors.textMuted}
+          secureTextEntry={isPassword && !revealed}
+          keyboardType={keyboardType}
+          autoCapitalize={autoCapitalize}
+          autoComplete={autoComplete ?? 'off'}
+          spellCheck={keyboardType === 'email-address' || isPassword ? false : undefined}
+          textContentType={textContentType}
+          multiline={multiline}
+          accessibilityLabel={label}
+          returnKeyType={returnKeyType}
+          onSubmitEditing={onSubmitEditing}
+          blurOnSubmit={blurOnSubmit}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+        />
+        {isPassword && (
+          <Pressable
+            style={styles.toggle}
+            onPress={() => setRevealed((v) => !v)}
+            accessibilityRole="button"
+            accessibilityLabel={revealed ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+          >
+            <Ionicons
+              name={revealed ? 'eye-off-outline' : 'eye-outline'}
+              size={22}
+              color={colors.ink}
+            />
+            <Text style={styles.toggleText}>{revealed ? 'Ocultar' : 'Mostrar'}</Text>
+          </Pressable>
+        )}
+      </View>
+      {!!error && (
+        <Text style={styles.fieldErrorText} accessibilityLiveRegion="polite">
+          {error}
+        </Text>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   field: {
-    paddingBottom: 16,
+    paddingBottom: 20,
   },
   label: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 16,
     fontFamily: poppinsWeight('600'),
-    color: colors.textMuted,
-    marginBottom: 6,
+    color: colors.ink,
+    marginBottom: 8,
   },
   input: {
     width: '100%',
-    minHeight: 48,
-    paddingHorizontal: 14,
+    minHeight: 52,
+    paddingHorizontal: 16,
     paddingVertical: 13,
     borderRadius: radii.input,
     borderWidth: 1.5,
-    borderColor: colors.line,
+    borderColor: colors.borderInput,
     backgroundColor: colors.glassFillStrong,
-    fontSize: 15,
+    fontSize: 16,
     color: colors.navy,
   },
   inputError: {
@@ -90,12 +129,33 @@ const styles = StyleSheet.create({
   // pantalla igual que el outline que reemplaza.
   inputFocused: {
     borderWidth: 2,
-    borderColor: colors.limeDeep,
+    borderColor: colors.accentStrong,
+    // Halo suave en web (en nativo el borde ya marca el foco)
+    ...(Platform.OS === 'web' ? { boxShadow: '0 0 0 4px rgba(194, 70, 35, 0.12)' } : null),
+  },
+  inputWithToggle: {
+    paddingRight: 112,
+  },
+  toggle: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    minWidth: 48,
+    minHeight: 48,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  toggleText: {
+    fontSize: 15,
+    fontFamily: poppinsWeight('600'),
+    color: colors.ink,
   },
   fieldErrorText: {
-    fontSize: 12.5,
+    fontSize: 14,
     color: colors.error,
-    fontWeight: '600',
     fontFamily: poppinsWeight('600'),
     marginTop: 6,
   },

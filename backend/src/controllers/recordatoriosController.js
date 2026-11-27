@@ -3,15 +3,20 @@
 // creado_por registra quién lo creó pero no filtra.
 const { randomUUID } = require('crypto');
 const prisma = require('../config/prisma');
-const { resolverGrupoId } = require('../utils/grupo');
+const { resolverGrupoId, verificarPertenenciaDirecta } = require('../utils/grupo');
 const { verificarPertenenciaVacuna, verificarPertenenciaTratamiento } = require('./saludController');
-const { validarCampos } = require('../utils/validacion');
+const { validarCampos, hoyMasAnios } = require('../utils/validacion');
 
 // Tipo, formato y largo de cada campo (ERR-011). Los obligatorios se chequean en cada función.
 const REGLAS_RECORDATORIO = {
     vacuna_id:      { tipo: 'id', etiqueta: 'vacuna_id' },
     tratamiento_id: { tipo: 'id', etiqueta: 'tratamiento_id' },
-    fecha_hora:     { tipo: 'fechaHora', etiqueta: 'fecha y hora' },
+    integrante_id:  { tipo: 'id', etiqueta: 'integrante_id' },
+    mascota_id:     { tipo: 'id', etiqueta: 'mascota_id' },
+    fecha_hora:     {
+        tipo: 'fechaHora', etiqueta: 'fecha y hora', hasta: hoyMasAnios(5),
+        mensajeHasta: 'El recordatorio no puede ser a más de 5 años.'
+    },
     descripcion:    { tipo: 'texto', max: 255, etiqueta: 'descripción' }
 };
 
@@ -27,6 +32,25 @@ const REGLAS_REPETICION = {
     repetir_veces:     { tipo: 'entero', min: 2, max: 100, etiqueta: 'cantidad de veces' }
 };
 const ALCANCES_BORRADO = ['este', 'siguientes'];
+
+// "Para quién": integrante_id o mascota_id (ninguno o uno solo), y del grupo del usuario.
+// Devuelve { error, status } o { integranteId, mascotaId }.
+async function resolverParaQuien(body, usuarioId) {
+    const { integrante_id, mascota_id } = body;
+    if (integrante_id && mascota_id) {
+        return { status: 400, error: 'Solo puede indicarse integrante_id o mascota_id, no ambos.' };
+    }
+    if (integrante_id && !(await verificarPertenenciaDirecta('integrante', integrante_id, usuarioId))) {
+        return { status: 404, error: 'Integrante no encontrado.' };
+    }
+    if (mascota_id && !(await verificarPertenenciaDirecta('mascota', mascota_id, usuarioId))) {
+        return { status: 404, error: 'Mascota no encontrada.' };
+    }
+    return {
+        integranteId: integrante_id ? Number(integrante_id) : null,
+        mascotaId:    mascota_id    ? Number(mascota_id)    : null
+    };
+}
 
 async function crearRecordatorio(req, res) {
     const usuarioId = req.usuario.id;
@@ -66,8 +90,15 @@ async function crearRecordatorio(req, res) {
             return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Tratamiento no encontrado.' });
         }
 
+        const paraQuien = await resolverParaQuien(req.body, usuarioId);
+        if (paraQuien.error) {
+            return res.status(paraQuien.status).json({ codigo: paraQuien.status, estado: 'error', datos: paraQuien.error });
+        }
+
         const base = {
             grupoId,
+            integranteId:  paraQuien.integranteId,
+            mascotaId:     paraQuien.mascotaId,
             creadoPor:     usuarioId,
             vacunaId:      vacuna_id      ? Number(vacuna_id)      : null,
             tratamientoId: tratamiento_id ? Number(tratamiento_id) : null,
@@ -118,6 +149,7 @@ async function listarRecordatorios(req, res) {
                 id: true, vacunaId: true, tratamientoId: true,
                 tipo: true, fechaHora: true, descripcion: true,
                 activo: true, creadoPor: true,
+                integranteId: true, mascotaId: true,
                 serieId: true, repeticionDias: true
             }
         });
@@ -156,9 +188,20 @@ async function editarRecordatorio(req, res) {
             return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Recordatorio no encontrado.' });
         }
 
+        const data = { tipo, fechaHora: new Date(fecha_hora), descripcion: descripcion || null };
+        // "Para quién" sólo se toca si el pedido lo incluye (los clientes viejos no lo mandan).
+        if ('integrante_id' in req.body || 'mascota_id' in req.body) {
+            const paraQuien = await resolverParaQuien(req.body, usuarioId);
+            if (paraQuien.error) {
+                return res.status(paraQuien.status).json({ codigo: paraQuien.status, estado: 'error', datos: paraQuien.error });
+            }
+            data.integranteId = paraQuien.integranteId;
+            data.mascotaId = paraQuien.mascotaId;
+        }
+
         const resultado = await prisma.recordatorio.updateMany({
             where: { id, grupoId },
-            data: { tipo, fechaHora: new Date(fecha_hora), descripcion: descripcion || null }
+            data
         });
         if (resultado.count === 0) {
             return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Recordatorio no encontrado.' });

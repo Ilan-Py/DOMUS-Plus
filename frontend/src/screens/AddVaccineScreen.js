@@ -1,13 +1,20 @@
 import React, { useRef, useState } from 'react';
+import { mostrarToast } from '../components/ToastHost';
+import useColumnInset from '../hooks/useColumnInset';
+import useFirstErrorFocus from '../hooks/useFirstErrorFocus';
 import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { colors } from '../theme/colors';
 import api from '../api/client';
 import FormField from '../components/FormField';
 import PrimaryButton from '../components/PrimaryButton';
+import DeleteLink from '../components/DeleteLink';
+import { confirmarDestructivo } from '../utils/confirm';
 import ErrorBanner from '../components/ErrorBanner';
 import DatePickerField, { formatDateOnly } from '../components/DatePickerField';
 import { HealthFormTopbar, ownerField } from './healthFormShared';
 import { parseApiDate } from '../utils/displayFormat';
+import { rangoAplicacion, rangoProximaDosis, validarAplicacion, validarProximaDosis } from '../utils/dateRules';
+
 import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
 
 function sameDate(a, b) {
@@ -17,6 +24,8 @@ function sameDate(a, b) {
 }
 
 export default function AddVaccineScreen({ navigation, route }) {
+  const inset = useColumnInset();
+  const { ref, focusFirst } = useFirstErrorFocus();
   const { ownerId, ownerTipo, ownerNombre, editando } = route.params;
   const isEditing = !!editando;
 
@@ -30,7 +39,7 @@ export default function AddVaccineScreen({ navigation, route }) {
   const [notas, setNotas] = useState(() => editando?.notas || '');
 
   const [nombreError, setNombreError] = useState(false);
-  const [fechaAplicacionError, setFechaAplicacionError] = useState(false);
+  const [fechaAplicacionError, setFechaAplicacionError] = useState('');
   const [proximaDosisError, setProximaDosisError] = useState('');
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -50,20 +59,50 @@ export default function AddVaccineScreen({ navigation, route }) {
     notas !== initialRef.current.notas;
 
   const { allowNextRemove } = useUnsavedChangesGuard(navigation, isDirty);
+  const [eliminando, setEliminando] = useState(false);
+
+  // Eliminar desde la propia pantalla de edición (las tarjetas de la lista sólo
+  // tienen el lápiz).
+  function confirmarEliminar() {
+    confirmarDestructivo(
+      'Eliminar vacuna',
+      '¿Seguro que querés eliminar esta vacuna? No se puede deshacer.',
+      async () => {
+        setEliminando(true);
+        setFormError('');
+        try {
+          await api.delete(`/api/salud/vacunas/${editando.id}`);
+          allowNextRemove();
+          navigation.goBack();
+        } catch (err) {
+          setFormError(err.mensaje);
+          setEliminando(false);
+        }
+      }
+    );
+  }
 
   async function handleGuardar() {
     const faltaNombre = !nombre.trim();
     const faltaFecha = !fechaAplicacion;
     setNombreError(faltaNombre);
-    setFechaAplicacionError(faltaFecha);
+    setFechaAplicacionError(faltaFecha ? 'Este campo es obligatorio' : validarAplicacion(fechaAplicacion));
     setProximaDosisError('');
     setFormError('');
 
-    if (faltaNombre || faltaFecha) return;
+    if (faltaNombre || faltaFecha) {
+      focusFirst([[faltaNombre, 'nombre'], [faltaFecha, 'aplicacion']]);
+      return;
+    }
 
-    // Misma regla que el CHECK de la tabla vacuna: proxima_dosis > fecha_aplicacion
-    if (proximaDosis && proximaDosis <= fechaAplicacion) {
-      setProximaDosisError('La próxima dosis debe ser posterior a la fecha de aplicación.');
+    // Fechas razonables (ver utils/dateRules.js). La próxima dosis debe ser
+    // posterior a la aplicación (mismo CHECK que la tabla vacuna).
+    const errAplicacion = validarAplicacion(fechaAplicacion);
+    const errProxima = proximaDosis ? validarProximaDosis(proximaDosis, fechaAplicacion) : '';
+    if (errAplicacion || errProxima) {
+      setFechaAplicacionError(errAplicacion);
+      setProximaDosisError(errProxima);
+      focusFirst([[errAplicacion, 'aplicacion'], [errProxima, 'proxima']]);
       return;
     }
 
@@ -84,6 +123,7 @@ export default function AddVaccineScreen({ navigation, route }) {
       }
       // ProfileDetailScreen refetch al recuperar el foco (useFocusEffect)
       allowNextRemove();
+      mostrarToast(isEditing ? 'Cambios guardados' : 'Vacuna guardada');
       setSaved(true);
       setTimeout(() => navigation.goBack(), 380);
       return;
@@ -104,8 +144,9 @@ export default function AddVaccineScreen({ navigation, route }) {
         title={isEditing ? `Editar vacuna · ${ownerNombre}` : `Nueva vacuna · ${ownerNombre}`}
       />
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: inset }]}>
         <FormField
+          inputRef={ref('nombre')}
           label="Nombre de la vacuna"
           value={nombre}
           onChangeText={(text) => {
@@ -117,18 +158,22 @@ export default function AddVaccineScreen({ navigation, route }) {
           style={styles.field}
         />
         <DatePickerField
+          inputRef={ref('aplicacion')}
           label="Fecha de aplicación"
           value={fechaAplicacion}
           onChange={(date) => {
             setFechaAplicacion(date);
-            setFechaAplicacionError(false);
+            setFechaAplicacionError('');
             if (proximaDosisError) setProximaDosisError('');
           }}
           mode="date"
-          error={fechaAplicacionError ? 'Este campo es obligatorio' : ''}
+          minimumDate={rangoAplicacion().min}
+          maximumDate={rangoAplicacion().max}
+          error={fechaAplicacionError}
           style={styles.field}
         />
         <DatePickerField
+          inputRef={ref('proxima')}
           label="Próxima dosis (opcional)"
           value={proximaDosis}
           onChange={(date) => {
@@ -136,6 +181,8 @@ export default function AddVaccineScreen({ navigation, route }) {
             if (proximaDosisError) setProximaDosisError('');
           }}
           mode="date"
+          minimumDate={rangoProximaDosis(fechaAplicacion).min}
+          maximumDate={rangoProximaDosis(fechaAplicacion).max}
           minimumDate={fechaAplicacion || undefined}
           error={proximaDosisError}
           style={styles.field}
@@ -144,7 +191,7 @@ export default function AddVaccineScreen({ navigation, route }) {
           label="Notas"
           value={notas}
           onChangeText={setNotas}
-          placeholder="Observaciones, laboratorio, lote..."
+          placeholder="Observaciones, laboratorio, lote…"
           multiline
           style={styles.field}
         />
@@ -161,13 +208,17 @@ export default function AddVaccineScreen({ navigation, route }) {
             onPress={handleGuardar}
             loading={saving}
             success={saved}
-            variant="success"
+            disabled={eliminando}
+            variant="accent"
           />
-          <PrimaryButton
-            title="Cancelar"
-            onPress={() => navigation.goBack()}
-            variant="secondary"
-          />
+          {isEditing && (
+            <DeleteLink
+              label="Eliminar vacuna"
+              onPress={confirmarEliminar}
+              disabled={saving || eliminando}
+              busy={eliminando}
+            />
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

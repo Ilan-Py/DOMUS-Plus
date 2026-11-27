@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Text, ActivityIndicator, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radii, shadow, buttonColors } from '../theme/colors';
@@ -37,15 +37,18 @@ const VARIANTS = {
     text: { color: colors.onAccent },
   },
   accent: {
-    container: { backgroundColor: buttonColors.accent, ...shadow },
-    text: { color: colors.ink }, // negro sobre lime, no blanco — contraste
+    // Blanco sobre terracota profundo (AA) — antes negro sobre terracota claro.
+    container: { backgroundColor: colors.accentStrong, ...shadow },
+    text: { color: colors.onAccent },
+    pressedBg: colors.accentStrongPressed,
   },
   secondary: {
     container: {
-      backgroundColor: 'transparent',
-      borderWidth: 1.5,
-      borderColor: colors.ink,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 2,
+      borderColor: colors.borderWarm,
     },
+    pressedBg: colors.surfaceSoftPressed,
     text: { color: colors.ink },
   },
   danger: {
@@ -69,6 +72,10 @@ export default function PrimaryButton({
   style,
 }) {
   const variantStyle = VARIANTS[variant] || VARIANTS.primary;
+  // pressed (móvil) / hover (web): oscurece el relleno ~10%; la escala 0.98 la da PressScale.
+  const [pressed, setPressed] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const activeBg = (pressed || hovered) && variantStyle.pressedBg ? variantStyle.pressedBg : null;
   const isDisabled = !!disabled || !!loading || !!success;
   // El dimming (opacity 0.6) es una señal de "no disponible todavía"
   // (cargando/deshabilitado) — no aplica al estado de éxito, que debe verse
@@ -81,13 +88,19 @@ export default function PrimaryButton({
         styles.btn,
         !fullWidth && styles.btnAuto,
         variantStyle.container,
+        activeBg && { backgroundColor: activeBg },
         showDimmed && styles.btnDisabled,
         // Override de tamaño puntual (ver WelcomeScreen "Crear cuenta") — sólo
         // dimensiones, nunca color/borde/radius, que siguen viniendo de variantStyle.
         style,
       ]}
       onPress={onPress}
+      onPressedChange={setPressed}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
       disabled={isDisabled}
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: isDisabled, busy: !!loading }}
     >
       {success ? (
         <SuccessCheck color={variantStyle.text.color} />
@@ -103,7 +116,7 @@ export default function PrimaryButton({
 const styles = StyleSheet.create({
   btn: {
     width: '100%',
-    minHeight: 48,
+    minHeight: 52,
     paddingHorizontal: 24,
     borderRadius: radii.button,
     alignItems: 'center',
@@ -119,8 +132,7 @@ const styles = StyleSheet.create({
   btnText: {
     // '700'/Bold leía demasiado pesado contra el look más liviano del
     // rediseño — '600'/SemiBold sigue siendo legible a 15px y aligera el peso visual.
-    fontWeight: '600',
     fontFamily: poppinsWeight('600'),
-    fontSize: 15,
+    fontSize: 17,
   },
 });

@@ -9,7 +9,8 @@ import { colors } from '../theme/colors';
 // width/height/borderRadius. Pulso de opacity (nativeDriver:true), no una
 // animación de backgroundColor — más liviano y evita el color-interpolation
 // que obliga a desactivar el driver nativo.
-const PULSE_DURATION = 800;
+// Pulso lento: se ve tranquilo, no ansioso.
+const PULSE_DURATION = 1400;
 
 export default function Skeleton({ width = '100%', height = 14, borderRadius = 8, style }) {
   const pulse = useRef(new Animated.Value(0)).current;
@@ -29,7 +30,7 @@ export default function Skeleton({ width = '100%', height = 14, borderRadius = 8
 
   return (
     <Animated.View
-      style={[{ width, height, borderRadius, backgroundColor: colors.line, opacity }, style]}
+      style={[{ width, height, borderRadius, backgroundColor: '#EFE8DF', opacity }, style]}
     />
   );
 }

@@ -138,6 +138,10 @@ model Integrante {
   tipoSangre       String?         @map("tipo_sangre") @db.VarChar(10)
   notasEmergencia  String?         @map("notas_emergencia") @db.Text
 
+  // Foto de perfil: ruta relativa (ej. /fotos/moni.jpg) servida por el backend; la app la
+  // antepone a la URL de la API. Sin foto, la app muestra las iniciales.
+  fotoUrl          String?         @map("foto_url") @db.VarChar(500)
+
   // Relaciones
   grupo               GrupoFamiliar        @relation(fields: [grupoId], references: [id], onDelete: Cascade)
   vacunas             Vacuna[]
@@ -146,6 +150,7 @@ model Integrante {
   contactosEmergencia ContactoEmergencia[]
   profesionales       ProfesionalSalud[]
   adjuntos            Adjunto[]            @relation("AdjuntoIntegrante")
+  recordatorios       Recordatorio[]
 
   @@map("integrante")
 }
@@ -161,6 +166,9 @@ model Mascota {
   raza             String?   @db.VarChar(100)
   fechaNacimiento  DateTime? @map("fecha_nacimiento") @db.Date
 
+  // Foto de perfil (ver Integrante.fotoUrl).
+  fotoUrl      String?          @map("foto_url") @db.VarChar(500)
+
   // Relaciones
   grupo        GrupoFamiliar    @relation(fields: [grupoId], references: [id], onDelete: Cascade)
   vacunas      Vacuna[]
@@ -168,6 +176,7 @@ model Mascota {
   historial    Historial[]
   profesionales ProfesionalSalud[]
   adjuntos     Adjunto[]        @relation("AdjuntoMascota")
+  recordatorios Recordatorio[]
 
   @@map("mascota")
 }
@@ -257,12 +266,17 @@ model Recordatorio {
   // una misma serie comparten serie_id. repeticion_dias = cada cuántos días se repite.
   serieId        String?          @map("serie_id") @db.Uuid
   repeticionDias Int?             @map("repeticion_dias")
+  // "Para quién" es el recordatorio: un integrante O una mascota del grupo (o ninguno).
+  integranteId   Int?             @map("integrante_id")
+  mascotaId      Int?             @map("mascota_id")
 
   // Relaciones
   grupo       GrupoFamiliar @relation(fields: [grupoId], references: [id], onDelete: Cascade)
   usuario     Usuario       @relation(fields: [creadoPor], references: [id], onDelete: Cascade)
   vacuna      Vacuna?       @relation(fields: [vacunaId], references: [id], onDelete: SetNull)
   tratamiento Tratamiento?  @relation(fields: [tratamientoId], references: [id], onDelete: SetNull)
+  integrante  Integrante?   @relation(fields: [integranteId], references: [id], onDelete: SetNull)
+  mascota     Mascota?      @relation(fields: [mascotaId], references: [id], onDelete: SetNull)
 
   @@index([serieId])
   @@map("recordatorio")

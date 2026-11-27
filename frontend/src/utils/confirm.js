@@ -1,42 +1,44 @@
-import { Alert, Platform } from 'react-native';
+import { openDialog } from '../components/DialogHost';
 
-// Alert.alert es un no-op en react-native-web (ver
-// node_modules/react-native-web/dist/exports/Alert/index.js — static
-// alert() {}, sin cuerpo). Cualquier confirmación destructiva de la app
-// debe pasar por acá en vez de llamar Alert.alert directo, o el botón
-// simplemente no hace nada en web, sin ningún error visible. En native
-// (donde Alert.alert sí funciona) el comportamiento no cambia.
+// Confirmaciones y menús de opciones. Antes usaban Alert.alert (no-op en
+// react-native-web) y window.confirm/prompt como fallback en web, que se ven
+// distinto en cada navegador y el prompt pedía escribir un número. Ahora todo
+// pasa por DialogHost: el mismo diálogo, con botones grandes, en web y nativo.
+
+// Acción destructiva: botón rojo-terracota con la acción explícita arriba y
+// "No, volver" abajo.
 export function confirmarDestructivo(titulo, mensaje, onConfirmar, textoConfirmar = 'Eliminar') {
-  if (Platform.OS === 'web') {
-    if (window.confirm(`${titulo}\n\n${mensaje}`)) onConfirmar();
-    return;
-  }
-  Alert.alert(titulo, mensaje, [
-    { text: 'Cancelar', style: 'cancel' },
-    { text: textoConfirmar, style: 'destructive', onPress: onConfirmar },
-  ]);
+  openDialog({
+    title: titulo,
+    message: mensaje,
+    actions: [
+      { label: `Sí, ${textoConfirmar.toLowerCase()}`, variant: 'accent', onPress: onConfirmar },
+      { label: 'No, volver', variant: 'secondary' },
+    ],
+  });
 }
 
-// Menú de opciones no-destructivas (ej. "Tomar foto"/"Elegir de galería"/
-// "Elegir PDF" en AttachmentsSection) — no existía un equivalente a
-// confirmarDestructivo para este caso (ninguna opción es "peligrosa", así
-// que un solo botón rojo no tiene sentido acá). `opciones` es
-// [{ text, value }]; se llama a `onElegir(value)` con la elegida.
-// Alert.alert soporta hasta 3 botones nativos de forma prolija — con más de
-// eso conviene un ActionSheet real, pero AttachmentsSection sólo necesita 3.
-// En web no hay ningún equivalente nativo de un menú de N botones (ver nota
-// de confirmarDestructivo sobre window.confirm) — window.prompt numerado es
-// el mismo nivel de fallback "no crashea, no es lindo" que ya se usa ahí.
+// Menú de opciones no destructivas (ej. "Tomar foto"/"Elegir de galería"/
+// "Elegir PDF"). `opciones` es [{ text, value }]; se llama a `onElegir(value)`.
 export function elegirOpcion(titulo, opciones, onElegir) {
-  if (Platform.OS === 'web') {
-    const lista = opciones.map((o, i) => `${i + 1}) ${o.text}`).join('\n');
-    const respuesta = window.prompt(`${titulo}\n\n${lista}\n\nEscribí el número de la opción:`);
-    const indice = parseInt(respuesta, 10) - 1;
-    if (opciones[indice]) onElegir(opciones[indice].value);
-    return;
-  }
-  Alert.alert(titulo, undefined, [
-    ...opciones.map((o) => ({ text: o.text, onPress: () => onElegir(o.value) })),
-    { text: 'Cancelar', style: 'cancel' },
-  ]);
+  openDialog({
+    title: titulo,
+    actions: [
+      ...opciones.map((o) => ({
+        label: o.text,
+        variant: 'secondary',
+        onPress: () => onElegir(o.value),
+      })),
+      { label: 'Cancelar', variant: 'secondary' },
+    ],
+  });
+}
+
+// Elegir entre pocas opciones grandes (con ícono). `tarjetas` es
+// [{ label, hint, icon, bg, fg, value }]; se llama a `onElegir(value)` con la elegida.
+export function elegirTarjetas(titulo, tarjetas, onElegir) {
+  openDialog({
+    title: titulo,
+    cards: tarjetas.map((t) => ({ ...t, onPress: () => onElegir(t.value) })),
+  });
 }
