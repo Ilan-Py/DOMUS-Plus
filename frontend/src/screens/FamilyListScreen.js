@@ -21,6 +21,7 @@ import EmptyState from '../components/EmptyState';
 import PrimaryButton from '../components/PrimaryButton';
 import TodayCard from '../components/TodayCard';
 import BannerRecortes from '../components/BannerRecortes';
+import ProximosCard from '../components/ProximosCard';
 import { paper } from '../theme/paper';
 import PressScale from '../components/PressScale';
 import Skeleton from '../components/Skeleton';
@@ -34,7 +35,10 @@ import { avatarTint } from '../theme/avatars';
 // columnas (64% integrantes y mascotas / 36% «Hoy en tu familia») en un
 // contenedor de hasta 1120px; debajo, una sola columna apilada.
 const DESKTOP_BREAKPOINT = 1024;
-const CONTAINER_MAX_WIDTH = 1180;
+const CONTAINER_MAX_WIDTH = 1440;
+// 3 columnas desde 1280 px, 2 en tablet (desde 768 px) y 1 en móvil.
+const TRES_COLUMNAS = 1280;
+const DOS_COLUMNAS = 768;
 
 const TIPO_LABELS = { adulto: 'Adulto', menor: 'Menor', mayor: 'Mayor' };
 
@@ -115,6 +119,7 @@ export default function FamilyListScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const desktop = width >= DESKTOP_BREAKPOINT;
+  const columnas = width >= TRES_COLUMNAS ? 3 : width >= DOS_COLUMNAS ? 2 : 1;
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -223,9 +228,15 @@ export default function FamilyListScreen({ navigation }) {
   );
 
   const hoyCard = <TodayCard onVerCalendario={() => navigation.navigate('Calendario')} />;
+  const proximosCard = (
+    <ProximosCard
+      onVerCalendario={() => navigation.navigate('Calendario')}
+      onProgramar={() => navigation.navigate('Calendario', { screen: 'AddReminder' })}
+    />
+  );
 
   const listaDeIntegrantes = (
-    <View style={styles.section}>
+    <View style={[styles.bandeja, styles.bandejaPersonas]}>
       <View style={styles.sectionHead}>
         <Ionicons name="people" size={20} color={colors.accentStrong} />
         <Text style={styles.sectionLabel} accessibilityRole="header">
@@ -269,7 +280,7 @@ export default function FamilyListScreen({ navigation }) {
   );
 
   const listaDeMascotas = (
-    <View style={styles.section}>
+    <View style={[styles.bandeja, styles.bandejaMascotas]}>
       <View style={styles.sectionHead}>
         <Ionicons name="paw" size={20} color={colors.salvia} />
         <Text style={styles.sectionLabel} accessibilityRole="header">
@@ -323,21 +334,27 @@ export default function FamilyListScreen({ navigation }) {
       ]}
     />
   );
-  const listas = vacio ? primerIngreso : (
-    <>
-      {listaDeIntegrantes}
-      {listaDeMascotas}
-    </>
-  );
-
   const cargando = (
-    <View style={styles.section}>
+    <View style={styles.bandeja}>
       <View style={styles.grid}>
         <View style={styles.gridItem}><SkeletonMemberCard /></View>
         <View style={styles.gridItem}><SkeletonMemberCard /></View>
       </View>
     </View>
   );
+
+  // Primer ingreso o carga: una sola bandeja ancha; si no, una bandeja por categoría.
+  const izquierda =
+    loading || vacio ? (
+      <View style={styles.colDoble}>
+        {loading ? cargando : <View style={styles.bandeja}>{primerIngreso}</View>}
+      </View>
+    ) : (
+      <>
+        <View style={styles.col}>{listaDeIntegrantes}</View>
+        <View style={styles.col}>{listaDeMascotas}</View>
+      </>
+    );
 
   const errores = (!!error || !!actionError) && (
     <ErrorBanner
@@ -361,17 +378,32 @@ export default function FamilyListScreen({ navigation }) {
           {banner}
           {errores}
 
-          {desktop ? (
+          {columnas === 3 ? (
             <View style={styles.columns}>
-              <View style={styles.colLeft}>
-                {loading ? cargando : listas}
+              {izquierda}
+              <View style={styles.col}>
+                {hoyCard}
+                {proximosCard}
               </View>
-              <View style={styles.colRight}>{hoyCard}</View>
+            </View>
+          ) : columnas === 2 ? (
+            <View style={styles.stack}>
+              <View style={styles.columns}>{izquierda}</View>
+              <View style={styles.columns}>
+                <View style={styles.col}>{hoyCard}</View>
+                <View style={styles.col}>{proximosCard}</View>
+              </View>
             </View>
           ) : (
             <View style={styles.stack}>
               {hoyCard}
-              {loading ? cargando : listas}
+              {loading ? cargando : vacio ? <View style={styles.bandeja}>{primerIngreso}</View> : (
+                <>
+                  {listaDeIntegrantes}
+                  {listaDeMascotas}
+                </>
+              )}
+              {proximosCard}
             </View>
           )}
         </View>
@@ -411,14 +443,26 @@ const styles = StyleSheet.create({
 
   // ---- layout
   columns: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
-  colLeft: { flex: 64, gap: 24 },
-  colRight: { flex: 36 },
+  col: { flex: 1, gap: 24, minWidth: 0 },
+  colDoble: { flex: 2, minWidth: 0, gap: 24 },
   stack: { gap: 24 },
   section: { gap: 12 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionLabel: { fontSize: 18, lineHeight: 26, fontFamily: poppinsWeight('700'), color: colors.ink },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
-  gridItem: { flexBasis: 280, flexGrow: 1, flexShrink: 1 },
+  grid: { gap: 12 },
+  gridItem: { width: '100%' },
+
+  // Bandeja de papel: base suave sobre la que se apoyan las tarjetas blancas de cartulina.
+  bandeja: {
+    gap: 12,
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(42, 36, 33, 0.08)',
+    backgroundColor: '#F5EFE6',
+  },
+  bandejaPersonas: { borderTopWidth: 4, borderTopColor: colors.accentStrong },
+  bandejaMascotas: { borderTopWidth: 4, borderTopColor: colors.salvia },
 
   // ---- tarjetas de integrantes y mascotas
   // Sombra de cartulina: en web, de dos capas vía theme/paper.js; en nativo, una corta y nítida.

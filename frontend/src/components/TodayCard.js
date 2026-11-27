@@ -10,6 +10,7 @@ import { parseFechaHora } from '../utils/displayFormat';
 import { useFamily } from '../context/FamilyContext';
 import PaperCutout from './PaperCutout';
 import PressScale from './PressScale';
+import { paper } from '../theme/paper';
 
 // «Hoy en tu familia»: los próximos recordatorios de hoy (y los vencidos que
 // siguen pendientes), hasta 3, con hora, categoría, descripción y de quién es.
@@ -62,7 +63,7 @@ export default function TodayCard({ onVerCalendario }) {
 
   if (items === null) {
     return (
-      <View style={styles.card}>
+      <View {...paper('cutout')} style={styles.card}>
         <SkeletonFilas filas={2} />
       </View>
     );
@@ -72,7 +73,7 @@ export default function TodayCard({ onVerCalendario }) {
   const visibles = items.slice(0, MAX_ITEMS);
 
   return (
-    <View style={styles.card}>
+    <View {...paper('cutout')} style={styles.card}>
       <Text style={styles.title} accessibilityRole="header">
         Hoy en tu familia
       </Text>
