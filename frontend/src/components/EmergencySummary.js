@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, StyleSheet, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SkeletonFilas } from './Skeleton';
 import { colors } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 import { getList } from '../api/client';
@@ -68,7 +69,7 @@ export default function EmergencySummary({ integrante, integranteId, onAbrirFich
 
       <Text style={[styles.subLabel, styles.contactsLabel]}>Contactos de emergencia</Text>
       {loading ? (
-        <ActivityIndicator color={colors.textMuted} style={styles.loading} />
+        <SkeletonFilas filas={2} />
       ) : error ? (
         <InlineError message="No pudimos cargar los contactos de emergencia." onRetry={cargar} />
       ) : contactos.length === 0 ? (

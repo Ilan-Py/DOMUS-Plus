@@ -22,6 +22,7 @@ import PrimaryButton from '../components/PrimaryButton';
 import FormField from '../components/FormField';
 import ErrorBanner from '../components/ErrorBanner';
 import EmptyState from '../components/EmptyState';
+import { SkeletonFilas } from '../components/Skeleton';
 import FadeSlideIn from '../components/FadeSlideIn';
 import FadeOutRow, { EXIT_DURATION } from '../components/FadeOutRow';
 import { confirmarDestructivo } from '../utils/confirm';
@@ -292,7 +293,7 @@ export default function EmergencyScreen({ navigation, route }) {
 
           <Text style={styles.titulo}>Contactos de emergencia</Text>
           {loadingContactos ? (
-            <ActivityIndicator color={colors.textMuted} style={styles.loading} />
+            <SkeletonFilas filas={2} />
           ) : (
             <>
               {contactos.length === 0 && formAbierto !== 'nuevo' && (

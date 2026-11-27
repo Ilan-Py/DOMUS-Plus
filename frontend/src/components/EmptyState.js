@@ -1,74 +1,73 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
-import { colors, radii, shadow } from '../theme/colors';
-import { poppinsWeight } from '../theme/typography';
-import PressScale from './PressScale';
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { colors } from '../theme/colors';
+import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
+import PaperCutout from './PaperCutout';
+import PrimaryButton from './PrimaryButton';
 
-// Usado por FamilyListScreen (sin integrantes/mascotas), CalendarScreen
-// (sin recordatorios) y ProfileDetailScreen (sin vacunas/tratamientos/
-// eventos de historial). El anillo decorativo vivía copiado a mano sólo en
-// ProfileDetailScreen (styles.emptyIcon ahí) — se sube acá adentro para que
-// las tres pantallas se vean iguales sin duplicar el mismo View idéntico
-// una tercera vez.
-//
-// Fade-in simple al montar (no existía ningún tratamiento de entrada antes
-// de esta pasada) — mismo criterio que FadeSlideIn (opacity+translateY,
-// nativeDriver), sin reusar ese componente porque acá no hay stagger por
-// índice, es una sola aparición.
-export default function EmptyState({ message, actionLabel, onAction }) {
-  const anim = useRef(new Animated.Value(0)).current;
+// Estado vacío cálido: un par de recortes de papel + mensaje claro + (opcional) acción directa.
+// Usado por FamilyListScreen, CalendarScreen, EmergencyScreen y ProfileDetailScreen.
+//  - `titulo` (opcional): frase corta en la tipografía de títulos, sobre el mensaje.
+//  - `recortes`: [{ icon, tinte }] (hasta 3); por defecto, un corazón y una huella.
+//  - `acciones`: [{ label, onPress, variant }] para más de una acción (la primera es la principal).
+//    `actionLabel`/`onAction` siguen funcionando como atajo de una sola acción.
+const RECORTES_POR_DEFECTO = [
+  { icon: 'heart', tinte: 'terracota' },
+  { icon: 'paw', tinte: 'salvia' },
+];
+const GIROS = [-7, 5, -3];
 
-  useEffect(() => {
-    Animated.timing(anim, { toValue: 1, duration: 220, useNativeDriver: true }).start();
-  }, [anim]);
-
-  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] });
+export default function EmptyState({
+  titulo,
+  message,
+  recortes = RECORTES_POR_DEFECTO,
+  acciones,
+  actionLabel,
+  onAction,
+  compacto = false,
+}) {
+  const lista = acciones || (actionLabel && onAction ? [{ label: actionLabel, onPress: onAction, variant: 'accent' }] : []);
+  const tam = compacto ? 64 : 84;
 
   return (
-    <Animated.View style={[styles.root, { opacity: anim, transform: [{ translateY }] }]}>
-      <View style={styles.icon} />
+    <View style={[styles.root, compacto && styles.rootCompacto]}>
+      <View style={styles.recortes}>
+        {recortes.slice(0, 3).map((r, i) => (
+          <PaperCutout
+            key={r.icon}
+            icon={r.icon}
+            tinte={r.tinte}
+            size={tam}
+            rotate={GIROS[i % GIROS.length]}
+            delay={i * 90}
+            style={i > 0 && { marginLeft: -12, marginTop: i % 2 ? 10 : 0 }}
+          />
+        ))}
+      </View>
+      {!!titulo && <Text style={styles.titulo} accessibilityRole="header">{titulo}</Text>}
       <Text style={styles.message}>{message}</Text>
-      {!!actionLabel && !!onAction && (
-        <PressScale contentStyle={styles.actionBtn} onPress={onAction}>
-          <Text style={styles.actionText}>{actionLabel}</Text>
-        </PressScale>
+      {lista.length > 0 && (
+        <View style={styles.acciones}>
+          {lista.map((a, i) => (
+            <PrimaryButton
+              key={a.label}
+              title={a.label}
+              variant={a.variant || (i === 0 ? 'accent' : 'secondary')}
+              fullWidth={false}
+              onPress={a.onPress}
+            />
+          ))}
+        </View>
       )}
-    </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 24,
-  },
-  icon: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    borderWidth: 3,
-    borderColor: colors.line,
-    opacity: 0.18,
-    marginBottom: 20,
-  },
-  message: {
-    fontSize: 14,
-    color: colors.textMuted,
-    textAlign: 'center',
-  },
-  actionBtn: {
-    marginTop: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: radii.button,
-    backgroundColor: colors.blueDeep,
-    ...shadow,
-  },
-  actionText: {
-    color: colors.onAccent,
-    fontFamily: poppinsWeight('700'),
-    fontSize: 14,
-  },
+  root: { alignItems: 'center', justifyContent: 'center', paddingVertical: 32, paddingHorizontal: 24 },
+  rootCompacto: { paddingVertical: 20 },
+  recortes: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20, paddingVertical: 8 },
+  titulo: { fontSize: 26, lineHeight: 34, fontFamily: SERIF_BOLD, color: colors.ink, textAlign: 'center', marginBottom: 8 },
+  message: { fontSize: 16, lineHeight: 24, color: colors.textBody, textAlign: 'center', maxWidth: 420 },
+  acciones: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 12, marginTop: 20 },
 });

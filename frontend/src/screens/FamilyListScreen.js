@@ -294,6 +294,31 @@ export default function FamilyListScreen({ navigation }) {
     </View>
   );
 
+  // Primer ingreso: ni integrantes ni mascotas todavía — un solo bloque cálido con la acción directa
+  // en vez de dos listas vacías.
+  const vacio = !loading && !error && integrantes.length === 0 && mascotas.length === 0;
+  const primerIngreso = (
+    <EmptyState
+      titulo="¡Armemos tu familia!"
+      message="Sumá a tu primer familiar o mascota para empezar a guardar vacunas, tratamientos y recordatorios."
+      recortes={[
+        { icon: 'people', tinte: 'terracota' },
+        { icon: 'heart', tinte: 'arena' },
+        { icon: 'paw', tinte: 'salvia' },
+      ]}
+      acciones={[
+        { label: 'Agregar un familiar', onPress: () => navigation.navigate('AddMember', { tipoMiembro: 'integrante' }) },
+        { label: 'Agregar una mascota', onPress: () => navigation.navigate('AddMember', { tipoMiembro: 'mascota' }) },
+      ]}
+    />
+  );
+  const listas = vacio ? primerIngreso : (
+    <>
+      {listaDeIntegrantes}
+      {listaDeMascotas}
+    </>
+  );
+
   const cargando = (
     <View style={styles.section}>
       <View style={styles.grid}>
@@ -333,24 +358,14 @@ export default function FamilyListScreen({ navigation }) {
           {desktop ? (
             <View style={styles.columns}>
               <View style={styles.colLeft}>
-                {loading ? cargando : (
-                  <>
-                    {listaDeIntegrantes}
-                    {listaDeMascotas}
-                  </>
-                )}
+                {loading ? cargando : listas}
               </View>
               <View style={styles.colRight}>{hoyCard}</View>
             </View>
           ) : (
             <View style={styles.stack}>
               {hoyCard}
-              {loading ? cargando : (
-                <>
-                  {listaDeIntegrantes}
-                  {listaDeMascotas}
-                </>
-              )}
+              {loading ? cargando : listas}
             </View>
           )}
         </View>

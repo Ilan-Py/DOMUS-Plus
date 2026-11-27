@@ -214,7 +214,7 @@ export default function AttachmentsSection({
           <ErrorBanner message={error} onDismiss={() => setError('')} />
 
           {loading ? (
-            <ActivityIndicator color={colors.textMuted} style={styles.loadingSlot} />
+            <SkeletonFilas filas={2} miniatura />
           ) : (
             <>
               {adjuntos.length === 0 && !uploading && !compact && (
@@ -271,7 +271,7 @@ export default function AttachmentsSection({
 
               {uploading && (
                 <View style={styles.uploadingRow}>
-                  <ActivityIndicator color={colors.textMuted} />
+                  <Skeleton width={48} height={48} borderRadius={10} />
                   <Text style={styles.rowName}>Subiendo…</Text>
                 </View>
               )}

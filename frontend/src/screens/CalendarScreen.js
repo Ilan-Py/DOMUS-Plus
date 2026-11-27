@@ -21,6 +21,7 @@ import InlineError from '../components/InlineError';
 import PrimaryButton from '../components/PrimaryButton';
 import PressScale from '../components/PressScale';
 import Skeleton from '../components/Skeleton';
+import EmptyState from '../components/EmptyState';
 import MiniCalendar, { dayKey } from '../components/MiniCalendar';
 import { EmptyDoodle } from '../components/FamilyDoodles';
 import { cancelarNotificacion, sincronizarNotificaciones } from '../utils/notifications';
@@ -379,6 +380,16 @@ export default function CalendarScreen({ navigation }) {
           <SkeletonReminderRow />
           <SkeletonReminderRow />
         </View>
+      ) : sections.length === 0 && !hayFiltros ? (
+        <EmptyState
+          titulo="Todavía no hay recordatorios"
+          message="Anotá la próxima vacuna, control o dosis y te avisamos a tiempo."
+          recortes={[
+            { icon: 'calendar', tinte: 'terracota' },
+            { icon: 'notifications', tinte: 'arena' },
+          ]}
+          acciones={[{ label: '+ Nuevo recordatorio', onPress: nuevo }]}
+        />
       ) : loadError ? (
         <InlineError message="No pudimos cargar los recordatorios." onRetry={fetchRecordatorios} />
       ) : sections.length === 0 ? (
