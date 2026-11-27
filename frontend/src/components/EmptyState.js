@@ -68,7 +68,6 @@ const styles = StyleSheet.create({
   },
   actionText: {
     color: colors.onAccent,
-    fontWeight: '700',
     fontFamily: poppinsWeight('700'),
     fontSize: 14,
   },

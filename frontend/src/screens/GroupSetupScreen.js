@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { colors, radii, shadow } from '../theme/colors';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, glassShadow } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
-import { layout } from '../theme/spacing';
 import { useAuth } from '../context/AuthContext';
 import FormField from '../components/FormField';
 import PrimaryButton from '../components/PrimaryButton';
 import ErrorBanner from '../components/ErrorBanner';
 import SegmentedControl from '../components/SegmentedControl';
+import BackgroundBlobs from '../components/BackgroundBlobs';
+import Logo from '../components/Logo';
+import { confirmarDestructivo } from '../utils/confirm';
 
 const MODO_OPTIONS = [
   { label: 'Crear grupo', value: 'crear' },
@@ -16,6 +19,7 @@ const MODO_OPTIONS = [
 
 export default function GroupSetupScreen() {
   const { crearGrupo, unirseGrupo, logout } = useAuth();
+  const insets = useSafeAreaInsets();
   const [modo, setModo] = useState('crear');
 
   const [nombre, setNombre] = useState('');
@@ -70,23 +74,43 @@ export default function GroupSetupScreen() {
     }
   }
 
+  function confirmarSalida() {
+    confirmarDestructivo(
+      'Cerrar sesión',
+      'Vas a volver al inicio. Tu cuenta sigue guardada y podés entrar de nuevo cuando quieras.',
+      logout,
+      'Cerrar sesión'
+    );
+  }
+
+  const esCrear = modo === 'crear';
+
   return (
     <KeyboardAvoidingView
       style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.authWrap}>
+      <BackgroundBlobs />
+
+      <ScrollView
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.column}>
           <View style={styles.brand}>
-            <View style={styles.brandMark}>
-              <Text style={styles.brandMarkIcon}>⚭</Text>
-            </View>
-            <Text style={styles.brandTitle}>
-              {modo === 'crear' ? 'Crea tu grupo familiar' : 'Unite a un grupo familiar'}
+            <Logo variante="color" size={72} style={styles.brandLogo} />
+            <Text style={styles.brandTitle} accessibilityLabel="DOMUS+">
+              DOMUS+
             </Text>
-            <Text style={styles.brandSubtitle}>
-              {modo === 'crear'
-                ? 'Aquí reunirás a las personas y mascotas que quieres cuidar.'
+            <Text style={styles.brandSubtitle} accessibilityRole="header">
+              {esCrear ? 'Creá tu grupo familiar' : 'Unite a un grupo familiar'}
+            </Text>
+            <Text style={styles.brandHelp}>
+              {esCrear
+                ? 'Acá vas a reunir a las personas y mascotas que querés cuidar.'
                 : 'Pedile a quien te invitó el código de su grupo familiar.'}
             </Text>
           </View>
@@ -99,76 +123,59 @@ export default function GroupSetupScreen() {
           />
 
           <View style={styles.card}>
-            {modo === 'crear' ? (
-              <>
-                <FormField
-                  label="Nombre del grupo"
-                  value={nombre}
-                  onChangeText={(text) => {
-                    setNombre(text);
-                    if (text.trim()) setNombreError(false);
-                  }}
-                  placeholder="Familia Pérez"
-                  error={nombreError ? 'Este campo es obligatorio' : ''}
-                  style={{ paddingBottom: 0 }}
-                />
-
-                <ErrorBanner message={formError} />
-
-                <View style={styles.formSubmit}>
-                  <PrimaryButton
-                    title="Crear grupo"
-                    onPress={handleCrearGrupo}
-                    loading={saving}
-                    variant="success"
-                  />
-                </View>
-              </>
+            {esCrear ? (
+              <FormField
+                label="Nombre del grupo"
+                value={nombre}
+                onChangeText={(text) => {
+                  setNombre(text);
+                  if (text.trim()) setNombreError(false);
+                }}
+                placeholder="Familia Pérez"
+                error={nombreError ? 'Escribí un nombre para el grupo.' : ''}
+                returnKeyType="go"
+                onSubmitEditing={handleCrearGrupo}
+                style={{ paddingBottom: 0 }}
+              />
             ) : (
-              <>
-                <FormField
-                  label="Código de invitación"
-                  value={codigo}
-                  onChangeText={(text) => {
-                    setCodigo(text.toUpperCase());
-                    if (text.trim()) setCodigoError(false);
-                  }}
-                  placeholder="ABC1234"
-                  autoCapitalize="characters"
-                  error={codigoError ? 'Este campo es obligatorio' : ''}
-                  style={{ paddingBottom: 0 }}
-                />
-
-                <ErrorBanner message={formError} />
-
-                <View style={styles.formSubmit}>
-                  <PrimaryButton
-                    title="Unirme al grupo"
-                    onPress={handleUnirseGrupo}
-                    loading={saving}
-                    variant="success"
-                  />
-                </View>
-              </>
+              <FormField
+                label="Código de invitación"
+                value={codigo}
+                onChangeText={(text) => {
+                  setCodigo(text.toUpperCase());
+                  if (text.trim()) setCodigoError(false);
+                }}
+                placeholder="ABC1234"
+                autoCapitalize="characters"
+                error={codigoError ? 'Escribí el código que te pasaron.' : ''}
+                returnKeyType="go"
+                onSubmitEditing={handleUnirseGrupo}
+                style={{ paddingBottom: 0 }}
+              />
             )}
+
+            <ErrorBanner message={formError} />
+
+            <View style={styles.submit}>
+              <PrimaryButton
+                title={esCrear ? 'Crear grupo' : 'Unirme al grupo'}
+                variant="accent"
+                onPress={esCrear ? handleCrearGrupo : handleUnirseGrupo}
+                loading={saving}
+              />
+            </View>
+          </View>
+
+          <View style={styles.exit}>
+            <Text style={styles.exitText}>¿No era esta cuenta?</Text>
+            <PrimaryButton
+              title="Cerrar sesión"
+              variant="secondary"
+              onPress={confirmarSalida}
+              disabled={saving}
+            />
           </View>
         </View>
-
-        <TouchableOpacity
-          onPress={() =>
-            Alert.alert(
-              'Salir de la cuenta',
-              '¿Seguro que querés cerrar sesión?',
-              [
-                { text: 'Cancelar', style: 'cancel' },
-                { text: 'Salir', style: 'destructive', onPress: logout },
-              ]
-            )
-          }
-          style={styles.logoutBtn}
-        >
-          <Text style={styles.logoutText}>Salir de la cuenta</Text>
-        </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -177,79 +184,69 @@ export default function GroupSetupScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.bgBase,
   },
   scroll: {
     flexGrow: 1,
     justifyContent: 'center',
-  },
-  authWrap: {
     paddingHorizontal: 24,
-    paddingTop: layout.screenTopPadding,
-    paddingBottom: 24,
-    alignItems: 'center',
+  },
+  column: {
+    width: '100%',
+    maxWidth: 440,
+    alignSelf: 'center',
   },
   brand: {
     alignItems: 'center',
-    marginBottom: 22,
+    marginBottom: 24,
   },
-  brandMark: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
-    // Insignia decorativa de marca, mismo rol que brandBadge en LoginScreen
-    // (que ya usa colors.lime/terracota) — no es un elemento de urgencia ni
-    // de "estado secundario calmo", es la marca de la app en el onboarding,
-    // así que sigue ese mismo precedente en vez de sage. Era colors.blueLight
-    // (#9CC9FF), el último azul frío hardcodeado que quedaba sin migrar.
-    backgroundColor: colors.lime,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-    ...shadow,
-  },
-  brandMarkIcon: {
-    fontSize: 22,
-    color: colors.navy,
-  },
+  brandLogo: { marginBottom: 8 },
   brandTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 28,
+    lineHeight: 36,
     fontFamily: poppinsWeight('700'),
-    color: colors.navy,
-    textAlign: 'center',
+    color: colors.accentStrong,
   },
   brandSubtitle: {
-    fontSize: 12.5,
-    color: colors.textMuted,
-    marginTop: 4,
-    maxWidth: 240,
+    fontSize: 22,
+    lineHeight: 30,
+    fontFamily: poppinsWeight('700'),
+    color: colors.ink,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  brandHelp: {
+    fontSize: 17,
+    lineHeight: 25,
+    color: colors.textBody,
+    marginTop: 8,
     textAlign: 'center',
   },
   segmented: {
     width: '100%',
-    marginBottom: 14,
+    marginHorizontal: 0,
+    marginTop: 0,
+    marginBottom: 16,
   },
   card: {
     width: '100%',
-    backgroundColor: colors.glassStrong,
+    backgroundColor: colors.glass,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radii.card,
-    paddingHorizontal: 20,
-    paddingVertical: 22,
+    borderColor: colors.glassBorderSoft,
+    padding: 32,
+    ...glassShadow,
   },
-  formSubmit: {
-    paddingTop: 6,
+  submit: {
+    marginTop: 24,
   },
-  logoutBtn: {
-    marginTop: 28,
+  exit: {
+    marginTop: 32,
+    gap: 12,
     alignItems: 'center',
-    padding: 12,
   },
-  logoutText: {
-    fontSize: 13,
-    color: colors.textMuted,
-    fontFamily: poppinsWeight('400'),
+  exitText: {
+    fontSize: 16,
+    color: colors.textBody,
   },
 });

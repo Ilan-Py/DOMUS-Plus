@@ -57,7 +57,7 @@ const Segment = React.forwardRef(function Segment({ option, active, onPress }, r
 
   const color = colorAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [colors.textMuted, colors.onAccent],
+    outputRange: [colors.textBody, colors.ink],
   });
 
   return (
@@ -176,7 +176,7 @@ export default function SegmentedControl({ options, selectedValue, onChange, sty
   // medible con measureLayout) — así medir siempre pasa por el mismo tipo
   // de nodo pase lo que pase con el blur.
   const inner = (
-    <View ref={trackRef} style={styles.trackInner}>
+    <View ref={trackRef} style={styles.trackInner} onLayout={measureAndSync}>
       {highlight}
       {segments}
     </View>
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     // Translúcido y sumado al blur (no en vez de él) — un color translúcido
     // solo, sin nada detrás desenfocándose, no lee como vidrio (mismo
     // diagnóstico que Login/Register: blurear un fondo parejo no se nota).
-    backgroundColor: colors.sageTranslucent,
+    backgroundColor: colors.trackSand,
     borderRadius: 14,
     overflow: 'hidden', // recorta el blur nativo al radio del track (Android)
   },
@@ -225,7 +225,8 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexShrink: 1,
     flexBasis: 'auto',
-    paddingVertical: 11,
+    minHeight: 48,
+    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -235,7 +236,7 @@ const styles = StyleSheet.create({
     // le dé más espacio), igual que antes.
     // 24 (no 0, heredado de segItem) — el texto quedaba pegado a la curva
     // del pill activo con etiquetas largas ("Tratamientos").
-    paddingHorizontal: 24,
+    paddingHorizontal: 14,
   },
   // Capa independiente detrás de los segmentos — incluye el fill negro y la
   // sombra que antes vivían en segItemActive. top/bottom:4 refleja el mismo
@@ -245,15 +246,15 @@ const styles = StyleSheet.create({
     top: 4,
     bottom: 4,
     left: 0,
-    backgroundColor: colors.ink,
-    borderRadius: 14,
+    backgroundColor: colors.glass,
+    borderRadius: 11,
     ...shadow,
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 1,
   },
   segItemText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
     fontFamily: poppinsWeight('600'),
   },
 });

@@ -2,7 +2,7 @@
 //1 — Controlador de salud: vacunas y tratamientos (CU6, CU7, CU10) — migrado a Prisma
 const prisma = require('../config/prisma');
 const { verificarPertenenciaDirecta } = require('../utils/grupo');
-const { validarCampos, esIdValido } = require('../utils/validacion');
+const { validarCampos, esIdValido, FECHA_MINIMA, hoy, hoyMasAnios } = require('../utils/validacion');
 
 // Tipo, formato y largo de cada campo (ERR-011). Los obligatorios se chequean en cada función.
 const REGLAS_PADRE = {
@@ -12,22 +12,51 @@ const REGLAS_PADRE = {
 const REGLAS_VACUNA = {
     ...REGLAS_PADRE,
     nombre:           { tipo: 'texto', max: 150 },
-    fecha_aplicacion: { tipo: 'fecha', etiqueta: 'fecha de aplicación' },
-    proxima_dosis:    { tipo: 'fecha', etiqueta: 'próxima dosis' },
+    fecha_aplicacion: {
+        tipo: 'fecha', etiqueta: 'fecha de aplicación', desde: FECHA_MINIMA, hasta: hoy,
+        mensajeDesde: 'La fecha de aplicación no puede ser anterior a 1900.',
+        mensajeHasta: 'La fecha de aplicación no puede ser futura.'
+    },
+    proxima_dosis: {
+        tipo: 'fecha', etiqueta: 'próxima dosis', desde: FECHA_MINIMA, hasta: hoyMasAnios(10),
+        mensajeDesde: 'La próxima dosis no puede ser anterior a 1900.',
+        mensajeHasta: 'La próxima dosis no puede estar a más de 10 años.'
+    },
     notas:            { tipo: 'texto', max: 2000 }
 };
 const REGLAS_TRATAMIENTO = {
     ...REGLAS_PADRE,
     descripcion:  { tipo: 'texto', max: 255, etiqueta: 'descripción' },
     medicacion:   { tipo: 'texto', max: 200, etiqueta: 'medicación' },
-    fecha_inicio: { tipo: 'fecha', etiqueta: 'fecha de inicio' },
-    fecha_fin:    { tipo: 'fecha', etiqueta: 'fecha de fin' }
+    fecha_inicio: {
+        tipo: 'fecha', etiqueta: 'fecha de inicio', desde: FECHA_MINIMA, hasta: hoyMasAnios(1),
+        mensajeDesde: 'La fecha de inicio no puede ser anterior a 1900.',
+        mensajeHasta: 'La fecha de inicio no puede estar a más de un año.'
+    },
+    fecha_fin: {
+        tipo: 'fecha', etiqueta: 'fecha de fin', desde: FECHA_MINIMA, hasta: hoyMasAnios(11),
+        mensajeDesde: 'La fecha de fin no puede ser anterior a 1900.',
+        mensajeHasta: 'La fecha de fin es demasiado lejana.'
+    }
 };
 
 //2 — Valida que proxima_dosis > fecha_aplicacion (CU7)
 function validarFechasVacuna(fecha_aplicacion, proxima_dosis) {
     if (!proxima_dosis) return true;
     return new Date(proxima_dosis) > new Date(fecha_aplicacion);
+}
+
+//2b — Tratamiento: fecha_fin no anterior a fecha_inicio y a lo sumo 10 años después.
+// Devuelve un mensaje de error o null.
+function errorFechasTratamiento(fecha_inicio, fecha_fin) {
+    if (!fecha_fin) return null;
+    const inicio = new Date(fecha_inicio);
+    const fin = new Date(fecha_fin);
+    if (fin < inicio) return 'La fecha de fin no puede ser anterior a la fecha de inicio.';
+    const limite = new Date(inicio);
+    limite.setFullYear(limite.getFullYear() + 10);
+    if (fin > limite) return 'El tratamiento no puede durar más de 10 años.';
+    return null;
 }
 
 //3 — El integrante/mascota indicado tiene que ser del grupo del usuario.
@@ -239,6 +268,12 @@ async function registrarTratamiento(req, res) {
     if (!descripcion || !medicacion || !fecha_inicio) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'descripcion, medicacion y fecha_inicio son obligatorios.' });
     }
+    {
+        const errFechas = errorFechasTratamiento(fecha_inicio, fecha_fin);
+        if (errFechas) {
+            return res.status(400).json({ codigo: 400, estado: 'error', datos: errFechas });
+        }
+    }
     if (!integrante_id && !mascota_id) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'Debe indicar integrante_id o mascota_id.' });
     }
@@ -310,6 +345,12 @@ async function editarTratamiento(req, res) {
 
     if (!descripcion || !medicacion || !fecha_inicio) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'descripcion, medicacion y fecha_inicio son obligatorios.' });
+    }
+    {
+        const errFechas = errorFechasTratamiento(fecha_inicio, fecha_fin);
+        if (errFechas) {
+            return res.status(400).json({ codigo: 400, estado: 'error', datos: errFechas });
+        }
     }
 
     try {

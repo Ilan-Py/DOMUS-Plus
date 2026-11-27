@@ -1,6 +1,7 @@
 import React from 'react';
-import { Text, View, StyleSheet } from 'react-native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Text, View, StyleSheet, useWindowDimensions } from 'react-native';
+import { createBottomTabNavigator, BottomTabBar } from '@react-navigation/bottom-tabs';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +15,7 @@ import AddVaccineScreen from '../screens/AddVaccineScreen';
 import AddTreatmentScreen from '../screens/AddTreatmentScreen';
 import AddReminderScreen from '../screens/AddReminderScreen';
 import EmergencyScreen from '../screens/EmergencyScreen';
+import SideBar, { SIDEBAR_WIDTH, SIDEBAR_BREAKPOINT } from './SideBar';
 import { colors } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 
@@ -67,6 +69,14 @@ function CalendarioStackNavigator() {
 // Los emojis (👪📅👤) traían su propio color de fuente y no respondían al
 // tint activo/inactivo — Ionicons outline sí, vía la prop `color` que
 // React Navigation ya pasa a tabBarIcon.
+// La barra inferior sólo se muestra en las pantallas raíz de cada pestaña
+// (lista de familia, calendario, cuenta). En formularios y detalles se oculta:
+// tienen su propio "Volver" y así no tapa botones ni contenido.
+const ROOT_ROUTES = ['FamilyList', 'Calendar', undefined];
+function tabBarHidden(route) {
+  return !ROOT_ROUTES.includes(getFocusedRouteNameFromRoute(route));
+}
+
 const TAB_ICONS = {
   Familia: 'people-outline',
   Calendario: 'calendar-outline',
@@ -89,22 +99,36 @@ function TabBarBackground() {
 
 export default function MainTabs() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const wide = width >= SIDEBAR_BREAKPOINT;
+
+  // En escritorio la escena sólo deja lugar a la barra lateral. El scroll de cada
+  // pantalla ocupa todo el ancho restante (barra de desplazamiento contra el borde
+  // del navegador) y su contenido se centra con useColumnInset.
+  const sceneStyle = wide
+    ? { backgroundColor: colors.bgBase, paddingLeft: SIDEBAR_WIDTH }
+    : { backgroundColor: colors.bgBase };
 
   return (
     <Tab.Navigator
-      sceneContainerStyle={{ backgroundColor: colors.bgBase }}
+      sceneContainerStyle={sceneStyle}
+      tabBar={(props) => (wide ? <SideBar {...props} /> : <BottomTabBar {...props} />)}
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: colors.ink,
+        // Ícono arriba y texto abajo siempre. En pantallas anchas React
+        // Navigation pone el texto al costado del ícono por defecto, y con la
+        // altura fija de abajo se superponían.
+        tabBarLabelPosition: 'below-icon',
+        tabBarActiveTintColor: colors.accentStrong,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarIcon: ({ color, size }) => (
-          <Ionicons name={TAB_ICONS[route.name]} size={size ?? 22} color={color} />
+          <Ionicons name={TAB_ICONS[route.name]} size={26} color={color} />
         ),
         tabBarLabel: ({ focused, color }) => (
           <Text
             style={{
               color,
-              fontSize: 11,
+              fontSize: 14,
               fontFamily: focused ? poppinsWeight('600') : poppinsWeight('400'),
             }}
           >
@@ -122,10 +146,12 @@ export default function MainTabs() {
           backgroundColor: 'transparent',
           borderTopWidth: 0,
           elevation: 0,
-          height: 60 + insets.bottom,
+          height: 68 + insets.bottom,
           paddingTop: 8,
-          paddingBottom: insets.bottom,
+          paddingBottom: insets.bottom + 4,
+          display: wide || tabBarHidden(route) ? 'none' : 'flex',
         },
+        tabBarItemStyle: { flexDirection: 'column', gap: 2 },
         tabBarBackground: () => <TabBarBackground />,
       })}
     >

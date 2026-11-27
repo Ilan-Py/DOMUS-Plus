@@ -7,12 +7,13 @@ import { colors } from './colors';
 // entidad sin `tipo`) caen en DEFAULT_AVATAR_TINT (mismo tono que 'menor',
 // sage) — ver comentario original en FamilyListScreen.
 export const AVATAR_TINTS = {
-  adulto: { bg: colors.avatarAdultBg, text: colors.avatarAdultText },
-  mayor: { bg: colors.avatarSeniorBg, text: colors.avatarSeniorText },
-  menor: { bg: colors.sage, text: colors.sageDeep },
+  adulto: { bg: '#FBE5D8', text: '#A64B2A' }, // durazno suave
+  menor: { bg: '#FDF1D6', text: '#9A6B16' }, // amarillo miel suave
+  mayor: { bg: '#EFE8F2', text: '#5E4B66' }, // lavanda cálida
+  mascota: { bg: '#E5EFE4', text: '#3E6340' }, // verde salvia suave
 };
 
-export const DEFAULT_AVATAR_TINT = { bg: colors.sage, text: colors.sageDeep };
+export const DEFAULT_AVATAR_TINT = AVATAR_TINTS.mascota;
 
 export function avatarTint(tipo) {
   return AVATAR_TINTS[tipo] || DEFAULT_AVATAR_TINT;

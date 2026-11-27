@@ -1,5 +1,5 @@
-import React, { useRef } from 'react';
-import { Animated, Pressable } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, Pressable } from 'react-native';
 
 // Feedback de presión compartido — reemplaza el "nada visible más que lo que
 // da gratis TouchableOpacity" en botones/cards/FABs. Pressable (no
@@ -7,7 +7,7 @@ import { Animated, Pressable } from 'react-native';
 // onPress para animar entrada y salida por separado, no sólo un fade.
 // scale+opacity, ambos nativeDriver-elegibles, 100ms — rápido a propósito,
 // para que se sienta responsivo y no relentice el tap real.
-const PRESS_SCALE = 0.97;
+const PRESS_SCALE = 0.98;
 const PRESS_OPACITY = 0.85;
 const PRESS_DURATION = 100;
 
@@ -19,6 +19,7 @@ export default function PressScale({
   contentStyle,
   children,
   accessibilityRole = 'button',
+  onPressedChange,
   ...rest
 }) {
   const anim = useRef(new Animated.Value(0)).current;
@@ -33,6 +34,14 @@ export default function PressScale({
   // próximo tap.
   const longPressFiredRef = useRef(false);
 
+  // Respeta "reducir movimiento" del sistema: sin escala, sólo el cambio de opacidad.
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => sub?.remove?.();
+  }, []);
+
   function animateTo(toValue) {
     Animated.timing(anim, { toValue, duration: PRESS_DURATION, useNativeDriver: true }).start();
   }
@@ -40,6 +49,7 @@ export default function PressScale({
   function handlePressIn() {
     longPressFiredRef.current = false;
     animateTo(1);
+    if (onPressedChange) onPressedChange(true);
   }
 
   function handlePress(event) {
@@ -55,7 +65,7 @@ export default function PressScale({
     onLongPress(event);
   }
 
-  const scale = anim.interpolate({ inputRange: [0, 1], outputRange: [1, PRESS_SCALE] });
+  const scale = anim.interpolate({ inputRange: [0, 1], outputRange: [1, reduceMotion ? 1 : PRESS_SCALE] });
   const opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [1, PRESS_OPACITY] });
 
   return (
@@ -64,7 +74,10 @@ export default function PressScale({
       onLongPress={onLongPress ? handleLongPress : undefined}
       disabled={disabled}
       onPressIn={handlePressIn}
-      onPressOut={() => animateTo(0)}
+      onPressOut={() => {
+        animateTo(0);
+        if (onPressedChange) onPressedChange(false);
+      }}
       style={style}
       accessibilityRole={accessibilityRole}
       {...rest}

@@ -35,6 +35,42 @@ function esFechaValida(valor) {
     return existeElDia && horaValida;
 }
 
+//3b — Rangos de fechas razonables (la app ya los aplica; acá se exigen igual para
+// cualquier otro cliente). Evitan datos absurdos como una vacuna del año 1099.
+const FECHA_MINIMA = new Date(1900, 0, 1);
+
+function hoy() {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+
+// Hoy más `anios` años (función, para que se evalúe en cada request).
+const hoyMasAnios = (anios) => () => {
+    const d = hoy();
+    return new Date(d.getFullYear() + anios, d.getMonth(), d.getDate());
+};
+
+// Fecha local (sin hora) de un string ya validado con esFechaValida.
+function soloDia(valor) {
+    const partes = PATRON_FECHA.exec(valor.trim());
+    return new Date(Number(partes[1]), Number(partes[2]) - 1, Number(partes[3]));
+}
+
+const aValor = (limite) => (typeof limite === 'function' ? limite() : limite);
+
+// Devuelve un mensaje si `valor` queda fuera de [desde, hasta] de la regla.
+function errorDeRango(valor, regla, etiqueta) {
+    const dia = soloDia(valor);
+    if (regla.desde && dia < aValor(regla.desde)) {
+        return regla.mensajeDesde || `El campo ${etiqueta} es demasiado antiguo.`;
+    }
+    if (regla.hasta && dia > aValor(regla.hasta)) {
+        return regla.mensajeHasta || `El campo ${etiqueta} es demasiado lejano.`;
+    }
+    return null;
+}
+
 const PATRON_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // ERR-008: nombres y apellidos de personas — letras (con tildes, ñ, ü), espacios,
@@ -55,7 +91,7 @@ const DIGITOS_TELEFONO = { min: 3, max: 15 };
 //   tipo 'email'     → texto con formato de email
 //   tipo 'nombrePersona' → texto con sólo letras, espacios, apóstrofes y guiones
 //   tipo 'telefono'  → dígitos, espacios, guiones, paréntesis y + inicial (3 a 15 dígitos)
-//   tipo 'fecha'     → "AAAA-MM-DD"
+//   tipo 'fecha'     → "AAAA-MM-DD"; opcional `desde`/`hasta` (Date o función) con `mensajeDesde`/`mensajeHasta`
 //   tipo 'fechaHora' → "AAAA-MM-DD HH:mm[:ss]" (o ISO)
 //   tipo 'id'        → entero positivo
 //   tipo 'entero'    → entero entre `min` y `max` (acepta 7 o "7")
@@ -99,9 +135,17 @@ function validarCampos(origen, reglas) {
                 break;
             case 'fecha':
                 if (!esFechaValida(valor)) return `El campo ${etiqueta} no es una fecha válida (formato AAAA-MM-DD).`;
+                {
+                    const errRango = errorDeRango(valor, regla, etiqueta);
+                    if (errRango) return errRango;
+                }
                 break;
             case 'fechaHora':
                 if (!esFechaValida(valor)) return `El campo ${etiqueta} no es una fecha y hora válida.`;
+                {
+                    const errRango = errorDeRango(valor, regla, etiqueta);
+                    if (errRango) return errRango;
+                }
                 break;
             case 'id':
                 if (!esIdValido(valor)) return `El campo ${etiqueta} debe ser un número entero positivo.`;
@@ -132,4 +176,4 @@ function validarIdDeRuta(req, res, next, valor) {
     next();
 }
 
-module.exports = { esIdValido, esFechaValida, validarCampos, validarIdDeRuta };
+module.exports = { esIdValido, esFechaValida, validarCampos, validarIdDeRuta, FECHA_MINIMA, hoy, hoyMasAnios };

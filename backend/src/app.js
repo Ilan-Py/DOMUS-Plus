@@ -41,6 +41,9 @@ app.use('/api/admin',         capturarErroresAsync(adminRoutes));
 const path = require('path');
 app.use('/admin', express.static(path.join(__dirname, '..', 'public', 'admin')));
 
+// Fotos de perfil de integrantes y mascotas (archivos en backend/public/fotos)
+app.use('/fotos', express.static(path.join(__dirname, '..', 'public', 'fotos'), { maxAge: '1d' }));
+
 //4 — Health check
 app.get('/api/ping', (req, res) => {
     res.json({ codigo: 200, estado: 'ok', datos: 'DOMUS+ API funcionando.' });

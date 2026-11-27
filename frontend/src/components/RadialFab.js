@@ -256,8 +256,7 @@ const styles = StyleSheet.create({
   },
   optionLabel: {
     marginTop: 4,
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 14,
     fontFamily: poppinsWeight('600'),
     color: colors.ink,
     backgroundColor: colors.bgBase,

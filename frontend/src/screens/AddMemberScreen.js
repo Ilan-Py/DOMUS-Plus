@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { mostrarToast } from '../components/ToastHost';
 import {
   View,
   Text,
@@ -16,9 +17,13 @@ import PrimaryButton from '../components/PrimaryButton';
 import SegmentedControl from '../components/SegmentedControl';
 import ErrorBanner from '../components/ErrorBanner';
 import DatePickerField, { formatDateOnly } from '../components/DatePickerField';
-import PressScale from '../components/PressScale';
+import OptionPicker from '../components/OptionPicker';
 import ScreenHeader from '../components/ScreenHeader';
+import useColumnInset from '../hooks/useColumnInset';
+import useFirstErrorFocus from '../hooks/useFirstErrorFocus';
 import { parseApiDate } from '../utils/displayFormat';
+import { rangoNacimiento, validarNacimiento } from '../utils/dateRules';
+
 import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
 
 function sameDate(a, b) {
@@ -27,7 +32,23 @@ function sameDate(a, b) {
   return a.getTime() === b.getTime();
 }
 
-const TIPOS_INTEGRANTE = ['Adulto', 'Menor', 'Mayor'];
+const ESPECIES = ['Perro', 'Gato', 'Ave'];
+
+// El tipo (menor / adulto / mayor) se calcula solo a partir de la fecha de
+// nacimiento: menor hasta 17 años, adulto de 18 a 64, mayor desde 65. Se sigue
+// enviando porque algunas versiones del backend lo piden; las nuevas lo
+// recalculan igual.
+function tipoPorEdad(fecha) {
+  const hoy = new Date();
+  let edad = hoy.getFullYear() - fecha.getFullYear();
+  const cumpleEsteAnio =
+    hoy.getMonth() > fecha.getMonth() ||
+    (hoy.getMonth() === fecha.getMonth() && hoy.getDate() >= fecha.getDate());
+  if (!cumpleEsteAnio) edad -= 1;
+  if (edad < 18) return 'menor';
+  if (edad < 65) return 'adulto';
+  return 'mayor';
+}
 const TIPO_MIEMBRO_OPTIONS = [
   { label: 'Persona', value: 'integrante' },
   { label: 'Mascota', value: 'mascota' },
@@ -35,12 +56,9 @@ const TIPO_MIEMBRO_OPTIONS = [
 
 // 'adulto' -> 'Adulto' — inverso del .toLowerCase() que arma el payload al
 // guardar; memberToEdit.tipo siempre llega en minúsculas (columna ENUM).
-function capitalizarTipo(tipo) {
-  if (!tipo) return 'Adulto';
-  return tipo.charAt(0).toUpperCase() + tipo.slice(1);
-}
-
 export default function AddMemberScreen({ navigation, route }) {
+  const inset = useColumnInset();
+  const { ref, focusFirst } = useFirstErrorFocus();
   const { refresh } = useFamily();
 
   // memberToEdit: el item completo de integrante/mascota (viene de
@@ -65,7 +83,6 @@ export default function AddMemberScreen({ navigation, route }) {
     memberToEdit?.fecha_nacimiento ? parseApiDate(memberToEdit.fecha_nacimiento) : null
   );
   const [fechaNacimientoError, setFechaNacimientoError] = useState('');
-  const [tipoIntegrante, setTipoIntegrante] = useState(() => capitalizarTipo(memberToEdit?.tipo));
   const [observaciones, setObservaciones] = useState(() => memberToEdit?.observaciones || '');
 
   // Campos de mascota
@@ -85,7 +102,6 @@ export default function AddMemberScreen({ navigation, route }) {
     nombre: memberToEdit?.nombre || '',
     apellido: memberToEdit?.apellido || '',
     fechaNacimiento: memberToEdit?.fecha_nacimiento ? parseApiDate(memberToEdit.fecha_nacimiento) : null,
-    tipoIntegrante: capitalizarTipo(memberToEdit?.tipo),
     observaciones: memberToEdit?.observaciones || '',
     especie: memberToEdit?.especie || '',
     raza: memberToEdit?.raza || '',
@@ -96,7 +112,6 @@ export default function AddMemberScreen({ navigation, route }) {
     nombre !== initialRef.current.nombre ||
     apellido !== initialRef.current.apellido ||
     !sameDate(fechaNacimiento, initialRef.current.fechaNacimiento) ||
-    tipoIntegrante !== initialRef.current.tipoIntegrante ||
     observaciones !== initialRef.current.observaciones ||
     especie !== initialRef.current.especie ||
     raza !== initialRef.current.raza;
@@ -110,11 +125,19 @@ export default function AddMemberScreen({ navigation, route }) {
     const faltaEspecie = tipoMiembro === 'mascota' && !especie.trim();
     setNombreError(faltaNombre ? 'Este campo es obligatorio' : '');
     setApellidoError(faltaApellido ? 'Este campo es obligatorio' : '');
-    setFechaNacimientoError(faltaFechaNacimiento ? 'Este campo es obligatorio' : '');
+    const errNacimiento = fechaNacimiento ? validarNacimiento(fechaNacimiento) : '';
+    setFechaNacimientoError(faltaFechaNacimiento ? 'Este campo es obligatorio' : errNacimiento);
     setEspecieError(faltaEspecie ? 'Este campo es obligatorio' : '');
     setFormError('');
 
-    if (faltaNombre || faltaApellido || faltaFechaNacimiento || faltaEspecie) return;
+    if (faltaNombre || faltaApellido || faltaFechaNacimiento || faltaEspecie || errNacimiento) {
+      focusFirst([
+        [faltaNombre, 'nombre'],
+        [faltaApellido, 'apellido'],
+        [faltaFechaNacimiento || errNacimiento, 'nacimiento'],
+      ]);
+      return;
+    }
 
     setSaving(true);
     try {
@@ -125,7 +148,7 @@ export default function AddMemberScreen({ navigation, route }) {
           nombre,
           apellido,
           fecha_nacimiento: fechaNacimiento ? formatDateOnly(fechaNacimiento) : undefined,
-          tipo: tipoIntegrante.toLowerCase(),
+          tipo: tipoPorEdad(fechaNacimiento),
           observaciones: observaciones || undefined,
         };
         if (isEditing) {
@@ -148,6 +171,7 @@ export default function AddMemberScreen({ navigation, route }) {
 
       await refresh();
       allowNextRemove();
+      mostrarToast(isEditing ? 'Cambios guardados' : tipoMiembro === 'mascota' ? 'Mascota guardada' : 'Integrante guardado');
       // Beat breve de confirmación (checkmark en el botón) antes de salir en
       // vez de un goBack() instantáneo y silencioso — ver PrimaryButton.
       // ~380ms totales: alcanza para que el check haga su pop-in (spring
@@ -177,7 +201,7 @@ export default function AddMemberScreen({ navigation, route }) {
         onBack={() => navigation.goBack()}
       />
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: inset }]}>
         {isEditing ? (
           // El tipo (persona/mascota) no se puede cambiar al editar — id y
           // tabla ya están fijados por memberToEdit. Mismo texto que el label
@@ -194,6 +218,7 @@ export default function AddMemberScreen({ navigation, route }) {
         )}
 
         <FormField
+          inputRef={ref('nombre')}
           label="Nombre"
           value={nombre}
           onChangeText={(text) => {
@@ -208,6 +233,7 @@ export default function AddMemberScreen({ navigation, route }) {
         {tipoMiembro === 'integrante' ? (
           <>
             <FormField
+              inputRef={ref('apellido')}
               label="Apellido"
               value={apellido}
               onChangeText={(text) => {
@@ -219,6 +245,7 @@ export default function AddMemberScreen({ navigation, route }) {
               style={styles.field}
             />
             <DatePickerField
+              inputRef={ref('nacimiento')}
               label="Fecha de nacimiento"
               value={fechaNacimiento}
               onChange={(date) => {
@@ -226,52 +253,34 @@ export default function AddMemberScreen({ navigation, route }) {
                 if (fechaNacimientoError) setFechaNacimientoError('');
               }}
               mode="date"
-              maximumDate={new Date()}
+              minimumDate={rangoNacimiento().min}
+              maximumDate={rangoNacimiento().max}
               error={fechaNacimientoError}
               style={styles.field}
             />
-            <View style={styles.field}>
-              <Text style={styles.label}>Tipo</Text>
-              <View style={styles.chipRow}>
-                {TIPOS_INTEGRANTE.map((tipo) => (
-                  <PressScale
-                    key={tipo}
-                    contentStyle={[styles.chip, tipoIntegrante === tipo && styles.chipActive]}
-                    onPress={() => setTipoIntegrante(tipo)}
-                    hitSlop={{ top: 2, bottom: 2 }}
-                    accessibilityState={{ selected: tipoIntegrante === tipo }}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        tipoIntegrante === tipo && styles.chipTextActive,
-                      ]}
-                    >
-                      {tipo}
-                    </Text>
-                  </PressScale>
-                ))}
-              </View>
-            </View>
             <FormField
               label="Observaciones"
               value={observaciones}
               onChangeText={setObservaciones}
-              placeholder="Alergias, condiciones, notas..."
+              placeholder="Condiciones, cuidados, notas…"
               multiline
               style={styles.field}
             />
           </>
         ) : (
           <>
-            <FormField
+            <OptionPicker
               label="Especie"
+              options={ESPECIES}
               value={especie}
-              onChangeText={(text) => {
-                setEspecie(text);
-                if (text.trim()) setEspecieError('');
+              onChange={(value) => {
+                setEspecie(value);
+                if (value.trim()) setEspecieError('');
               }}
-              placeholder="Perro, gato, ave..."
+              otherLabel="Otro"
+              otherFieldLabel="¿Qué animal es?"
+              otherPlaceholder="Ej. Conejo"
+              optional={false}
               error={especieError}
               style={styles.field}
             />
@@ -297,12 +306,7 @@ export default function AddMemberScreen({ navigation, route }) {
             onPress={handleGuardar}
             loading={saving}
             success={saved}
-            variant="success"
-          />
-          <PrimaryButton
-            title="Cancelar"
-            onPress={() => navigation.goBack()}
-            variant="secondary"
+            variant="accent"
           />
         </View>
       </ScrollView>
@@ -322,23 +326,21 @@ const styles = StyleSheet.create({
   },
   field: {
     paddingHorizontal: 18,
-    paddingBottom: 16,
+    paddingBottom: 20,
   },
   label: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 16,
     fontFamily: poppinsWeight('600'),
-    color: colors.textMuted,
-    marginBottom: 6,
+    color: colors.ink,
+    marginBottom: 8,
   },
   lockedTipo: {
     marginHorizontal: 18,
     marginTop: 16,
     marginBottom: 16,
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 14,
     fontFamily: poppinsWeight('600'),
-    color: colors.textMuted,
+    color: colors.textBody,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -350,8 +352,9 @@ const styles = StyleSheet.create({
   chip: {
     paddingVertical: 10,
     paddingHorizontal: 16,
-    minHeight: 40,
-    borderRadius: 20,
+    minHeight: 48,
+    justifyContent: 'center',
+    borderRadius: 24,
     borderWidth: 1.5,
     borderColor: colors.line,
     backgroundColor: '#FFFFFF',
@@ -361,10 +364,9 @@ const styles = StyleSheet.create({
     borderColor: colors.navy,
   },
   chipText: {
-    fontSize: 13.5,
-    fontWeight: '600',
+    fontSize: 16,
     fontFamily: poppinsWeight('600'),
-    color: colors.textMuted,
+    color: colors.textBody,
   },
   chipTextActive: {
     color: colors.onAccent,

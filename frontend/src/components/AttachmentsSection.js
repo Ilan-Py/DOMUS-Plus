@@ -17,21 +17,32 @@ import { poppinsWeight } from '../theme/typography';
 import api, { getList } from '../api/client';
 import PressScale from './PressScale';
 import ErrorBanner from './ErrorBanner';
+import InlineError from './InlineError';
+import { EmptyDoodle } from './FamilyDoodles';
 import FadeSlideIn from './FadeSlideIn';
 import FadeOutRow, { EXIT_DURATION } from './FadeOutRow';
 import { confirmarDestructivo, elegirOpcion } from '../utils/confirm';
 
-const THUMB_SIZE = 72;
 
 // `parentType` es una de las 5 llaves que el backend acepta como padre único
 // de un adjunto (ver chk_adjunto_un_padre en Scripts/04_adjuntos.sql y
 // CAMPOS_PADRE en adjuntoController.js) — el componente arma
 // `${parentType}_id` para hablar con /api/adjuntos, mismo contrato en los 3
 // verbos (POST/GET/DELETE).
-export default function AttachmentsSection({ parentType, parentId, label = 'Adjuntos' }) {
+// `compact`: título chico para los adjuntos dentro de una tarjeta de vacuna/
+// tratamiento/evento. `addLabel`: texto del botón del pie.
+export default function AttachmentsSection({
+  parentType,
+  parentId,
+  label = 'Adjuntos',
+  compact = false,
+  hint,
+  addLabel = 'Adjuntar documento',
+}) {
   const [adjuntos, setAdjuntos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [eliminandoId, setEliminandoId] = useState(null);
   const [exitingId, setExitingId] = useState(null);
@@ -39,11 +50,14 @@ export default function AttachmentsSection({ parentType, parentId, label = 'Adju
 
   const fetchAdjuntos = useCallback(async () => {
     setError('');
+    setLoadError(false);
+    setLoading(true);
     try {
       const datos = await getList('/api/adjuntos', { params: { [`${parentType}_id`]: parentId } });
       setAdjuntos(datos);
-    } catch (err) {
-      setError(err.mensaje);
+    } catch {
+      // Mensaje claro dentro de la tarjeta (con Reintentar), no el texto técnico del servidor.
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -76,12 +90,28 @@ export default function AttachmentsSection({ parentType, parentId, label = 'Adju
     // si se fija el header a mano sin el boundary, el request llega
     // corrupto del lado del servidor (documentado explícitamente en la
     // propia doc de axios: "leave Content-Type unset").
-    formData.append('archivo', { uri, name: nombre, type: mimeType });
     try {
+      if (Platform.OS === 'web') {
+        // En web, FormData no entiende el objeto { uri, name, type } propio de
+        // React Native: lo convierte en el texto "[object Object]" y el
+        // servidor responde "Debe adjuntar un archivo". Hay que mandar un
+        // archivo real (Blob/File), que se arma desde la uri del selector.
+        const blob = await (await fetch(uri)).blob();
+        formData.append('archivo', new File([blob], nombre, { type: mimeType || blob.type }));
+      } else {
+        formData.append('archivo', { uri, name: nombre, type: mimeType });
+      }
       await api.post('/api/adjuntos', formData);
       await fetchAdjuntos();
     } catch (err) {
-      setError(err.mensaje);
+      // Un 5xx es un fallo del servidor (ej. el servicio de archivos): mensaje
+      // claro en vez del texto técnico. Los 4xx traen un motivo útil (tipo de
+      // archivo no soportado, tamaño, etc.) y se muestran tal cual.
+      setError(
+        err.status >= 500
+          ? 'No pudimos subir el archivo. Probá de nuevo en un rato.'
+          : err.mensaje
+      );
     } finally {
       setUploading(false);
     }
@@ -169,73 +199,100 @@ export default function AttachmentsSection({ parentType, parentId, label = 'Adju
   }
 
   return (
-    <View style={styles.root}>
-      <Text style={styles.titulo}>{label}</Text>
-      <ErrorBanner message={error} onDismiss={() => setError('')} />
+    <View style={compact ? styles.rootCompact : null}>
+      {/* En modo compacto (dentro de una vacuna/tratamiento) el título y la lista
+          sólo aparecen si hay archivos; sin archivos queda un botón chico. */}
+      {!!label && (!compact || adjuntos.length > 0) && (
+        <Text style={[styles.titulo, compact && styles.tituloCompact, !!hint && styles.tituloConHint]}>{label}</Text>
+      )}
+      {!!hint && <Text style={styles.hint}>{hint}</Text>}
 
-      <View style={styles.grid}>
-        {loading ? (
-          <ActivityIndicator color={colors.textMuted} style={styles.loadingSlot} />
-        ) : (
-          <>
-            {adjuntos.map((item, i) => (
-              <FadeSlideIn key={item.id} index={i} style={styles.slotWrap}>
-                <FadeOutRow exiting={exitingId === item.id}>
-                  <PressScale
-                    contentStyle={styles.thumb}
-                    onPress={() => handleTap(item)}
-                    disabled={eliminandoId === item.id}
-                    accessibilityLabel={item.tipo_archivo === 'pdf' ? 'Abrir PDF' : 'Ver foto'}
-                  >
-                    {item.tipo_archivo === 'pdf' ? (
-                      <View style={styles.pdfTile}>
-                        <Ionicons name="document-text-outline" size={24} color={colors.textMuted} />
-                      </View>
-                    ) : (
-                      <Image source={{ uri: item.url }} style={styles.thumbImage} />
-                    )}
-                  </PressScale>
-                  <PressScale
-                    contentStyle={styles.deleteBadge}
-                    onPress={() => confirmEliminar(item)}
-                    disabled={eliminandoId === item.id}
-                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                    accessibilityLabel="Eliminar adjunto"
-                  >
-                    {eliminandoId === item.id ? (
-                      <ActivityIndicator size="small" color={colors.danger} />
-                    ) : (
-                      <Ionicons name="close" size={12} color={colors.danger} />
-                    )}
-                  </PressScale>
-                  {item.tipo_archivo === 'pdf' && (
-                    <Text style={styles.thumbLabel} numberOfLines={2}>
-                      {item.nombre_original || 'PDF'}
-                    </Text>
-                  )}
-                </FadeOutRow>
-              </FadeSlideIn>
-            ))}
+      {loadError ? (
+        <InlineError message="No pudimos cargar los documentos." onRetry={fetchAdjuntos} />
+      ) : (
+        <>
+          <ErrorBanner message={error} onDismiss={() => setError('')} />
 
-            {uploading && (
-              <View style={styles.slotWrap}>
-                <View style={[styles.thumb, styles.uploadingTile]}>
-                  <ActivityIndicator color={colors.textMuted} />
+          {loading ? (
+            <ActivityIndicator color={colors.textMuted} style={styles.loadingSlot} />
+          ) : (
+            <>
+              {adjuntos.length === 0 && !uploading && !compact && (
+                <View style={styles.emptyRow}>
+                  <EmptyDoodle variant="documento" size={48} />
+                  <Text style={styles.emptyText}>Todavía no hay documentos.</Text>
                 </View>
-              </View>
-            )}
+              )}
 
-            <PressScale
-              contentStyle={[styles.thumb, styles.addTile]}
-              onPress={handleAgregar}
-              disabled={uploading}
-              accessibilityLabel="Agregar adjunto"
-            >
-              <Ionicons name="add" size={26} color={colors.textMuted} />
-            </PressScale>
-          </>
-        )}
-      </View>
+              {adjuntos.map((item, i) => {
+                const esPdf = item.tipo_archivo === 'pdf';
+                const nombre = item.nombre_original || (esPdf ? 'Documento PDF' : 'Foto');
+                return (
+                  <FadeSlideIn key={item.id} index={i}>
+                    <FadeOutRow exiting={exitingId === item.id}>
+                      <View style={[styles.row, i < adjuntos.length - 1 && styles.rowDivider]}>
+                        <PressScale
+                          style={styles.rowMain}
+                          contentStyle={styles.rowMainInner}
+                          onPress={() => handleTap(item)}
+                          disabled={eliminandoId === item.id}
+                          accessibilityLabel={esPdf ? `Abrir PDF ${nombre}` : `Ver foto ${nombre}`}
+                        >
+                          {esPdf ? (
+                            <View style={styles.pdfTile}>
+                              <Ionicons name="document-text-outline" size={24} color={colors.iconWarm} />
+                            </View>
+                          ) : (
+                            <Image source={{ uri: item.url }} style={styles.thumbImage} />
+                          )}
+                          <Text style={styles.rowName} numberOfLines={2}>
+                            {nombre}
+                          </Text>
+                          {/* Indica que tocar la fila abre el archivo. */}
+                          <Ionicons name="chevron-forward" size={20} color={colors.iconWarm} />
+                        </PressScale>
+                        <PressScale
+                          contentStyle={styles.deleteBtn}
+                          onPress={() => confirmEliminar(item)}
+                          disabled={eliminandoId === item.id}
+                          accessibilityLabel={`Eliminar ${nombre}`}
+                        >
+                          {eliminandoId === item.id ? (
+                            <ActivityIndicator size="small" color={colors.danger} />
+                          ) : (
+                            <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                          )}
+                        </PressScale>
+                      </View>
+                    </FadeOutRow>
+                  </FadeSlideIn>
+                );
+              })}
+
+              {uploading && (
+                <View style={styles.uploadingRow}>
+                  <ActivityIndicator color={colors.textMuted} />
+                  <Text style={styles.rowName}>Subiendo…</Text>
+                </View>
+              )}
+
+              <PressScale
+                contentStyle={[
+                  styles.addBtn,
+                  compact && styles.addBtnCompact,
+                  compact && adjuntos.length === 0 && styles.addBtnCompactAlone,
+                ]}
+                onPress={handleAgregar}
+                disabled={uploading}
+                accessibilityLabel="Adjuntar documento"
+              >
+                <Ionicons name="add" size={20} color={colors.ink} />
+                <Text style={styles.addText}>{addLabel}</Text>
+              </PressScale>
+            </>
+          )}
+        </>
+      )}
 
       <Modal visible={!!visorUrl} transparent animationType="fade" onRequestClose={() => setVisorUrl(null)}>
         <View style={styles.visorBackdrop}>
@@ -244,7 +301,7 @@ export default function AttachmentsSection({ parentType, parentId, label = 'Adju
             onPress={() => setVisorUrl(null)}
             accessibilityLabel="Cerrar"
           >
-            <Ionicons name="close" size={22} color={colors.onAccent} />
+            <Ionicons name="close" size={24} color={colors.onAccent} />
           </PressScale>
           {!!visorUrl && (
             <Image source={{ uri: visorUrl }} style={styles.visorImage} resizeMode="contain" />
@@ -256,96 +313,58 @@ export default function AttachmentsSection({ parentType, parentId, label = 'Adju
 }
 
 const styles = StyleSheet.create({
-  root: {
-    marginTop: 12,
-  },
+  // Dentro de una vacuna/tratamiento: separado de los datos con un divisor sutil.
+  rootCompact: { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#EFE8DF' },
   titulo: {
-    fontSize: 12.5,
-    fontWeight: '700',
+    fontSize: 16,
     fontFamily: poppinsWeight('700'),
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    color: colors.ink,
+    marginBottom: 12,
+  },
+  tituloConHint: { marginBottom: 2 },
+  hint: { fontSize: 15, lineHeight: 22, color: colors.textBody, marginBottom: 12 },
+  tituloCompact: {
+    fontSize: 14,
+    fontFamily: poppinsWeight('600'),
+    color: colors.textBody,
     marginBottom: 8,
   },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  loadingSlot: {
-    width: THUMB_SIZE,
-    height: THUMB_SIZE,
-  },
-  // Sin height fija — cada slot ahora crece con el label del nombre de
-  // archivo debajo del thumb (antes coincidía 1:1 con THUMB_SIZE).
-  slotWrap: {
-    width: THUMB_SIZE,
-  },
-  thumb: {
-    width: THUMB_SIZE,
-    height: THUMB_SIZE,
-    borderRadius: radii.input,
-    overflow: 'hidden',
-    ...cardBase,
-  },
-  thumbImage: {
-    width: '100%',
-    height: '100%',
-  },
-  // Sólo bajo el tile de PDF — un thumbnail de 72px de un documento de
-  // texto no es legible, así que lo que identifica al archivo es el nombre,
-  // no la miniatura.
-  thumbLabel: {
-    fontSize: 10.5,
-    lineHeight: 13,
-    color: colors.textMuted,
-    marginTop: 3,
-    textAlign: 'center',
-  },
+  emptyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  emptyText: { flex: 1, fontSize: 16, color: colors.textBody },
+  loadingSlot: { alignSelf: 'flex-start', marginVertical: 8 },
+  row: { flexDirection: 'row', alignItems: 'center', minHeight: 64 },
+  rowDivider: { borderBottomWidth: 1, borderBottomColor: colors.borderCard },
+  rowMain: { flex: 1 },
+  rowMainInner: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 4 },
+  rowName: { flex: 1, fontSize: 16, lineHeight: 22, color: colors.ink, fontFamily: poppinsWeight('600') },
+  thumbImage: { width: 48, height: 48, borderRadius: 10, backgroundColor: colors.surfaceSand },
   pdfTile: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.glassStrong,
-  },
-  uploadingTile: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addTile: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderStyle: 'dashed',
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    backgroundColor: 'transparent',
-    // cardBase trae su propia sombra/bg — se pisan a propósito acá para que
-    // el tile de "agregar" se lea como un placeholder punteado, no como una
-    // card más del mismo peso visual que las que ya tienen contenido.
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  // Presente pero no dominante: el relleno danger sólido era el elemento de
-  // más peso visual de toda la grilla, compitiendo con el contenido del
-  // adjunto. Queda como una tilde blanca con el glifo en danger — el color
-  // semántico sigue estando, en el glifo y no en un disco lleno. El tamaño
-  // (20) ya era el correcto y no cambia; la confirmación real la sigue
-  // dando confirmarDestructivo, no el peso del botón.
-  deleteBadge: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    width: 20,
-    height: 20,
+    width: 48,
+    height: 48,
     borderRadius: 10,
-    backgroundColor: colors.glassStrong,
-    borderWidth: 1,
-    borderColor: colors.line,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: colors.badgeSand,
   },
+  // Separado 16px de la flecha de abrir, para no borrar por error al querer abrir.
+  deleteBtn: { width: 48, height: 48, marginLeft: 16, alignItems: 'center', justifyContent: 'center' },
+  uploadingRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56 },
+  // Botón secundario de ancho completo al pie de la lista.
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 48,
+    marginTop: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.borderCard,
+    backgroundColor: colors.glassStrong,
+  },
+  addBtnCompact: { alignSelf: 'flex-start', paddingHorizontal: 16 },
+  addBtnCompactAlone: { marginTop: 0 },
+  addText: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
   visorBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.9)',
@@ -360,10 +379,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: Platform.OS === 'ios' ? 54 : 24,
     right: 18,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1,

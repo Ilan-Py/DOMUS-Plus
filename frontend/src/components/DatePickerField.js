@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { colors, radii } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
@@ -54,6 +55,7 @@ export default function DatePickerField({
   minimumDate,
   maximumDate,
   placeholder,
+  inputRef,
   style,
 }) {
   const [showPicker, setShowPicker] = useState(false);
@@ -77,10 +79,61 @@ export default function DatePickerField({
       if (parsed) onChange(parsed);
     }
 
+    // Hora: dos listas (hora 00-23 y minutos 00-59) en vez de <input type="time">.
+    // El input nativo muestra "08:00 a. m." según el idioma del navegador, que se
+    // presta a confusión (20:00 vs 08:00); acá siempre es formato de 24 horas.
+    if (mode === 'time') {
+      const hh = value ? pad(value.getHours()) : '';
+      const mm = value ? pad(value.getMinutes()) : '';
+      const base = value || new Date();
+      const selectStyle = { ...webInputStyle, width: 'auto', flex: 1, paddingLeft: 12, paddingRight: 8, ...(error ? webInputErrorStyle : null) };
+      const emit = (h, m) =>
+        onChange(new Date(base.getFullYear(), base.getMonth(), base.getDate(), Number(h), Number(m), 0, 0));
+      return (
+        <View style={[styles.field, style]}>
+          <Text style={styles.label}>{label}</Text>
+          <View style={styles.timeRow}>
+            <Ionicons name="time-outline" size={22} color={colors.iconWarm} />
+            <select
+              ref={inputRef}
+              aria-label={`${label}: hora`}
+              value={hh}
+              onChange={(e) => emit(e.target.value, mm || '00')}
+              style={selectStyle}
+            >
+              {!value && <option value="">--</option>}
+              {Array.from({ length: 24 }, (_, i) => (
+                <option key={i} value={pad(i)}>{pad(i)}</option>
+              ))}
+            </select>
+            <Text style={styles.timeColon}>:</Text>
+            <select
+              aria-label={`${label}: minutos`}
+              value={mm}
+              onChange={(e) => emit(hh || '00', e.target.value)}
+              style={selectStyle}
+            >
+              {!value && <option value="">--</option>}
+              {Array.from({ length: 60 }, (_, i) => (
+                <option key={i} value={pad(i)}>{pad(i)}</option>
+              ))}
+            </select>
+          </View>
+          {!!error && (
+            <Text style={styles.fieldErrorText} accessibilityLiveRegion="polite">
+              {error}
+            </Text>
+          )}
+        </View>
+      );
+    }
+
     return (
       <View style={[styles.field, style]}>
         <Text style={styles.label}>{label}</Text>
         <input
+          ref={inputRef}
+          aria-label={label}
           type={mode === 'time' ? 'time' : 'date'}
           value={inputValue}
           onChange={handleWebChange}
@@ -88,7 +141,11 @@ export default function DatePickerField({
           max={mode === 'date' && maximumDate ? formatDateOnly(maximumDate) : undefined}
           style={{ ...webInputStyle, ...(error ? webInputErrorStyle : null) }}
         />
-        {!!error && <Text style={styles.fieldErrorText}>{error}</Text>}
+        {!!error && (
+            <Text style={styles.fieldErrorText} accessibilityLiveRegion="polite">
+              {error}
+            </Text>
+          )}
       </View>
     );
   }
@@ -118,10 +175,16 @@ export default function DatePickerField({
         style={[styles.input, !!error && styles.inputError]}
         onPress={() => setShowPicker(true)}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`${label}: ${displayText}`}
       >
         <Text style={value ? styles.valueText : styles.placeholderText}>{displayText}</Text>
       </TouchableOpacity>
-      {!!error && <Text style={styles.fieldErrorText}>{error}</Text>}
+      {!!error && (
+            <Text style={styles.fieldErrorText} accessibilityLiveRegion="polite">
+              {error}
+            </Text>
+          )}
 
       {showPicker && (
         <>
@@ -129,6 +192,7 @@ export default function DatePickerField({
             value={value || new Date()}
             mode={mode}
             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            is24Hour
             onChange={handleChange}
             minimumDate={minimumDate}
             maximumDate={maximumDate}
@@ -152,18 +216,18 @@ export default function DatePickerField({
 // plano (el <input> nativo web no pasa por StyleSheet.create).
 const webInputStyle = {
   width: '100%',
-  minHeight: 48,
+  minHeight: 52,
   boxSizing: 'border-box',
   paddingLeft: 14,
   paddingRight: 14,
   paddingTop: 13,
   paddingBottom: 13,
   borderRadius: radii.input,
-  border: `1.5px solid ${colors.line}`,
+  border: `1.5px solid ${colors.borderInput}`,
   backgroundColor: colors.glassFillStrong,
-  fontSize: 15,
+  fontSize: 16,
   color: colors.navy,
-  fontFamily: 'inherit',
+  fontFamily: 'PlusJakartaSans_400Regular, sans-serif',
   outline: 'none',
 };
 
@@ -173,24 +237,25 @@ const webInputErrorStyle = {
 };
 
 const styles = StyleSheet.create({
+  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  timeColon: { fontSize: 20, fontFamily: poppinsWeight('700'), color: colors.ink },
   field: {
-    paddingBottom: 16,
+    paddingBottom: 20,
   },
   label: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 16,
     fontFamily: poppinsWeight('600'),
-    color: colors.textMuted,
-    marginBottom: 6,
+    color: colors.ink,
+    marginBottom: 8,
   },
   input: {
     width: '100%',
-    minHeight: 48,
+    minHeight: 52,
     paddingHorizontal: 14,
     paddingVertical: 13,
     borderRadius: radii.input,
     borderWidth: 1.5,
-    borderColor: colors.line,
+    borderColor: colors.borderInput,
     backgroundColor: colors.glassFillStrong,
     justifyContent: 'center',
   },
@@ -198,18 +263,17 @@ const styles = StyleSheet.create({
     borderColor: colors.error,
     backgroundColor: colors.errorBg,
   },
-  valueText: {
-    fontSize: 15,
+  valueText: { fontVariant: ['tabular-nums'],
+    fontSize: 16,
     color: colors.navy,
   },
   placeholderText: {
-    fontSize: 15,
+    fontSize: 16,
     color: colors.textMuted,
   },
   fieldErrorText: {
-    fontSize: 12.5,
+    fontSize: 14,
     color: colors.error,
-    fontWeight: '600',
     fontFamily: poppinsWeight('600'),
     marginTop: 6,
   },
@@ -222,8 +286,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lime,
   },
   doneBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 15,
     fontFamily: poppinsWeight('700'),
     color: colors.ink,
   },

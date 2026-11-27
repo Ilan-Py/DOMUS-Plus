@@ -2,7 +2,7 @@
 //1 — Controlador de grupo familiar, integrantes y mascotas (CU3, CU4, CU5) — migrado a Prisma
 const prisma = require('../config/prisma');
 const { resolverGrupoId, resolverMembresia } = require('../utils/grupo');
-const { validarCampos } = require('../utils/validacion');
+const { FECHA_MINIMA, hoy, validarCampos } = require('../utils/validacion');
 
 // Tipo, formato y largo de cada campo (ERR-011). Los obligatorios se chequean en cada función.
 // MEJ-004: el tipo de integrante ya no se elige — se calcula con la fecha de
@@ -31,7 +31,7 @@ const REGLAS_INVITACION = { codigo: { tipo: 'texto', max: 20, etiqueta: 'código
 const REGLAS_INTEGRANTE = {
     nombre:           { tipo: 'nombrePersona', max: 100 }, // ERR-008: sin números
     apellido:         { tipo: 'nombrePersona', max: 100 },
-    fecha_nacimiento: { tipo: 'fecha', etiqueta: 'fecha de nacimiento' },
+    fecha_nacimiento: { tipo: 'fecha', etiqueta: 'fecha de nacimiento', desde: FECHA_MINIMA, hasta: hoy, mensajeDesde: 'La fecha de nacimiento no puede ser anterior a 1900.', mensajeHasta: 'La fecha de nacimiento no puede ser una fecha futura.' },
     observaciones:    { tipo: 'texto', max: 2000 }
 };
 // ERR-009: el tipo de sangre es uno de los 8 grupos. Antes se guardaba texto libre.
@@ -136,7 +136,7 @@ const REGLAS_MASCOTA = {
     nombre:           { tipo: 'texto', max: 100 },
     especie:          { tipo: 'nombrePersona', max: 50 }, // MEJ-001: sólo letras (sin números ni símbolos)
     raza:             { tipo: 'texto', max: 100 },
-    fecha_nacimiento: { tipo: 'fecha', etiqueta: 'fecha de nacimiento' }
+    fecha_nacimiento: { tipo: 'fecha', etiqueta: 'fecha de nacimiento', desde: FECHA_MINIMA, hasta: hoy, mensajeDesde: 'La fecha de nacimiento no puede ser anterior a 1900.', mensajeHasta: 'La fecha de nacimiento no puede ser una fecha futura.' }
 };
 
 //2 — Validacion: fecha no puede ser futura (CU4, CU5)

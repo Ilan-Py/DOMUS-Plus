@@ -45,6 +45,8 @@ services:
       TZ: America/Argentina/Buenos_Aires
     volumes:
       - ./backend/src:/app/src
+      # Fotos de perfil (se sirven en /fotos): así aparecen al soltar un archivo, sin reconstruir
+      - ./backend/public:/app/public
     depends_on:
       db:
         condition: service_healthy

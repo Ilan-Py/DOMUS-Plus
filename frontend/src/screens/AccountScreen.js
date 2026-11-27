@@ -1,14 +1,16 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, Alert, Platform, Share, ActivityIndicator, ScrollView } from 'react-native';
+import { mostrarToast } from '../components/ToastHost';
+import { View, Text, StyleSheet, Share, ActivityIndicator, ScrollView, useWindowDimensions } from 'react-native';
+import Svg, { Path, Rect, Circle } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
-import { colors, radii, shadow } from '../theme/colors';
+import { colors } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 import { useAuth } from '../context/AuthContext';
 import api, { getList } from '../api/client';
 import PrimaryButton from '../components/PrimaryButton';
-import ScreenHeader from '../components/ScreenHeader';
 import ErrorBanner from '../components/ErrorBanner';
 import Skeleton from '../components/Skeleton';
 import PressScale from '../components/PressScale';
@@ -17,7 +19,48 @@ import { confirmarDestructivo } from '../utils/confirm';
 import { iniciales } from '../utils/displayFormat';
 import { avatarTint } from '../theme/avatars';
 
-const ROL_LABEL = { 'dueño': 'Dueño', miembro: 'Miembro' };
+// Layout (ver DESIGN.md): desde 1024px, dos columnas (38% perfil y seguridad / 62% grupo)
+// en un contenedor de hasta 1040px; debajo, una sola columna en el mismo orden.
+const DESKTOP_BREAKPOINT = 1024;
+const CONTAINER_MAX_WIDTH = 1040;
+
+// Doodle decorativo (casita) para la cabecera del grupo: trazo fino, sin texto.
+function DoodleCasa() {
+  return (
+    <Svg width={104} height={104} viewBox="0 0 96 96" fill="none">
+      <Path d="M10 46 L48 14 L86 46" stroke={colors.accentStrong} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M20 42 V82 H76 V42" stroke={colors.accentStrong} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M42 82 V60 H54 V82" stroke={colors.accentStrong} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M70 24 V14 H78 V30" stroke={colors.accentStrong} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+      <Circle cx={12} cy={78} r={3} fill={colors.accentStrong} />
+      <Circle cx={86} cy={74} r={2} fill={colors.accentStrong} />
+    </Svg>
+  );
+}
+
+// Doodle de un sobre para el bloque de invitación.
+function DoodleSobre() {
+  return (
+    <Svg width={40} height={40} viewBox="0 0 40 40" fill="none" accessibilityElementsHidden importantForAccessibility="no">
+      <Rect x={5} y={10} width={30} height={22} rx={4} stroke={colors.accentStrong} strokeWidth={2} />
+      <Path d="M6 13 L20 24 L34 13" stroke={colors.accentStrong} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+// Botón de sólo texto (Editar / Renombrar): sin ícono, fondo arena, 48dp.
+function TextButton({ label, onPress, accessibilityLabel }) {
+  return (
+    <PressScale contentStyle={styles.textBtn} onPress={onPress} accessibilityLabel={accessibilityLabel || label}>
+      <Text style={styles.textBtnText}>{label}</Text>
+    </PressScale>
+  );
+}
+
+// El backend guarda el rol como 'dueno' (sin ñ, Prisma no admite ñ en enums) y
+// algunas versiones lo devuelven como 'dueño'. Se aceptan las dos.
+const esRolDueno = (rol) => rol === 'dueño' || rol === 'dueno';
+const rolLabel = (rol) => (esRolDueno(rol) ? 'Dueño' : 'Miembro');
 
 // Fila navegable con chip de ícono + chevron — el mismo affordance que ya
 // usan las cards de FamilyListScreen (avatar + texto + chevron), acá en
@@ -25,27 +68,35 @@ const ROL_LABEL = { 'dueño': 'Dueño', miembro: 'Miembro' };
 // sin chevron ni feedback de presión: "Grupo familiar" es tocable sólo para
 // el dueño (es el único que puede renombrarlo), y una fila que se hunde al
 // tocarla sin hacer nada sería un affordance falso.
-function SettingRow({ icon, label, value, onPress, style, accessibilityLabel }) {
+// Fila de configuración: ícono limpio (sin cajita de fondo), texto y chevron.
+function SettingRow({ icon, label, value, onPress, disabled, tone, accessibilityLabel, last }) {
+  const color = tone === 'danger' ? colors.limeDeep : colors.ink;
+  const iconColor = tone === 'danger' ? colors.limeDeep : colors.iconWarm;
   const contenido = (
     <>
-      <View style={styles.rowIconChip}>
-        <Ionicons name={icon} size={17} color={colors.sageDeep} />
-      </View>
+      <Ionicons name={icon} size={22} color={iconColor} />
       <View style={styles.rowTextWrap}>
-        <Text style={styles.rowLabel}>{label}</Text>
+        <Text style={[styles.rowLabel, { color }]}>{label}</Text>
         {!!value && <Text style={styles.rowValue}>{value}</Text>}
       </View>
-      {!!onPress && <Ionicons name="chevron-forward" size={18} color={colors.textMutedLight} />}
+      {!!onPress && !disabled && tone !== 'danger' && (
+        <Ionicons name="chevron-forward" size={20} color={colors.iconWarm} />
+      )}
     </>
   );
 
-  if (!onPress) {
-    return <View style={[styles.settingRow, style]}>{contenido}</View>;
+  // Deshabilitada: todo el bloque (ícono, título y bajada) con la misma opacidad.
+  const rowStyle = [styles.settingRow, !last && styles.rowDivider, disabled && styles.rowDisabled];
+  if (!onPress || disabled) {
+    return (
+      <View style={rowStyle} accessibilityState={{ disabled: !!disabled }}>
+        {contenido}
+      </View>
+    );
   }
-
   return (
     <PressScale
-      contentStyle={[styles.settingRow, style]}
+      contentStyle={rowStyle}
       onPress={onPress}
       accessibilityLabel={accessibilityLabel || label}
     >
@@ -54,9 +105,32 @@ function SettingRow({ icon, label, value, onPress, style, accessibilityLabel }) 
   );
 }
 
+// Círculo con iniciales: sólo para personas (no para filas de configuración).
+function Avatar({ nombre, apellido, size = 48 }) {
+  const tinte = avatarTint('adulto');
+  const ini = iniciales(nombre, apellido);
+  return (
+    <View
+      style={[
+        styles.avatar,
+        { width: size, height: size, borderRadius: size / 2, backgroundColor: tinte.bg },
+      ]}
+    >
+      {ini ? (
+        <Text style={[styles.avatarText, { color: tinte.text, fontSize: size * 0.36 }]}>{ini}</Text>
+      ) : (
+        <Ionicons name="person" size={size * 0.45} color={tinte.text} />
+      )}
+    </View>
+  );
+}
+
 export default function AccountScreen() {
   const { usuario, grupo, logout, salirDelGrupo, actualizarPerfil, renombrarGrupo } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const desktop = width >= DESKTOP_BREAKPOINT;
 
   const [editandoPerfil, setEditandoPerfil] = useState(false);
   const [perfilNombre, setPerfilNombre] = useState('');
@@ -110,34 +184,20 @@ export default function AccountScreen() {
   );
 
   const miMembresia = miembros.find((m) => m.usuario_id === usuario?.id);
-  const esDueno = miMembresia?.rol === 'dueño';
+  const esDueno = esRolDueno(miMembresia?.rol);
 
   // El usuario de la cuenta no es un `integrante` — no tiene el campo `tipo`
   // (adulto/menor/mayor) ni fecha_nacimiento en /api/auth (ver AuthContext),
   // así que no hay dato con qué elegir entre las familias de tinte: cae
   // siempre en la de 'adulto'. Mismo mapa que usan las cards de
   // FamilyListScreen (theme/avatars.js), no un color nuevo acá.
-  const tinteUsuario = avatarTint('adulto');
-  const inicialesUsuario = iniciales(usuario?.nombre, usuario?.apellido);
 
   function confirmLogout() {
-    // react-native-web no implementa los botones/callbacks de Alert.alert
-    // (no-op silencioso ahí) — sin esta rama, "Cerrar sesión" no hacía nada
-    // en web porque handleLogout nunca se disparaba.
-    if (Platform.OS === 'web') {
-      if (window.confirm('¿Seguro que querés cerrar sesión?')) {
-        handleLogout();
-      }
-      return;
-    }
-
-    Alert.alert(
+    confirmarDestructivo(
       'Cerrar sesión',
       '¿Seguro que querés cerrar sesión?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Cerrar sesión', style: 'destructive', onPress: handleLogout },
-      ],
+      handleLogout,
+      'Cerrar sesión'
     );
   }
 
@@ -257,6 +317,7 @@ export default function AccountScreen() {
     if (!codigoInvitacion) return;
     await Clipboard.setStringAsync(codigoInvitacion);
     setCopiado(true);
+    mostrarToast('Código copiado');
     setTimeout(() => setCopiado(false), 1500);
   }
 
@@ -315,501 +376,419 @@ export default function AccountScreen() {
     );
   }
 
-  return (
-    <View style={styles.root}>
-      <ScreenHeader title="Mi cuenta" />
-
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.card}>
-          {editandoPerfil ? (
-            <>
-              <ErrorBanner message={perfilError} />
-              <FormField label="Nombre" value={perfilNombre} onChangeText={setPerfilNombre} />
-              <FormField label="Apellido" value={perfilApellido} onChangeText={setPerfilApellido} />
-              <FormField
-                label="Correo electrónico"
-                value={perfilEmail}
-                onChangeText={setPerfilEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                style={{ paddingBottom: 0 }}
-              />
-              <View style={styles.formActions}>
-                <PrimaryButton title="Guardar" onPress={guardarPerfil} loading={guardandoPerfil} variant="success" fullWidth={false} />
-                <PrimaryButton title="Cancelar" onPress={cancelarEditarPerfil} variant="secondary" fullWidth={false} disabled={guardandoPerfil} />
-              </View>
-            </>
-          ) : (
-            <View style={styles.profileHeaderRow}>
-              <View style={[styles.avatar, { backgroundColor: tinteUsuario.bg }]}>
-                {inicialesUsuario ? (
-                  <Text style={[styles.avatarText, { color: tinteUsuario.text }]}>{inicialesUsuario}</Text>
-                ) : (
-                  <Ionicons name="person" size={22} color={tinteUsuario.text} />
-                )}
-              </View>
-              <View style={styles.profileInfo}>
-                <Text style={styles.profileNombre} numberOfLines={1}>
-                  {usuario?.nombre} {usuario?.apellido}
-                </Text>
-                <Text style={styles.profileEmail} numberOfLines={1}>{usuario?.email}</Text>
-              </View>
-              <PressScale
-                contentStyle={styles.editLinkBtn}
-                onPress={abrirEditarPerfil}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityLabel="Editar perfil"
-              >
-                <Ionicons name="pencil-outline" size={13} color={colors.textMuted} />
-                <Text style={styles.editLinkText}>Editar</Text>
-              </PressScale>
-            </View>
-          )}
-
-          {editandoGrupo ? (
-            <View style={styles.grupoEditWrap}>
-              <Text style={styles.label}>Grupo familiar</Text>
-              <ErrorBanner message={grupoError} />
-              <FormField value={grupoNombreInput} onChangeText={setGrupoNombreInput} style={{ paddingBottom: 10 }} />
-              <View style={styles.formActions}>
-                <PrimaryButton title="Guardar" onPress={guardarGrupo} loading={guardandoGrupo} variant="success" fullWidth={false} />
-                <PrimaryButton title="Cancelar" onPress={cancelarEditarGrupo} variant="secondary" fullWidth={false} disabled={guardandoGrupo} />
-              </View>
-            </View>
-          ) : (
-            <SettingRow
-              icon="home-outline"
-              label="Grupo familiar"
-              value={grupo?.nombre}
-              style={styles.settingRowDivided}
-              onPress={esDueno ? abrirEditarGrupo : null}
-              accessibilityLabel="Renombrar grupo"
-            />
-          )}
+  // ---------------- bloques ----------------
+  const perfilCard = (
+    <View style={styles.card}>
+      {editandoPerfil ? (
+        <View style={styles.formPad}>
+          <ErrorBanner message={perfilError} />
+          <FormField label="Nombre" value={perfilNombre} onChangeText={setPerfilNombre} />
+          <FormField label="Apellido" value={perfilApellido} onChangeText={setPerfilApellido} />
+          <FormField
+            label="Correo electrónico"
+            value={perfilEmail}
+            onChangeText={setPerfilEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            style={{ paddingBottom: 0 }}
+          />
+          <View style={styles.formActions}>
+            <PrimaryButton title="Guardar" onPress={guardarPerfil} loading={guardandoPerfil} variant="accent" />
+            <PrimaryButton title="Cancelar" onPress={cancelarEditarPerfil} variant="secondary" disabled={guardandoPerfil} />
+          </View>
         </View>
-
-        <View style={mostrarPasswordForm ? styles.card : styles.cardTight}>
-          {mostrarPasswordForm ? (
-            <View>
-              <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>Contraseña</Text>
-              <ErrorBanner message={passwordError} />
-              <FormField label="Contraseña actual" value={passActual} onChangeText={setPassActual} secureTextEntry />
-              <FormField label="Nueva contraseña" value={passNueva} onChangeText={setPassNueva} secureTextEntry />
-              <FormField
-                label="Confirmar nueva contraseña"
-                value={passConfirm}
-                onChangeText={setPassConfirm}
-                secureTextEntry
-                style={{ paddingBottom: 0 }}
-              />
-              <View style={styles.formActions}>
-                <PrimaryButton title="Guardar" onPress={guardarPassword} loading={guardandoPassword} variant="success" fullWidth={false} />
-                <PrimaryButton title="Cancelar" onPress={cancelarPasswordForm} variant="secondary" fullWidth={false} disabled={guardandoPassword} />
-              </View>
-            </View>
-          ) : (
-            // Sin subtexto de "última modificación": /api/auth/password no
-            // devuelve esa fecha y el perfil tampoco la trae (ver
-            // AuthContext) — no se inventa un dato que no existe.
-            <SettingRow
-              icon="key-outline"
-              label="Cambiar contraseña"
-              onPress={abrirPasswordForm}
-            />
-          )}
+      ) : (
+        <View style={styles.profileBody}>
+          <Avatar nombre={usuario?.nombre} apellido={usuario?.apellido} size={64} />
+          <View style={styles.profileInfo}>
+            <Text style={styles.profileNombre} numberOfLines={2}>
+              {usuario?.nombre} {usuario?.apellido}
+            </Text>
+            <Text style={styles.profileEmail} numberOfLines={1}>{usuario?.email}</Text>
+          </View>
+          <TextButton label="Editar" onPress={abrirEditarPerfil} accessibilityLabel="Editar perfil" />
         </View>
+      )}
+    </View>
+  );
 
-        <View style={styles.card}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Miembros del grupo</Text>
-            {/* Sólo el total: no hay ningún límite de plan del lado del
-                backend (grupo_familiar no tiene columna de cupo, ver
-                familiaController) contra el cual mostrar "N de M". */}
+  const seguridadCard = (
+    <View style={styles.card}>
+      <Text style={styles.cardLabel} accessibilityRole="header">Acceso y seguridad</Text>
+      {mostrarPasswordForm ? (
+        <View style={styles.formPad}>
+          <Text style={styles.formTitle}>Cambiar contraseña</Text>
+          <ErrorBanner message={passwordError} />
+          <FormField label="Contraseña actual" value={passActual} onChangeText={setPassActual} secureTextEntry />
+          <FormField label="Nueva contraseña" value={passNueva} onChangeText={setPassNueva} secureTextEntry />
+          <FormField
+            label="Confirmar nueva contraseña"
+            value={passConfirm}
+            onChangeText={setPassConfirm}
+            secureTextEntry
+            style={{ paddingBottom: 0 }}
+          />
+          <View style={styles.formActions}>
+            <PrimaryButton title="Guardar" onPress={guardarPassword} loading={guardandoPassword} variant="accent" />
+            <PrimaryButton title="Cancelar" onPress={cancelarPasswordForm} variant="secondary" disabled={guardandoPassword} />
+          </View>
+        </View>
+      ) : (
+        <SettingRow icon="key-outline" label="Cambiar contraseña" onPress={abrirPasswordForm} last />
+      )}
+
+      <View style={styles.hairline} />
+
+      <PressScale
+        contentStyle={styles.logoutRow}
+        onPress={confirmLogout}
+        disabled={loggingOut}
+        accessibilityLabel="Cerrar sesión"
+      >
+        {loggingOut ? (
+          <ActivityIndicator size="small" color={colors.limeDeep} />
+        ) : (
+          <>
+            <Ionicons name="log-out-outline" size={22} color={colors.limeDeep} />
+            <View style={styles.rowTextWrap}>
+              <Text style={styles.logoutText}>Cerrar sesión</Text>
+              <Text style={styles.logoutHint}>Salir de tu cuenta en este dispositivo.</Text>
+            </View>
+          </>
+        )}
+      </PressScale>
+    </View>
+  );
+
+  const grupoCard = (
+    <View style={[styles.card, styles.cardNoPad]}>
+      {/* Cabecera destacada con un doodle decorativo (casita) en la esquina. */}
+      <View style={styles.banner}>
+        <View style={styles.bannerDoodle} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no">
+          <DoodleCasa />
+        </View>
+        {editandoGrupo ? (
+          <View style={styles.bannerForm}>
+            <ErrorBanner message={grupoError} />
+            <FormField label="Nombre del grupo" value={grupoNombreInput} onChangeText={setGrupoNombreInput} style={{ paddingBottom: 0 }} />
+            <View style={styles.formActions}>
+              <PrimaryButton title="Guardar" onPress={guardarGrupo} loading={guardandoGrupo} variant="accent" />
+              <PrimaryButton title="Cancelar" onPress={cancelarEditarGrupo} variant="secondary" disabled={guardandoGrupo} />
+            </View>
+          </View>
+        ) : (
+          <View style={styles.bannerText}>
+            <Text style={styles.groupEyebrow} accessibilityRole="header">Grupo familiar</Text>
+            <Text style={styles.groupName} numberOfLines={2}>{grupo?.nombre}</Text>
             {!loadingMiembros && !miembrosError && (
-              <View style={styles.countPill}>
-                <Text style={styles.countPillText}>{miembros.length}</Text>
+              <Text style={styles.groupSummary}>
+                {miembros.length} {miembros.length === 1 ? 'integrante' : 'integrantes'}
+              </Text>
+            )}
+            {esDueno && (
+              <View style={styles.bannerAction}>
+                <TextButton label="Renombrar" onPress={abrirEditarGrupo} accessibilityLabel="Renombrar grupo" />
               </View>
             )}
           </View>
+        )}
+      </View>
 
-          {loadingMiembros ? (
-            <>
-              <Skeleton width="100%" height={44} style={{ marginTop: 10 }} />
-              <Skeleton width="100%" height={44} style={{ marginTop: 8 }} />
-            </>
-          ) : miembrosError ? (
-            <ErrorBanner message={miembrosError} onRetry={fetchMiembros} />
-          ) : (
-            <View style={styles.miembrosList}>
-              {miembros.map((m) => (
-                <View key={m.usuario_id} style={styles.miembroRow}>
-                  <View style={styles.miembroInfo}>
-                    <Text style={styles.miembroNombre}>{m.nombre} {m.apellido}</Text>
-                    <View style={[styles.rolPill, m.rol === 'dueño' && styles.rolPillDueno]}>
-                      <Text style={[styles.rolPillText, m.rol === 'dueño' && styles.rolPillTextDueno]}>
-                        {ROL_LABEL[m.rol] ?? m.rol}
-                      </Text>
-                    </View>
-                  </View>
-                  {esDueno && m.usuario_id !== usuario?.id && (
-                    <PressScale
-                      contentStyle={styles.miembroDeleteBtn}
-                      onPress={() => confirmEliminarMiembro(m)}
-                      disabled={eliminandoId === m.usuario_id}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      accessibilityLabel={`Eliminar a ${m.nombre}`}
-                    >
-                      {eliminandoId === m.usuario_id ? (
-                        <ActivityIndicator size="small" color={colors.danger} />
-                      ) : (
-                        <Ionicons name="trash-outline" size={18} color={colors.danger} />
-                      )}
-                    </PressScale>
-                  )}
-                </View>
-              ))}
+      {esDueno && (
+        <View style={styles.inviteWrap}>
+          {!!invitacionError && <ErrorBanner message={invitacionError} />}
+          <PressScale
+            contentStyle={styles.inviteBox}
+            onPress={generandoCodigo ? null : handleGenerarInvitacion}
+            disabled={generandoCodigo}
+            accessibilityLabel={codigoInvitacion ? 'Generar otro código de invitación' : 'Invitar miembro'}
+          >
+            <DoodleSobre />
+            <View style={styles.rowTextWrap}>
+              <Text style={styles.inviteTitle}>
+                {generandoCodigo ? 'Generando código…' : codigoInvitacion ? 'Generar otro código' : 'Invitar miembro'}
+              </Text>
+              <Text style={styles.inviteHint}>Generá un código para que se una a tu grupo</Text>
             </View>
-          )}
+            <Ionicons name="chevron-forward" size={20} color={colors.iconWarm} />
+          </PressScale>
 
-          {esDueno && (
-            <View style={styles.invitacionWrap}>
-              <ErrorBanner message={invitacionError} />
-              {codigoInvitacion ? (
-                <View style={styles.codigoBox}>
-                  <Text style={styles.codigoText}>{codigoInvitacion}</Text>
-                  <View style={styles.codigoActions}>
-                    <PressScale
-                      contentStyle={styles.codigoActionBtn}
-                      onPress={handleCopiarCodigo}
-                      accessibilityLabel="Copiar código"
-                    >
-                      <Ionicons name={copiado ? 'checkmark' : 'copy-outline'} size={16} color={colors.navy} />
-                    </PressScale>
-                    <PressScale
-                      contentStyle={styles.codigoActionBtn}
-                      onPress={handleCompartirCodigo}
-                      accessibilityLabel="Compartir código"
-                    >
-                      <Ionicons name="share-outline" size={16} color={colors.navy} />
-                    </PressScale>
-                  </View>
-                </View>
-              ) : null}
-              <PrimaryButton
-                title={codigoInvitacion ? 'Regenerar código de invitación' : 'Generar código de invitación'}
-                onPress={handleGenerarInvitacion}
-                loading={generandoCodigo}
-                // primary (relleno ink), no secondary (outline) — es la
-                // acción principal de esta card, no una alternativa a otra.
-                variant="primary"
-              />
+          {codigoInvitacion ? (
+            <View style={styles.codigoBox}>
+              <Text style={styles.codigoText} selectable>{codigoInvitacion}</Text>
+              <View style={styles.codigoActions}>
+                <PressScale contentStyle={styles.codigoActionBtn} onPress={handleCopiarCodigo} accessibilityLabel="Copiar código">
+                  <Ionicons name={copiado ? 'checkmark' : 'copy-outline'} size={22} color={colors.ink} />
+                </PressScale>
+                <PressScale contentStyle={styles.codigoActionBtn} onPress={handleCompartirCodigo} accessibilityLabel="Compartir código">
+                  <Ionicons name="share-outline" size={22} color={colors.ink} />
+                </PressScale>
+              </View>
+            </View>
+          ) : null}
+        </View>
+      )}
+
+      {loadingMiembros ? (
+        <View style={styles.formPad}>
+          <Skeleton width="100%" height={44} />
+          <Skeleton width="100%" height={44} style={{ marginTop: 8 }} />
+        </View>
+      ) : miembrosError ? (
+        <View style={styles.formPad}>
+          <ErrorBanner message={miembrosError} onRetry={fetchMiembros} />
+        </View>
+      ) : (
+        <>
+          <Text style={styles.membersLabel} accessibilityRole="header">
+            Miembros ({miembros.length})
+          </Text>
+          {miembros.map((m, i) => (
+            <View key={m.usuario_id} style={[styles.miembroRow, i < miembros.length - 1 && styles.rowDivider]}>
+              <Avatar nombre={m.nombre} apellido={m.apellido} size={40} />
+              <Text style={styles.miembroNombre} numberOfLines={1}>
+                {m.nombre} {m.apellido}
+              </Text>
+              <View style={styles.rolBadge}>
+                <Text style={styles.rolBadgeText}>{rolLabel(m.rol)}</Text>
+              </View>
+              {esDueno && m.usuario_id !== usuario?.id && (
+                <PressScale
+                  contentStyle={styles.deleteBtn}
+                  onPress={() => confirmEliminarMiembro(m)}
+                  disabled={eliminandoId === m.usuario_id}
+                  accessibilityLabel={`Eliminar a ${m.nombre}`}
+                >
+                  {eliminandoId === m.usuario_id ? (
+                    <ActivityIndicator size="small" color={colors.danger} />
+                  ) : (
+                    <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                  )}
+                </PressScale>
+              )}
+            </View>
+          ))}
+        </>
+      )}
+
+      {!!salirError && (
+        <View style={styles.formPad}>
+          <ErrorBanner message={salirError} />
+        </View>
+      )}
+      <View style={styles.footer}>
+        {esDueno ? (
+          <SettingRow
+            icon="exit-outline"
+            label="Salir del grupo"
+            value="Como dueño, no podés salir del grupo."
+            disabled
+            last
+          />
+        ) : (
+          <SettingRow
+            icon="exit-outline"
+            label={saliendo ? 'Saliendo…' : 'Salir del grupo'}
+            tone="danger"
+            onPress={saliendo ? null : confirmSalirGrupo}
+            last
+          />
+        )}
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={styles.root}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scroll,
+          desktop ? styles.scrollDesktop : styles.scrollMobile,
+          { paddingTop: (desktop ? 24 : 12) + insets.top },
+        ]}
+      >
+        <View style={styles.container}>
+          {/* Encabezado sin divisor: el título vive dentro del mismo contenedor que las tarjetas. */}
+          <View style={styles.header}>
+            <Text style={styles.title} accessibilityRole="header">Mi cuenta</Text>
+            <Text style={styles.subtitle}>Administrá tus datos personales y tu grupo familiar.</Text>
+          </View>
+
+          {desktop ? (
+            <View style={styles.columns}>
+              <View style={styles.colLeft}>
+                {perfilCard}
+                {seguridadCard}
+              </View>
+              <View style={styles.colRight}>{grupoCard}</View>
+            </View>
+          ) : (
+            <View style={styles.stack}>
+              {perfilCard}
+              {seguridadCard}
+              {grupoCard}
             </View>
           )}
         </View>
-
-        {esDueno ? (
-          <ErrorBanner
-            variant="info"
-            message="Como dueño del grupo no podés salir de él — por ahora, la única forma de dejar de administrarlo es eliminar el grupo completo (no disponible todavía desde la app)."
-          />
-        ) : (
-          <>
-            <ErrorBanner message={salirError} />
-            <PrimaryButton
-              title="Salir del grupo"
-              onPress={confirmSalirGrupo}
-              loading={saliendo}
-              variant="danger"
-            />
-          </>
-        )}
-
-        <PressScale
-          contentStyle={styles.logoutLinkBtn}
-          onPress={confirmLogout}
-          disabled={loggingOut}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityLabel="Cerrar sesión"
-        >
-          {loggingOut ? (
-            <ActivityIndicator size="small" color={colors.limeDeep} />
-          ) : (
-            <>
-              <Ionicons name="log-out-outline" size={16} color={colors.limeDeep} />
-              <Text style={styles.logoutLinkText}>Cerrar sesión</Text>
-            </>
-          )}
-        </PressScale>
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  content: {
-    padding: 18,
-    // paddingBottom extra para que "Cerrar sesión" no termine bajo la tab
-    // bar flotante al llegar al final del scroll.
-    paddingBottom: 100,
-    gap: 16,
-  },
+  root: { flex: 1, backgroundColor: colors.bg },
+  scroll: { paddingBottom: 110 },
+  scrollDesktop: { paddingHorizontal: 32 },
+  scrollMobile: { paddingHorizontal: 18 },
+  container: { width: '100%', maxWidth: CONTAINER_MAX_WIDTH, alignSelf: 'center' },
+
+  header: { marginBottom: 24 },
+  title: { fontSize: 26, lineHeight: 34, fontFamily: poppinsWeight('700'), color: colors.ink },
+  subtitle: { fontSize: 16, lineHeight: 22, color: colors.textBody, marginTop: 2 },
+
+  columns: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
+  colLeft: { flex: 38, gap: 16 },
+  colRight: { flex: 62 },
+  stack: { gap: 16 },
+
+  // Nivel 2: tarjeta blanca con borde fino y una sombra cálida casi imperceptible.
   card: {
     backgroundColor: colors.glassStrong,
     borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radii.card,
-    paddingHorizontal: 20,
-    paddingVertical: 22,
-    ...shadow,
-  },
-  // Misma card, con el padding vertical reducido — una card que contiene una
-  // sola SettingRow (que ya trae sus propios 12px arriba y abajo) se ve
-  // desbalanceada con los 22 del padding normal.
-  cardTight: {
-    backgroundColor: colors.glassStrong,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radii.card,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    ...shadow,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    fontFamily: poppinsWeight('600'),
-    color: colors.textMuted,
-    marginBottom: 4,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    fontFamily: poppinsWeight('700'),
-    color: colors.navy,
-    marginBottom: 4,
-  },
-  miembrosList: {
-    marginTop: 8,
-  },
-  miembroRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
-  },
-  miembroInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
-  miembroNombre: {
-    fontSize: 14.5,
-    fontWeight: '600',
-    fontFamily: poppinsWeight('600'),
-    color: colors.navy,
-    flexShrink: 1,
-  },
-  rolPill: {
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 999,
-    backgroundColor: colors.sage,
-  },
-  rolPillDueno: {
-    backgroundColor: colors.avatarAdultBg,
-  },
-  rolPillText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    fontFamily: poppinsWeight('700'),
-    color: colors.sageDeep,
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  rolPillTextDueno: {
-    color: colors.avatarAdultText,
-  },
-  miembroDeleteBtn: {
-    width: 32,
-    height: 32,
+    borderColor: colors.borderCard,
     borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#2A2421',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 16,
+    elevation: 0,
+  },
+  cardNoPad: { paddingBottom: 0 },
+  cardLabel: {
+    fontSize: 14,
+    fontFamily: poppinsWeight('600'),
+    color: colors.textBody,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 4,
+  },
+  hairline: { height: 1, backgroundColor: '#EFE8DF', marginHorizontal: 16 },
+  rowDivider: { borderBottomWidth: 1, borderBottomColor: '#EFE8DF' },
+  formPad: { padding: 16 },
+  formTitle: { fontSize: 17, fontFamily: poppinsWeight('700'), color: colors.ink, marginBottom: 12 },
+  formActions: { gap: 12, marginTop: 20 },
+
+  // Botón de sólo texto (Editar / Renombrar): fondo arena, 48dp.
+  textBtn: {
+    height: 48,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    backgroundColor: colors.emptyBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  invitacionWrap: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
-    gap: 10,
+  textBtnText: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
+
+  // ---- perfil
+  profileBody: { padding: 16, gap: 16 },
+  profileInfo: { gap: 2 },
+  profileNombre: { fontSize: 20, lineHeight: 28, fontFamily: poppinsWeight('700'), color: colors.ink },
+  profileEmail: { fontSize: 15, color: colors.textBody },
+  avatar: { alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontFamily: poppinsWeight('700'), letterSpacing: 0.5 },
+
+  // ---- filas de configuración
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    minHeight: 56,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
+  rowDisabled: { opacity: 0.55 },
+  rowTextWrap: { flex: 1 },
+  rowLabel: { fontSize: 16, fontFamily: poppinsWeight('600') },
+  rowValue: { fontSize: 14, lineHeight: 20, color: colors.textBody, marginTop: 2 },
+  logoutRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    minHeight: 64,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  logoutText: { fontSize: 17, fontFamily: poppinsWeight('600'), color: colors.limeDeep },
+  logoutHint: { fontSize: 14, lineHeight: 20, color: colors.textBody },
+
+  // ---- grupo: cabecera destacada (nivel 3: terracota pálido)
+  banner: {
+    backgroundColor: colors.terraPale,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EFE8DF',
+    overflow: 'hidden',
+    padding: 16,
+    paddingRight: 120, // deja libre la esquina del doodle
+    minHeight: 132,
+  },
+  bannerDoodle: { position: 'absolute', right: 8, top: 8, opacity: 0.18 },
+  bannerText: { gap: 2 },
+  bannerForm: { paddingRight: 0, marginRight: -104 },
+  bannerAction: { marginTop: 12, alignSelf: 'flex-start' },
+  groupEyebrow: { fontSize: 14, fontFamily: poppinsWeight('600'), color: colors.textBody },
+  groupName: { fontSize: 22, lineHeight: 30, fontFamily: poppinsWeight('700'), color: colors.ink },
+  groupSummary: { fontSize: 15, lineHeight: 22, color: colors.textBody },
+
+  // ---- bloque "Invitar miembro" (nivel 3: arena)
+  inviteWrap: { padding: 16, paddingBottom: 0, gap: 12 },
+  inviteBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: colors.sandBlock,
+    minHeight: 72,
+  },
+  inviteTitle: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
+  inviteHint: { fontSize: 14, lineHeight: 20, color: colors.textBody, marginTop: 2 },
   codigoBox: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.sage,
-    borderRadius: radii.input,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingLeft: 16,
+    paddingRight: 4,
+    minHeight: 64,
+    borderRadius: 12,
+    backgroundColor: colors.dayTint,
   },
-  codigoText: {
-    fontSize: 20,
-    fontWeight: '700',
-    fontFamily: poppinsWeight('700'),
-    color: colors.sageDeep,
-    letterSpacing: 2,
-  },
-  codigoActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  codigoActionBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.glassStrong,
-  },
-  profileHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 13,
-  },
-  // Mismo tamaño/forma que el avatar de MemberCard (FamilyListScreen): 46px,
-  // radio 15. El tinte viene inline (ver tinteUsuario) — acá no queda ningún
-  // color fijo.
-  avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 17,
-    fontWeight: '700',
-    fontFamily: poppinsWeight('700'),
-    letterSpacing: 0.5,
-  },
-  profileInfo: {
-    flex: 1,
-  },
-  profileNombre: {
-    fontSize: 15.5,
-    fontWeight: '600',
+  codigoText: { fontSize: 22, fontFamily: poppinsWeight('700'), color: colors.ink, letterSpacing: 2 },
+  codigoActions: { flexDirection: 'row' },
+  codigoActionBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+
+  // ---- miembros
+  membersLabel: {
+    fontSize: 14,
     fontFamily: poppinsWeight('600'),
-    color: colors.navy,
+    color: colors.textBody,
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 6,
   },
-  profileEmail: {
-    fontSize: 12.5,
-    fontWeight: '400',
-    fontFamily: poppinsWeight('400'),
-    color: colors.textMutedLight,
-    marginTop: 1,
-  },
-  // Fila navegable (ver SettingRow) — el chip de ícono reusa el par
-  // sage/sageDeep de reminderBadge.control, no una familia nueva.
-  settingRow: {
+  miembroRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 12,
+    minHeight: 64,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
-  // Cuando la fila comparte card con el header de perfil, el hairline la
-  // separa de él (dentro de su propia card no hace falta).
-  settingRowDivided: {
-    marginTop: 12,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
-  },
-  rowIconChip: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: colors.sage,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rowTextWrap: {
-    flex: 1,
-  },
-  rowLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    fontFamily: poppinsWeight('600'),
-    color: colors.navy,
-  },
-  rowValue: {
-    fontSize: 12.5,
-    color: colors.textMutedLight,
-    marginTop: 1,
-  },
-  grupoEditWrap: {
-    marginTop: 12,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  countPill: {
-    minWidth: 22,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: radii.pill,
-    backgroundColor: colors.sage,
-    alignItems: 'center',
-  },
-  countPillText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    fontFamily: poppinsWeight('700'),
-    color: colors.sageDeep,
-  },
-  editLinkBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  editLinkText: {
-    fontSize: 12.5,
-    fontWeight: '600',
-    fontFamily: poppinsWeight('600'),
-    color: colors.textMuted,
-  },
-  formActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 4,
-  },
-  // marginTop propio (además del gap:16 del contentContainer) — cerrar
-  // sesión no pertenece al bloque de arriba (el aviso de dueño / el botón de
-  // salir del grupo) y quedaba leyéndose como parte de él.
-  logoutLinkBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    alignSelf: 'center',
-    marginTop: 12,
-    paddingVertical: 10,
-  },
-  logoutLinkText: {
-    fontSize: 14,
-    fontWeight: '600',
-    fontFamily: poppinsWeight('600'),
-    color: colors.limeDeep,
-  },
+  miembroNombre: { flex: 1, fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
+  rolBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.badgeSand },
+  rolBadgeText: { fontSize: 14, fontFamily: poppinsWeight('600'), color: colors.badgeSandText },
+  deleteBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', marginRight: -8 },
+
+  // ---- pie: salir del grupo
+  footer: { marginTop: 8, borderTopWidth: 1, borderTopColor: '#EFE8DF' },
 });

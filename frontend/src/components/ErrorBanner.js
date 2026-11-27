@@ -18,7 +18,7 @@ import PressScale from './PressScale';
 const VARIANTS = {
   error: {
     box: { backgroundColor: colors.errorBg, borderColor: colors.error },
-    text: { color: colors.error, fontWeight: '600', fontFamily: poppinsWeight('600') },
+    text: { color: colors.error, fontFamily: poppinsWeight('600') },
     action: { color: colors.error },
     icon: null,
   },
@@ -26,7 +26,7 @@ const VARIANTS = {
     box: { backgroundColor: colors.bgBase, borderColor: colors.line, alignItems: 'flex-start' },
     // Peso/tamaño de nota al pie, no de alerta — este variant informa, no
     // interrumpe (ver duenoNota, el <Text> que reemplaza en AccountScreen).
-    text: { color: colors.textMuted, fontSize: 12.5, lineHeight: 18, fontWeight: '400' },
+    text: { color: colors.textMuted, fontSize: 14, lineHeight: 20, fontWeight: '400' },
     action: { color: colors.textMuted },
     icon: 'information-circle-outline',
   },
@@ -38,15 +38,19 @@ export default function ErrorBanner({ message, onDismiss, onRetry, variant = 'er
   const v = VARIANTS[variant] || VARIANTS.error;
 
   return (
-    <View style={[styles.box, v.box]}>
+    <View
+      style={[styles.box, v.box]}
+      accessibilityRole={variant === 'error' ? 'alert' : undefined}
+      accessibilityLiveRegion="polite"
+    >
       {!!v.icon && (
         <Ionicons name={v.icon} size={16} color={v.action.color} style={styles.leadingIcon} />
       )}
       <Text style={[styles.text, v.text]}>{message}</Text>
       {!!onRetry && (
         <PressScale
+          contentStyle={styles.action}
           onPress={onRetry}
-          hitSlop={{ top: 14, bottom: 14, left: 12, right: 12 }}
           accessibilityLabel="Reintentar"
           accessibilityRole="button"
         >
@@ -55,8 +59,8 @@ export default function ErrorBanner({ message, onDismiss, onRetry, variant = 'er
       )}
       {!!onDismiss && (
         <PressScale
+          contentStyle={styles.action}
           onPress={onDismiss}
-          hitSlop={{ top: 14, bottom: 14, left: 16, right: 16 }}
           accessibilityLabel="Cerrar aviso"
         >
           <Text style={[styles.dismissIcon, v.action]}>✕</Text>
@@ -84,18 +88,17 @@ const styles = StyleSheet.create({
   },
   text: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 15,
   },
   dismissIcon: {
     marginLeft: 10,
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 18,
     fontFamily: poppinsWeight('700'),
   },
+  action: { minHeight: 48, minWidth: 48, alignItems: 'center', justifyContent: 'center' },
   retryText: {
     marginLeft: 10,
-    fontSize: 12.5,
-    fontWeight: '700',
+    fontSize: 15,
     fontFamily: poppinsWeight('700'),
     textDecorationLine: 'underline',
   },

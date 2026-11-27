@@ -40,7 +40,7 @@ export const colors = {
   // Acento primario — "urgente / necesita atención". Ocupa el lugar que
   // tenía el acento decorativo gold/tan; se mantienen los nombres viejos
   // (lime/limeDeep) para no romper imports, pero ahora son terracota.
-  ink: '#2B2417',           // negro cálido — texto primario, FAB (era #000000 puro)
+  ink: '#2A2421',           // negro cálido — texto primario, FAB (era #000000 puro)
   // inkSoft (alias de ink de la migración 1) existió acá sin ningún
   // consumidor — auditoría de tokens, eliminado (ver git history si hace
   // falta el valor).
@@ -93,15 +93,53 @@ export const colors = {
   // no necesita cargarla también el color.
   textMutedLight: '#726A5D',
 
+  // Botón primario de acción (ej. "Crear cuenta"): texto blanco sobre terracota
+  // profundo — #C24623 con #FFFFFF da ~4.9:1 (AA). Pressed ~10% más oscuro.
+  accentStrong: '#C24623',
+  accentStrongPressed: '#A63A1B',
+  // Texto secundario/bajada legible sobre crema (~7:1) — más oscuro que textMuted.
+  textBody: '#574E49',
+  // Relleno suave del botón secundario y su estado pressed/hover.
+  surfaceSoft: 'rgba(255,255,255,0.7)',
+  surfaceSoftPressed: '#F1E8DA',
+  // Borde del botón secundario: marrón cálido en vez de negro duro.
+  borderWarm: '#3D312A',
+  // Superficie cálida para enmarcar la ilustración + su borde sutil.
+  surfaceSand: '#F5EDE6',
+  borderSand: '#EADFD5',
+  // Cards de listas/ajustes: borde fino cálido en vez de sombra flotante.
+  borderCard: '#EAE0D5',
+  // Íconos de filas de configuración (sin cajita de fondo) y badge de rol.
+  iconWarm: '#6B5E55',
+  badgeSand: '#F2EAE1',
+  badgeSandText: '#4A3B32',
+  // Día elegido en el calendario: acento claro (fondo de las tarjetas de ese día y del chip).
+  accentTint: '#FBEAE0',
+  // Día con recordatorios en el mini calendario (más suave que el elegido).
+  dayTint: '#F5E8DC',
+  // Ficha de emergencia: grupo sanguíneo cargado (fondo rosado + rojo oscuro) y texto de "Sin cargar".
+  bloodBg: '#FDF2F0',
+  bloodText: '#A6291B',
+  // Gris cálido para "Sin cargar" (#7A6C63 sobre arena = 4,6:1; el #8C7E75 pedido daba 3,5:1).
+  textEmpty: '#7A6C63',
+  emptyBg: '#F5EFE8',
+  // Bloques destacados dentro de una tarjeta: arena y terracota pálido.
+  sandBlock: '#F7F0E8',
+  terraPale: '#FDF3EE',
+  // Fondo (track) del control segmentado.
+  trackSand: '#EFE8DF',
+  // Borde visible de inputs (rest); en foco pasa a terracota (accentStrong).
+  borderInput: '#D6C7BC',
+
   // --- tokens semánticos existentes, re-apuntados (NO renombrar — todas las pantallas los importan) ---
-  navy: '#2B2417',          // alias de ink (texto de cuerpo) — era #1C1C1C
+  navy: '#2A2421',          // alias de ink (texto de cuerpo) — era #1C1C1C
   // navySoft (sin uso, sin re-apuntar durante la migración) y green ("éxito"
   // = mismo verde salvia que el acento secundario) existían acá sin ningún
   // consumidor real y sin un comentario que pidiera conservarlos — auditoría
   // de tokens, eliminados. greenDeep sigue (lo consume buttonColors.success,
   // que sí tiene consumidor real: PrimaryButton).
   blue: '#3B82F6',          // sin uso actual confirmado por grep; se mantiene por compat
-  blueDeep: '#2B2417',      // FAB/spinners "negro" — re-apuntado junto con ink para que sigan siendo el mismo negro visual (era #000000 puro)
+  blueDeep: '#2A2421',      // FAB/spinners "negro" — re-apuntado junto con ink para que sigan siendo el mismo negro visual (era #000000 puro)
   blueLight: '#9CC9FF',     // sin consumidores — GroupSetupScreen.js migró su brandMark a colors.lime; se deja el token, no se borra
   greenDeep: '#3D5940',     // idem, estado presionado (era #059669)
   amber: '#F59E0B',         // sin consumidores tras repuntar reminderBadge.medicacion a terracota — se deja el valor viejo, no se borra el token
@@ -143,13 +181,13 @@ export const colors = {
 export const radii = {
   card: 32,      // sin cambios en esta pasada — es migración de color, no de forma
   input: 16,
-  button: 24,
+  button: 12,
   pill: 999,
   avatar: 999,
 };
 
 export const buttonColors = {
-  primary: colors.ink,        // ahora negro cálido #2B2417 (era negro puro)
+  primary: colors.ink,        // ahora negro cálido #2A2421 (era negro puro)
   success: colors.greenDeep,  // ahora verde salvia pressed #3D5940 (era #059669)
   accent: colors.lime,        // ahora terracota #D9603A (era gold/tan)
 };
@@ -215,7 +253,6 @@ export const glassPanel = {
 export const cardBase = {
   backgroundColor: colors.glassStrong,
   borderWidth: 1,
-  borderColor: colors.line,
-  borderRadius: radii.card,
-  ...glassShadow,
+  borderColor: colors.borderCard,
+  borderRadius: 16,
 };

@@ -1,16 +1,25 @@
-// React Native ignora `fontWeight` sobre una fuente custom cargada (Poppins)
-// a menos que cada peso esté registrado bajo su propio nombre de familia
-// (ver App.js: useFonts carga Poppins_400Regular/600SemiBold/700Bold).
-// `poppinsWeight` traduce el string de fontWeight que ya usan los estilos
-// existentes al nombre de familia correspondiente, para usarlo junto a
-// `fontFamily: poppinsWeight('700')` sin tener que tocar el valor de
-// fontWeight (se mantiene por las dudas de un fallback web que sí lo respeta).
-const POPPINS_WEIGHTS = {
-  '400': 'Poppins_400Regular',
-  '600': 'Poppins_600SemiBold',
-  '700': 'Poppins_700Bold',
+// Plus Jakarta Sans (cálida y legible). React Native ignora `fontWeight` sobre una
+// fuente custom, y en web el navegador "engorda" artificialmente cualquier
+// fuente declarada con peso >= 600, así que NO se usa fontWeight junto a estas
+// fuentes: el peso lo da el nombre de la familia.
+//
+// Escala (los estilos existentes piden '400' / '600' / '700'):
+//   '700' (títulos)                                  -> 600 SemiBold (techo)
+//   '600' (botones, pestañas, nombres, subtítulos)   -> 500 Medium
+//   '400' (fechas, direcciones, descripciones)       -> 400 Regular
+// Cargadas en App.js (useFonts).
+const WEIGHTS = {
+  '400': 'PlusJakartaSans_400Regular',
+  '500': 'PlusJakartaSans_500Medium',
+  '600': 'PlusJakartaSans_500Medium',
+  '700': 'PlusJakartaSans_600SemiBold',
 };
 
+// Nombre histórico (antes era Poppins); se mantiene para no tocar cada pantalla.
 export function poppinsWeight(weight) {
-  return POPPINS_WEIGHTS[weight] || POPPINS_WEIGHTS['400'];
+  return WEIGHTS[weight] || WEIGHTS['400'];
 }
+
+// Títulos de la pantalla de bienvenida: serif cálido (Lora). El resto de la app
+// va en Plus Jakarta Sans.
+export const SERIF_BOLD = 'Lora_700Bold';
