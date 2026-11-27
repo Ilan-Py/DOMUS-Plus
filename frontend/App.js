@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Text, TextInput, Animated, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
@@ -23,6 +23,9 @@ import MainTabs from './src/navigation/MainTabs';
 import Logo from './src/components/Logo';
 import DialogHost from './src/components/DialogHost';
 import ToastHost from './src/components/ToastHost';
+import NotFoundScreen from './src/screens/NotFoundScreen';
+import { formatearTitulo, sincronizarTitulo } from './src/navigation/titulos';
+import { injectPaperCss } from './src/theme/paper';
 import { colors } from './src/theme/colors';
 
 // Edge dibuja su propio ojo dentro de los inputs de contraseña; ya tenemos
@@ -31,6 +34,16 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
   const style = document.createElement('style');
   style.textContent = 'input::-ms-reveal, input::-ms-clear { display: none; } html, body { background: #FBF6EE; }';
   document.head.appendChild(style);
+  // Utilidades "paper cutout" (grano de papel, tarjetas flotantes, paper-pop).
+  injectPaperCss();
+  // Favicon explícito (el corazón terracota) — sin esto el navegador cae al /favicon.ico por defecto.
+  if (!document.querySelector('link[rel~="icon"]')) {
+    const icono = document.createElement('link');
+    icono.rel = 'icon';
+    icono.type = 'image/png';
+    icono.href = '/favicon.png';
+    document.head.appendChild(icono);
+  }
 }
 
 const AuthStack = createNativeStackNavigator();
@@ -161,7 +174,15 @@ function RootNavigator() {
   );
 }
 
+// Web: la app vive en la raíz ("/"). Cualquier otra dirección (enlace viejo, código de invitación
+// pegado en la barra) muestra la página 404 en vez de la app como si nada.
+function direccionDesconocida() {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
+  return !['', '/', '/index.html'].includes(window.location.pathname);
+}
+
 export default function App() {
+  const [noEncontrada, setNoEncontrada] = useState(direccionDesconocida);
   const [fontsLoaded, fontError] = useFonts({
     PlusJakartaSans_400Regular,
     PlusJakartaSans_500Medium,
@@ -189,10 +210,28 @@ export default function App() {
     return <SplashScreen />;
   }
 
+  if (noEncontrada) {
+    return (
+      <SafeAreaProvider>
+        <NotFoundScreen
+          onVolver={() => {
+            window.history.replaceState(null, '', '/');
+            setNoEncontrada(false);
+          }}
+        />
+      </SafeAreaProvider>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <NavigationContainer ref={navigationRef}>
+        <NavigationContainer
+          ref={navigationRef}
+          documentTitle={{ formatter: formatearTitulo }}
+          onReady={() => sincronizarTitulo(navigationRef)}
+          onStateChange={() => sincronizarTitulo(navigationRef)}
+        >
           <StatusBar style="dark" />
           <RootNavigator />
           <DialogHost />

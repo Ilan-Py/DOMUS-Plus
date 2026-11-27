@@ -314,7 +314,7 @@ async function unirseGrupo(req, res) {
             select: { id: true }
         });
         if (!grupo) {
-            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Código de invitación inválido.' });
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Ese código no existe o ya fue reemplazado por uno nuevo. Revisá que esté bien escrito o pedile otro a quien te invitó.' });
         }
 
         await prisma.grupoMiembro.create({
