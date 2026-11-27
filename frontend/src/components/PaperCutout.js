@@ -19,6 +19,13 @@ export const TINTES_RECORTE = {
 // Cada forma se dibuja dos veces sobre una grilla 100×100: la capa 'borde' (blanca, con trazo
 // grueso redondeado = el corte del sticker) y la capa 'color'. `d` son los detalles internos.
 const FORMAS = {
+  // Escudo con tilde: "Privacidad y datos".
+  shield: ({ c, d }) => (
+    <>
+      <Path d="M50 10 L84 22 V48 C84 70 69 84 50 92 C31 84 16 70 16 48 V22 Z" {...c} />
+      {d && <Path d="M36 50 L46 60 L65 39" stroke={d} strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" fill="none" />}
+    </>
+  ),
   // Sol sonriente: disco con ocho rayos redondeados y carita en el color claro.
   sun: ({ c, d, fg }) => {
     const rayos = Array.from({ length: 8 }, (_, i) => {
