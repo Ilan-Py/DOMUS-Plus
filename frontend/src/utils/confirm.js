@@ -7,8 +7,9 @@ import { openDialog } from '../components/DialogHost';
 
 // Acción destructiva: botón rojo-terracota con la acción explícita arriba y
 // "No, volver" abajo.
-export function confirmarDestructivo(titulo, mensaje, onConfirmar, textoConfirmar = 'Eliminar') {
+export function confirmarDestructivo(titulo, mensaje, onConfirmar, textoConfirmar = 'Eliminar', variante = 'danger') {
   openDialog({
+    variante, // 'danger' (tacho), 'logout' (puerta) o 'info': ver components/ConfirmModal.js
     title: titulo,
     message: mensaje,
     actions: [

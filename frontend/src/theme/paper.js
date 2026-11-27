@@ -56,6 +56,10 @@ body::after {
 [data-paper~="pop"] {
   animation: paper-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
 }
+/* Entrada del modal de confirmación: igual que paper-pop pero de 240 ms. */
+[data-paper~="popmodal"] {
+  animation: paper-pop 240ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
 [data-paper~="d1"] { animation-delay: 90ms; }
 [data-paper~="d2"] { animation-delay: 180ms; }
 [data-paper~="d3"] { animation-delay: 270ms; }
@@ -92,7 +96,8 @@ body::after {
   [data-paper~="lift"]:hover { translate: none; }
   [data-paper~="carton"]:hover { translate: none; }
   .paper-pop,
-  [data-paper~="pop"] { animation: none; }
+  [data-paper~="pop"],
+  [data-paper~="popmodal"] { animation: none; }
   .paper-cutout,
   [data-paper~="cutout"] { transition: none; }
   .paper-cutout:hover,

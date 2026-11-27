@@ -180,7 +180,8 @@ export default function AccountScreen() {
       'Cerrar sesión',
       '¿Seguro que querés cerrar sesión?',
       handleLogout,
-      'Cerrar sesión'
+      'Cerrar sesión',
+      'logout'
     );
   }
 
@@ -750,11 +751,11 @@ export default function AccountScreen() {
       },
     };
     const t = textos[tema];
-    openDialog({ title: t.title, message: t.message, actions: [{ label: 'Entendido', variant: 'accent' }] });
+    openDialog({ variante: 'info', title: t.title, message: t.message, actions: [{ label: 'Entendido', variant: 'accent' }] });
   }
   function verLegal(clave) {
     const t = LEGAL[clave];
-    openDialog({ title: t.titulo, message: t.parrafos.join('\n\n'), actions: [{ label: 'Entendido', variant: 'accent' }] });
+    openDialog({ variante: 'info', title: t.titulo, message: t.parrafos.join('\n\n'), actions: [{ label: 'Entendido', variant: 'accent' }] });
   }
 
   const ayudaCard = (

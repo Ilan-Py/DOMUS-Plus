@@ -40,6 +40,7 @@ export default function LoginScreen({ navigation }) {
   // se avisa con claridad en vez de prometer algo que no existe.
   function handleOlvidaste() {
     openDialog({
+      variante: 'info',
       title: 'Recuperar tu contraseña',
       message:
         'Todavía no podemos enviarte un mail para cambiarla. Escribile al equipo de DOMUS+ y te ayudamos a volver a entrar.',

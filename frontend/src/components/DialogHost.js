@@ -16,6 +16,7 @@ import { colors } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 import PrimaryButton from './PrimaryButton';
 import PressScale from './PressScale';
+import ConfirmModal from './ConfirmModal';
 
 // Diálogo propio de la app. Reemplaza window.confirm / window.prompt (web) y
 // Alert.alert (nativo) para que se vea y se comporte igual en todos lados.
@@ -104,6 +105,31 @@ export default function DialogHost() {
   }
 
   if (!dialog) return null;
+
+  // Confirmaciones con sticker (variante 'logout' | 'danger' | 'info'): la tarjeta es ConfirmModal, con su
+  // propia entrada paper-pop; acá sólo se mantiene el mismo fondo con desenfoque y el cierre al tocar afuera.
+  if (dialog.variante) {
+    return (
+      <Modal transparent animationType="none" visible onRequestClose={() => close()}>
+        <Animated.View style={[styles.backdrop, Platform.OS === 'web' && styles.backdropWeb, { opacity: anim }]}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => close()}
+            accessible={false}
+            importantForAccessibility="no"
+            focusable={false}
+          />
+          <ConfirmModal
+            variante={dialog.variante}
+            titulo={dialog.title}
+            mensaje={dialog.message}
+            acciones={dialog.actions || []}
+            onElegir={(a) => close(a.onPress)}
+          />
+        </Animated.View>
+      </Modal>
+    );
+  }
 
   const scale = anim.interpolate({ inputRange: [0, 1], outputRange: [sinMovimiento ? 1 : 0.96, 1] });
   const conTarjetas = !!dialog.cards;

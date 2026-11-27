@@ -79,7 +79,8 @@ export default function GroupSetupScreen() {
       'Cerrar sesión',
       'Vas a volver al inicio. Tu cuenta sigue guardada y podés entrar de nuevo cuando quieras.',
       logout,
-      'Cerrar sesión'
+      'Cerrar sesión',
+      'logout'
     );
   }
 
