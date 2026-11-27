@@ -79,7 +79,7 @@ function SkeletonReminderRow() {
   );
 }
 
-export default function CalendarScreen({ navigation }) {
+export default function CalendarScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const desktop = width >= DESKTOP_BREAKPOINT;
@@ -98,6 +98,15 @@ export default function CalendarScreen({ navigation }) {
   // Siempre hay un día elegido (por defecto, hoy): la agenda de la derecha muestra ese día.
   const [diaElegido, setDiaElegido] = useState(() => dayKey(new Date()));
   const [mes, setMes] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  // Desde la tira semanal de Familia llega `dia` (clave AAAA-MM-DD): se abre el calendario en ese día.
+  const diaParam = route?.params?.dia;
+  React.useEffect(() => {
+    if (!diaParam) return;
+    const [a, m, d] = String(diaParam).split('-').map(Number);
+    if (!a || Number.isNaN(m) || !d) return;
+    setDiaElegido(diaParam);
+    setMes(new Date(a, m, 1)); // dayKey usa el mes base 0
+  }, [diaParam]);
   // De quién es cada recordatorio: se deduce de la vacuna/tratamiento al que
   // está vinculado (la API no guarda el dueño en el recordatorio en sí).
   const [duenos, setDuenos] = useState({});

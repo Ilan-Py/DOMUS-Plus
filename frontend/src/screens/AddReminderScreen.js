@@ -14,7 +14,7 @@ import FormField from '../components/FormField';
 import PrimaryButton from '../components/PrimaryButton';
 import SegmentedControl from '../components/SegmentedControl';
 import ErrorBanner from '../components/ErrorBanner';
-import DatePickerField, { formatDateOnly, formatTimeOnly } from '../components/DatePickerField';
+import DatePickerField from '../components/DatePickerField';
 import { HealthFormTopbar } from './healthFormShared';
 import { programarNotificacion, cancelarNotificacion } from '../utils/notifications';
 import { parseFechaHora } from '../utils/displayFormat';

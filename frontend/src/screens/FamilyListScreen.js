@@ -12,24 +12,24 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { poppinsWeight } from '../theme/typography';
+import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useFamily } from '../context/FamilyContext';
 import ErrorBanner from '../components/ErrorBanner';
 import EmptyState from '../components/EmptyState';
 import PrimaryButton from '../components/PrimaryButton';
-import TodayCard from '../components/TodayCard';
 import BannerRecortes from '../components/BannerRecortes';
-import ProximosCard from '../components/ProximosCard';
+import { HoyPanel, SemanaTira, AlertasFamilia, calcularAlertas } from '../components/FamiliaHoy';
+import useAvisos, { useVacunas } from '../hooks/useAvisos';
+import { colorDeMiembro, duenoDeAviso, inicioDeDia } from '../utils/avisos';
 import { paper } from '../theme/paper';
 import PressScale from '../components/PressScale';
 import Skeleton from '../components/Skeleton';
 import FadeSlideIn from '../components/FadeSlideIn';
 import FadeOutRow, { EXIT_DURATION } from '../components/FadeOutRow';
-import { confirmarDestructivo, elegirTarjetas } from '../utils/confirm';
+import { confirmarDestructivo } from '../utils/confirm';
 import EntityAvatar from '../components/EntityAvatar';
-import { avatarTint } from '../theme/avatars';
 
 // Layout (ver DESIGN.md): desde 1024px, banner a todo el ancho y debajo dos
 // columnas (64% integrantes y mascotas / 36% «Hoy en tu familia») en un
@@ -57,10 +57,20 @@ function calcularEdad(fechaNacimiento) {
   return edad;
 }
 
+// Casilla punteada para sumar a alguien: se ve igual que una tarjeta vacía esperando su lugar.
+function SlotAgregar({ texto, icono, onPress }) {
+  return (
+    <PressScale contentStyle={styles.slot} onPress={onPress} accessibilityLabel={texto}>
+      <Ionicons name={icono} size={22} color={colors.textBody} />
+      <Text style={styles.slotTexto}>{texto}</Text>
+    </PressScale>
+  );
+}
+
 // Tarjeta de integrante o mascota: avatar circular con la paleta cálida de su categoría,
 // nombre y datos. En web, al pasar el mouse sube 2px y el borde se vuelve terracota
 // claro. Los integrantes llevan un botón rápido de «Emergencia».
-function MemberCard({ icon, nombre, apellido, nombreCompleto, fotoUrl, avatarId, subt, tipo, mascota, onPress, onLongPress, onEmergencyPress, disabled }) {
+function MemberCard({ icon, nombre, apellido, nombreCompleto, fotoUrl, avatarId, subt, detalle, detalleTono, color, tipo, mascota, onPress, onLongPress, onEmergencyPress, disabled }) {
   const [hover, setHover] = useState(false);
   // La tarjeta no es un botón: abrir el perfil y "Emergencia" son dos controles hermanos (nunca uno dentro del
   // otro). El hover se comparte entre los dos con una pequeña demora para que no parpadee al pasar de uno a otro.
@@ -76,7 +86,7 @@ function MemberCard({ icon, nombre, apellido, nombreCompleto, fotoUrl, avatarId,
     <View {...paper('cartulina')} style={[styles.cardWrap, Platform.OS === 'web' && styles.cardWrapWeb, hover && styles.cardWrapHover]}>
       <View style={[styles.memberCard, hover && styles.memberCardHover]}>
         {/* Barra lateral de 4 px: terracota para personas, verde salvia para mascotas */}
-        <View pointerEvents="none" style={[styles.barra, { backgroundColor: mascota ? colors.salvia : colors.accentStrong }]} />
+        <View pointerEvents="none" style={[styles.barra, { backgroundColor: color || (mascota ? colors.salvia : colors.accentStrong) }]} />
         <PressScale
           onPress={onPress}
           onLongPress={onLongPress}
@@ -90,6 +100,12 @@ function MemberCard({ icon, nombre, apellido, nombreCompleto, fotoUrl, avatarId,
             <View style={styles.memberInfo}>
               <Text style={styles.memberName}>{nombreCompleto || nombre}</Text>
               <Text style={styles.memberSubt}>{subt}</Text>
+              {!!detalle && (
+                <View style={styles.detalleFila}>
+                  <View style={[styles.detallePunto, detalleTono === 'alerta' ? styles.puntoAlerta : styles.puntoOk]} />
+                  <Text style={[styles.detalleTexto, detalleTono === 'alerta' && styles.detalleAlerta]}>{detalle}</Text>
+                </View>
+              )}
             </View>
           </View>
         </PressScale>
@@ -139,6 +155,9 @@ export default function FamilyListScreen({ navigation }) {
   // Clave `${tipo}-${id}` de la fila que se está borrando — dispara su
   // fade-out (FadeOutRow) antes de que refresh() la saque del array.
   const [exitingKey, setExitingKey] = useState(null);
+  const [menuAgregar, setMenuAgregar] = useState(false);
+  const { avisos, setAvisos, recargar } = useAvisos();
+  const vacunas = useVacunas(integrantes, mascotas);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -206,46 +225,105 @@ export default function FamilyListScreen({ navigation }) {
     );
   }
 
-  // Alta de persona o mascota (reemplaza al botón flotante con menú radial).
-  function agregar() {
-    // Mismos colores que los avatares de la lista: arena (personas) y salvia (mascotas).
-    const persona = avatarTint('adulto');
-    elegirTarjetas(
-      '¿Qué querés agregar?',
-      [
-        { label: 'Persona', hint: 'Hijos, padres o abuelos, con o sin cuenta', icon: 'person', bg: persona.bg, fg: persona.text, value: 'integrante' },
-        { label: 'Mascota', hint: 'Perro, gato u otro animal', icon: 'paw', bg: colors.sage, fg: colors.sageDeep, value: 'mascota' },
-      ],
-      (tipoMiembro) => navigation.navigate('AddMember', { tipoMiembro })
-    );
+  function irAAgregar(tipoMiembro) {
+    setMenuAgregar(false);
+    navigation.navigate('AddMember', { tipoMiembro });
+  }
+
+  const hoyFin = new Date();
+  hoyFin.setHours(23, 59, 59, 999);
+  const pendientesHoy = (avisos || []).filter((a) => a.fecha <= hoyFin).length;
+  const proximo = (avisos || []).find((a) => a.fecha > hoyFin);
+  const alertas = calcularAlertas({ avisos, vacunas });
+  const hoyInicio = inicioDeDia(new Date());
+
+  // Estado de salud de cada mascota con los datos que ya existen: vacunas vencidas o al día.
+  function detalleDeMascota(m) {
+    const propias = vacunas.filter((v) => v.duenoClase === 'mascota' && v.duenoId === m.id && v.proxima);
+    if (propias.some((v) => v.proxima < hoyInicio)) return { texto: 'Vacuna vencida', tono: 'alerta' };
+    if (propias.length) return { texto: 'Vacunas al día', tono: 'ok' };
+    return null;
+  }
+  function detalleDeIntegrante(i) {
+    const n = (avisos || []).filter((a) => duenoDeAviso(a)?.clase === 'integrante' && duenoDeAviso(a).id === i.id && a.fecha <= hoyFin).length;
+    return n > 0 ? { texto: `${n} pendiente${n === 1 ? '' : 's'} hoy`, tono: 'alerta' } : null;
   }
 
   const resumen = `${integrantes.length} integrante${integrantes.length === 1 ? '' : 's'} · ${mascotas.length} mascota${mascotas.length === 1 ? '' : 's'}`;
 
   // ---------------- bloques ----------------
+  // Encabezado compacto: nombre del grupo, tres datos clave y un único botón principal con menú.
   const banner = (
     <View style={styles.banner}>
       <View style={[styles.bannerDoodle, !desktop && styles.bannerDoodleMobile]} pointerEvents="none">
-        <BannerRecortes width={desktop ? 340 : 200} />
+        <BannerRecortes width={desktop ? 240 : 150} />
       </View>
       <View style={styles.bannerText}>
         <Text style={styles.bannerTitle} numberOfLines={2} accessibilityRole="header">
           {grupo?.nombre}
         </Text>
-        <Text style={styles.bannerSummary}>{resumen}</Text>
+        <View style={styles.stats}>
+          <View style={styles.stat}>
+            <Text style={styles.statNum}>{resumen}</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={[styles.statNum, pendientesHoy > 0 && styles.statAlerta]}>
+              {avisos === null ? '…' : pendientesHoy === 0 ? 'Nada pendiente hoy' : `${pendientesHoy} pendiente${pendientesHoy === 1 ? '' : 's'} hoy`}
+            </Text>
+          </View>
+          {!!proximo && (
+            <View style={styles.stat}>
+              <Text style={styles.statNum} numberOfLines={1}>
+                Próximo: {proximo.descripcion || 'recordatorio'} ({proximo.fecha.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' })})
+              </Text>
+            </View>
+          )}
+        </View>
         <View style={styles.bannerAction}>
-          <PrimaryButton title="+ Agregar" variant="accent" fullWidth={false} onPress={agregar} />
+          <PrimaryButton title="+ Agregar" variant="accent" fullWidth={false} onPress={() => setMenuAgregar((v) => !v)} />
+          {menuAgregar && (
+            <View style={styles.menuAgregar} accessibilityRole="menu">
+              <PressScale contentStyle={styles.menuFila} onPress={() => irAAgregar('integrante')} accessibilityRole="menuitem" accessibilityLabel="Agregar una persona">
+                <Ionicons name="person-add-outline" size={20} color={colors.accentStrong} />
+                <Text style={styles.menuTexto}>Persona</Text>
+              </PressScale>
+              <PressScale contentStyle={styles.menuFila} onPress={() => irAAgregar('mascota')} accessibilityRole="menuitem" accessibilityLabel="Agregar una mascota">
+                <Ionicons name="paw-outline" size={20} color={colors.salvia} />
+                <Text style={styles.menuTexto}>Mascota</Text>
+              </PressScale>
+              <PressScale
+                contentStyle={styles.menuFila}
+                onPress={() => {
+                  setMenuAgregar(false);
+                  navigation.navigate('Calendario', { screen: 'AddReminder' });
+                }}
+                accessibilityRole="menuitem"
+                accessibilityLabel="Programar un recordatorio"
+              >
+                <Ionicons name="alarm-outline" size={20} color={colors.ocre} />
+                <Text style={styles.menuTexto}>Recordatorio</Text>
+              </PressScale>
+            </View>
+          )}
         </View>
       </View>
     </View>
   );
 
-  const hoyCard = <TodayCard onVerCalendario={() => navigation.navigate('Calendario')} />;
-  const proximosCard = (
-    <ProximosCard
+  const alertasBloque = <AlertasFamilia alertas={alertas} />;
+  const hoyCard = (
+    <HoyPanel
+      avisos={avisos}
+      setAvisos={setAvisos}
+      recargar={recargar}
+      integrantes={integrantes}
+      mascotas={mascotas}
       onVerCalendario={() => navigation.navigate('Calendario')}
       onProgramar={() => navigation.navigate('Calendario', { screen: 'AddReminder' })}
     />
+  );
+  const semanaCard = (
+    <SemanaTira avisos={avisos} onElegirDia={(dia) => navigation.navigate('Calendario', { screen: 'Calendar', params: { dia } })} />
   );
 
   const listaDeIntegrantes = (
@@ -257,7 +335,7 @@ export default function FamilyListScreen({ navigation }) {
         </Text>
       </View>
       {integrantes.length === 0 ? (
-        <EmptyState message="No hay integrantes registrados." />
+        <SlotAgregar texto="Agregar persona" icono="person-add-outline" onPress={() => irAAgregar('integrante')} />
       ) : (
         <View style={styles.grid}>
           {integrantes.map((item, i) => {
@@ -276,6 +354,9 @@ export default function FamilyListScreen({ navigation }) {
                     nombreCompleto={nombreCompleto}
                     subt={`${TIPO_LABELS[item.tipo] ?? item.tipo}${edad !== null ? ` · ${edad} años` : ''}`}
                     tipo={item.tipo}
+                    color={colorDeMiembro('integrante', item.id)}
+                    detalle={detalleDeIntegrante(item)?.texto}
+                    detalleTono={detalleDeIntegrante(item)?.tono}
                     disabled={busy}
                     onPress={() =>
                       openProfile({ id: item.id, tipo: 'integrante', nombre: nombreCompleto, member: item })
@@ -287,6 +368,7 @@ export default function FamilyListScreen({ navigation }) {
               </FadeSlideIn>
             );
           })}
+          <View style={styles.gridItem}><SlotAgregar texto="Agregar persona" icono="person-add-outline" onPress={() => irAAgregar('integrante')} /></View>
         </View>
       )}
     </View>
@@ -301,7 +383,7 @@ export default function FamilyListScreen({ navigation }) {
         </Text>
       </View>
       {mascotas.length === 0 ? (
-        <EmptyState message="No hay mascotas registradas." />
+        <SlotAgregar texto="Agregar mascota" icono="paw-outline" onPress={() => irAAgregar('mascota')} />
       ) : (
         <View style={styles.grid}>
           {mascotas.map((item, i) => {
@@ -316,6 +398,9 @@ export default function FamilyListScreen({ navigation }) {
                     avatarId={item.avatar_id}
                     nombre={item.nombre}
                     subt={item.raza ? `${item.especie} · ${item.raza}` : item.especie}
+                    color={colorDeMiembro('mascota', item.id)}
+                    detalle={detalleDeMascota(item)?.texto}
+                    detalleTono={detalleDeMascota(item)?.tono}
                     disabled={busy}
                     onPress={() => openProfile({ id: item.id, tipo: 'mascota', nombre: item.nombre, member: item })}
                     onLongPress={() => handleLongPress('mascota', item, item.nombre)}
@@ -324,6 +409,7 @@ export default function FamilyListScreen({ navigation }) {
               </FadeSlideIn>
             );
           })}
+          <View style={styles.gridItem}><SlotAgregar texto="Agregar mascota" icono="paw-outline" onPress={() => irAAgregar('mascota')} /></View>
         </View>
       )}
     </View>
@@ -390,21 +476,24 @@ export default function FamilyListScreen({ navigation }) {
         <View style={[styles.container, desktop && styles.containerIzq]}>
           {banner}
           {errores}
+          {alertasBloque}
 
-          {columnas === 3 ? (
-            <View style={styles.columns}>
-              {izquierda}
-              <View style={styles.col}>
-                {hoyCard}
-                {proximosCard}
-              </View>
-            </View>
-          ) : columnas === 2 ? (
+          {columnas >= 2 ? (
             <View style={styles.stack}>
-              <View style={styles.columns}>{izquierda}</View>
+              {/* Hoy, lo accionable, es lo más ancho; las personas y mascotas quedan a la derecha. */}
               <View style={styles.columns}>
-                <View style={styles.col}>{hoyCard}</View>
-                <View style={styles.col}>{proximosCard}</View>
+                <View style={styles.colHoy}>
+                  {hoyCard}
+                  {semanaCard}
+                </View>
+                <View style={styles.colMiembros}>
+                  {loading ? cargando : vacio ? <View style={styles.bandeja}>{primerIngreso}</View> : (
+                    <>
+                      {listaDeIntegrantes}
+                      {listaDeMascotas}
+                    </>
+                  )}
+                </View>
               </View>
             </View>
           ) : (
@@ -416,7 +505,7 @@ export default function FamilyListScreen({ navigation }) {
                   {listaDeMascotas}
                 </>
               )}
-              {proximosCard}
+              {semanaCard}
             </View>
           )}
         </View>
@@ -437,7 +526,7 @@ const styles = StyleSheet.create({
   // ---- banner cálido
   banner: {
     position: 'relative',
-    overflow: 'hidden',
+    zIndex: 10, // el menú "+ Agregar" tiene que pasar por encima de las tarjetas de abajo
     backgroundColor: colors.arena,
     borderWidth: 1,
     borderColor: 'rgba(42, 36, 33, 0.08)',
@@ -447,12 +536,53 @@ const styles = StyleSheet.create({
     minHeight: 168,
     justifyContent: 'center',
   },
-  bannerDoodle: { position: 'absolute', right: 16, bottom: 0, opacity: 1 },
+  // Recorta los dibujos en la esquina (el banner ya no recorta para que el menú pueda salirse).
+  bannerDoodle: { position: 'absolute', right: 0, bottom: 0, paddingRight: 16, overflow: 'hidden', borderBottomRightRadius: 15, opacity: 1 },
   bannerDoodleMobile: { top: 0, bottom: undefined, opacity: 0.75 },
   bannerText: { zIndex: 1, gap: 4, maxWidth: '62%' },
-  bannerTitle: { fontSize: 28, lineHeight: 36, fontFamily: poppinsWeight('700'), color: colors.ink },
-  bannerSummary: { fontSize: 16, lineHeight: 24, color: colors.textBody },
-  bannerAction: { marginTop: 16, alignSelf: 'flex-start' },
+  bannerTitle: { fontSize: 32, lineHeight: 40, fontFamily: SERIF_BOLD, color: colors.ink },
+  stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  stat: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: 'rgba(255, 255, 255, 0.7)' },
+  statNum: { fontSize: 14, lineHeight: 20, fontFamily: poppinsWeight('600'), color: colors.ink },
+  statAlerta: { color: '#9A3416' },
+  bannerAction: { marginTop: 16, alignSelf: 'flex-start', zIndex: 20 },
+  menuAgregar: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    marginTop: 8,
+    minWidth: 220,
+    padding: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(42, 36, 33, 0.1)',
+    backgroundColor: '#FFFFFF',
+    zIndex: 30,
+    elevation: 6,
+  },
+  menuFila: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, paddingHorizontal: 12, borderRadius: 8 },
+  menuTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.ink },
+  colHoy: { flex: 1.2, minWidth: 0, gap: 24 },
+  colMiembros: { flex: 1, minWidth: 0, gap: 24 },
+  slot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 72,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(42, 36, 33, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  slotTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.textBody },
+  detalleFila: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  detallePunto: { width: 8, height: 8, borderRadius: 4 },
+  puntoOk: { backgroundColor: colors.salvia },
+  puntoAlerta: { backgroundColor: '#C24623' },
+  detalleTexto: { fontSize: 14, lineHeight: 20, color: colors.textBody },
+  detalleAlerta: { color: '#9A3416', fontFamily: poppinsWeight('600') },
 
   // ---- layout
   columns: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
