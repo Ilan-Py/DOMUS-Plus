@@ -99,7 +99,7 @@ export default function GroupSetupScreen() {
       >
         <View style={styles.column}>
           <View style={styles.brand}>
-            <Logo variante="color" size={72} style={styles.brandLogo} />
+            <Logo variante="terracota" size={72} style={styles.brandLogo} />
             <Text style={styles.brandTitle} accessibilityLabel="DOMUS+">
               DOMUS+
             </Text>

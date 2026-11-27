@@ -19,6 +19,7 @@ import FadeSlideIn from '../components/FadeSlideIn';
 import { Subrayado, Chispas, FlechaCurva } from '../components/FamilyDoodles';
 import Svg, { Path } from 'react-native-svg';
 import PaperCutout from '../components/PaperCutout';
+import useAlEntrar from '../hooks/useAlEntrar';
 import { paper } from '../theme/paper';
 
 // Landing de DOMUS+ (ver DESIGN.md). Pantalla única, sin carrusel.
@@ -196,6 +197,9 @@ export default function WelcomeScreen({ navigation }) {
   const { width } = useWindowDimensions();
   const isDesktop = width >= DESKTOP_BREAKPOINT;
   const compacto = !isDesktop;
+  // Los stickers de abajo hacen su entrada al llegar a esa parte de la página, no al cargar.
+  const [pasosRef, pasosVisto] = useAlEntrar();
+  const [pieRef, pieVisto] = useAlEntrar();
 
   const irLogin = () => navigation.navigate('Login');
   const irRegistro = () => navigation.navigate('Register');
@@ -349,11 +353,11 @@ export default function WelcomeScreen({ navigation }) {
         {/* Nivel 2: banda crema más profunda — cómo funciona */}
         <Seccion fondo={BANDA} style={styles.seccionAire}>
           <TituloSeccion sub="Sin vueltas ni formularios largos.">Cómo funciona</TituloSeccion>
-          <View style={[styles.pasos, isDesktop && styles.pasosRow]}>
+          <View ref={pasosRef} style={[styles.pasos, isDesktop && styles.pasosRow]}>
             {PASOS.map((p, i) => (
               <View key={p.n} style={[styles.paso, isDesktop && styles.pasoCell]}>
                 {isDesktop && i < PASOS.length - 1 && <View style={styles.conector} pointerEvents="none" />}
-                <View style={styles.pasoNum}><Text style={styles.pasoNumText}>{p.n}</Text></View>
+                <PaperCutout etiqueta={p.n} size={72} rotate={[-6, 4, -3][i % 3]} delay={i * 90} visible={pasosVisto} style={styles.pasoNum} />
                 <Text style={styles.pasoTitle}>{p.title}</Text>
                 <Text style={styles.pasoText}>{p.text}</Text>
               </View>
@@ -413,9 +417,14 @@ export default function WelcomeScreen({ navigation }) {
 
         {/* Cierre */}
         <Seccion fondo={BANDA} style={styles.seccionPie}>
-          <View style={styles.pie}>
+          <View ref={pieRef} style={styles.pie}>
             <LogoConNombre variante="terracota" size={40} />
-            <Text style={styles.pieText}>Creá tu grupo familiar gratis</Text>
+            {/* Cierre: dos stickers a los lados del titular, con entrada única al llegar acá */}
+            <View style={styles.pieTitulo}>
+              <PaperCutout icon="heart" tinte="terracota" size={compacto ? 40 : 56} rotate={-10} delay={0} visible={pieVisto} />
+              <Text style={styles.pieText}>Creá tu grupo familiar gratis</Text>
+              <PaperCutout icon="paw" tinte="salvia" size={compacto ? 40 : 56} rotate={10} delay={90} visible={pieVisto} />
+            </View>
             <View style={styles.pieCta}>
               <PrimaryButton title="Crear cuenta" variant="accent" onPress={irRegistro} />
             </View>
@@ -542,10 +551,9 @@ const styles = StyleSheet.create({
   pasos: { gap: 20 },
   pasosRow: { flexDirection: 'row', gap: 32 },
   paso: { gap: 8, position: 'relative' },
-  conector: { position: 'absolute', top: 24, left: 60, right: -20, borderTopWidth: 2, borderStyle: 'dashed', borderColor: 'rgba(194, 70, 35, 0.35)' },
+  conector: { position: 'absolute', top: 36, left: 72, right: -20, borderTopWidth: 2, borderStyle: 'dashed', borderColor: 'rgba(194, 70, 35, 0.35)' },
   pasoCell: { flex: 1 },
-  pasoNum: { zIndex: 1, width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accentStrong, alignItems: 'center', justifyContent: 'center' },
-  pasoNumText: { fontSize: 22, fontFamily: poppinsWeight('700'), color: '#FFFFFF' },
+  pasoNum: { zIndex: 1, alignSelf: 'flex-start' },
   pasoTitle: { fontSize: 19, lineHeight: 27, fontFamily: poppinsWeight('700'), color: colors.ink },
   pasoText: { fontSize: 16, lineHeight: 25, color: '#3F3631' },
 
@@ -605,7 +613,8 @@ const styles = StyleSheet.create({
   certeza: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48 },
   certezaText: { fontSize: 17, lineHeight: 25, fontFamily: poppinsWeight('600'), color: colors.ink },
   pie: { alignItems: 'center', gap: 20 },
-  pieText: { fontSize: 20, lineHeight: 30, fontFamily: SERIF_BOLD, color: colors.ink, textAlign: 'center', maxWidth: 520 },
+  pieTitulo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, maxWidth: '100%' },
+  pieText: { flexShrink: 1, fontSize: 20, lineHeight: 30, fontFamily: SERIF_BOLD, color: colors.ink, textAlign: 'center', maxWidth: 520 },
   pieCta: { width: '100%', maxWidth: 280 },
   legal: { fontSize: 14, lineHeight: 20, color: '#574E49', marginTop: 8 },
 });

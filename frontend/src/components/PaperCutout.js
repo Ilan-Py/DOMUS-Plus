@@ -1,8 +1,9 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Animated, Platform } from 'react-native';
+import { View, Text, Animated, Platform, StyleSheet } from 'react-native';
 import Svg, { Path, Circle, Ellipse, Rect } from 'react-native-svg';
 import useReducedMotion from '../hooks/useReducedMotion';
 import { paper, demora } from '../theme/paper';
+import { poppinsWeight } from '../theme/typography';
 
 // Sticker de papel: figura SVG minimalista con borde blanco grueso (corte tipo sticker) y sombra
 // cálida en dos capas. Es un acento puntual (estados vacíos, 404, hero), no un control.
@@ -17,6 +18,7 @@ export const TINTES_RECORTE = {
 // Cada forma se dibuja dos veces sobre una grilla 100×100: la capa 'borde' (blanca, con trazo
 // grueso redondeado = el corte del sticker) y la capa 'color'. `d` son los detalles internos.
 const FORMAS = {
+  circulo: ({ c }) => <Circle cx="50" cy="50" r="42" {...c} />,
   heart: ({ c }) => (
     <Path
       d="M50 87 C21 65 10 47 10 33 C10 21 19 13 30 13 C38 13 45 17 50 25 C55 17 62 13 70 13 C81 13 90 21 90 33 C90 47 79 65 50 87 Z"
@@ -87,31 +89,34 @@ const SOMBRA_WEB = Platform.select({
   default: {},
 });
 
-export default function PaperCutout({ icon, tinte = 'terracota', size = 84, rotate = 0, delay = 0, style }) {
+// `etiqueta` (ej. "1") dibuja un círculo recortado con ese texto en vez de un ícono (números de pasos).
+// `visible={false}` lo deja oculto hasta que pase a true: la entrada corre recién entonces
+// (ver useAlEntrar, para que los stickers de abajo de la página aparezcan al llegar a ellos).
+export default function PaperCutout({ icon, etiqueta, tinte = 'terracota', size = 84, rotate = 0, delay = 0, visible = true, style }) {
   const reduceMotion = useReducedMotion();
   const esWeb = Platform.OS === 'web';
   const anim = useRef(new Animated.Value(esWeb || reduceMotion ? 1 : 0)).current;
   const { bg, fg } = TINTES_RECORTE[tinte] || TINTES_RECORTE.terracota;
-  const Forma = FORMAS[icon] || FORMAS.heart;
+  const Forma = etiqueta ? FORMAS.circulo : FORMAS[icon] || FORMAS.heart;
 
   // Nativo: mismo "pop" corto con spring (en web lo hace el CSS global).
   useEffect(() => {
-    if (esWeb) return;
+    if (esWeb || !visible) return;
     if (reduceMotion) {
       anim.setValue(1);
       return;
     }
     Animated.spring(anim, { toValue: 1, delay, bounciness: 8, speed: 14, useNativeDriver: true }).start();
-  }, [anim, delay, reduceMotion, esWeb]);
+  }, [anim, delay, reduceMotion, esWeb, visible]);
 
   const escala = anim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] });
   const borde = { fill: '#FFFFFF', stroke: '#FFFFFF', strokeWidth: 16, strokeLinejoin: 'round', strokeLinecap: 'round' };
 
   return (
     <Animated.View
-      {...paper('pop', demora(delay))}
+      {...(visible ? paper('pop', demora(delay)) : {})}
       style={[
-        { width: size, height: size, opacity: anim, transform: [{ rotate: `${rotate}deg` }, { scale: escala }] },
+        { width: size, height: size, opacity: esWeb ? (visible ? 1 : 0) : anim, transform: [{ rotate: `${rotate}deg` }, { scale: escala }] },
         SOMBRA_WEB,
         style,
       ]}
@@ -122,6 +127,18 @@ export default function PaperCutout({ icon, tinte = 'terracota', size = 84, rota
         <Forma c={borde} d={null} />
         <Forma c={{ fill: fg }} d={bg} />
       </Svg>
+      {!!etiqueta && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <View style={styles.centro}>
+            <Text style={[styles.numero, { fontSize: size * 0.4 }]}>{etiqueta}</Text>
+          </View>
+        </View>
+      )}
     </Animated.View>
   );
 }
+
+const styles = StyleSheet.create({
+  centro: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  numero: { color: '#FFFFFF', fontFamily: poppinsWeight('700'), fontVariant: ['tabular-nums'] },
+});
