@@ -14,6 +14,7 @@ import { colors } from '../theme/colors';
 import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
 import Logo, { LogoConNombre } from './Logo';
 import PressScale from './PressScale';
+import { paper } from '../theme/paper';
 
 // Estructura compartida por Iniciar sesión y Crear cuenta (pantalla dividida):
 //  - escritorio (≥900): panel cálido inset a la izquierda (volver + logo / titular, puntos
@@ -29,6 +30,42 @@ const PUNTOS = [
   { icon: 'ban-outline', text: 'Sin publicidad ni venta de información' },
   { icon: 'text-outline', text: 'Letra grande y clara, pensada para todos' },
 ];
+
+// Registro: una sola tarjeta más grande con un adelanto de lo que hay adentro (en vez de los
+// puntos de privacidad, que ya vio quien llegó hasta acá). Datos de ejemplo, no reales.
+const AVISOS = [
+  { cuando: 'Hoy 18:00', que: 'Enalapril — Marta', icon: 'medkit-outline', bg: '#FBE3D9', fg: '#C24623' },
+  { cuando: 'Mañana 10:00', que: 'Vacuna de Toby', icon: 'paw', bg: '#D6E2D6', fg: '#3E6340' },
+];
+
+function ResumenFamilia() {
+  return (
+    <View {...paper('cutout', 'pop', 'd1')} style={styles.resumen} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <View style={styles.resumenHead}>
+        <View style={styles.resumenAvatar}>
+          <Ionicons name="people" size={24} color="#3E6340" />
+        </View>
+        <View>
+          <Text style={styles.resumenTitle}>Familia García</Text>
+          <Text style={styles.resumenSub}>4 integrantes · 1 mascota</Text>
+        </View>
+      </View>
+      <View style={styles.avisos}>
+        {AVISOS.map((a) => (
+          <View key={a.que} style={styles.aviso}>
+            <View style={[styles.avisoIcon, { backgroundColor: a.bg }]}>
+              <Ionicons name={a.icon} size={20} color={a.fg} />
+            </View>
+            <View style={styles.avisoTexto}>
+              <Text style={styles.avisoCuando}>{a.cuando}</Text>
+              <Text style={styles.avisoQue}>{a.que}</Text>
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
 
 function CambioDePantalla({ texto, etiqueta, onPress }) {
   return (
@@ -56,6 +93,7 @@ export default function AuthLayout({
   switchEtiqueta,
   onSwitch,
   panelTitulo,
+  panelVariante = 'login',
   children,
 }) {
   const insets = useSafeAreaInsets();
@@ -96,27 +134,33 @@ export default function AuthLayout({
 
             <View style={styles.panelCentro}>
               <Text style={styles.panelTitle} accessibilityRole="header">{panelTitulo}</Text>
-              <View style={styles.puntos}>
-                {PUNTOS.map((p) => (
-                  <View key={p.text} style={styles.punto}>
-                    <View style={styles.puntoIcon}>
-                      <Ionicons name={p.icon} size={22} color={colors.accentStrong} />
-                    </View>
-                    <Text style={styles.puntoText}>{p.text}</Text>
+              {panelVariante === 'registro' ? (
+                <ResumenFamilia />
+              ) : (
+                <>
+                  <View style={styles.puntos}>
+                    {PUNTOS.map((p) => (
+                      <View key={p.text} style={styles.punto}>
+                        <View style={styles.puntoIcon}>
+                          <Ionicons name={p.icon} size={22} color={colors.accentStrong} />
+                        </View>
+                        <Text style={styles.puntoText}>{p.text}</Text>
+                      </View>
+                    ))}
                   </View>
-                ))}
-              </View>
 
-              {/* El producto, apenas inclinado */}
-              <View style={styles.miniCard} accessibilityElementsHidden importantForAccessibility="no">
-                <View style={styles.miniIcon}>
-                  <Ionicons name="paw" size={20} color="#3E6340" />
-                </View>
-                <View>
-                  <Text style={styles.miniTitle}>Familia García · 4 integrantes</Text>
-                  <Text style={styles.miniSub}>Próximo aviso: Vacuna de Toby</Text>
-                </View>
-              </View>
+                  {/* El producto, apenas inclinado */}
+                  <View {...paper('cutout', 'pop', 'd1')} style={styles.miniCard} accessibilityElementsHidden importantForAccessibility="no">
+                    <View style={styles.miniIcon}>
+                      <Ionicons name="paw" size={20} color="#3E6340" />
+                    </View>
+                    <View>
+                      <Text style={styles.miniTitle}>Familia García · 4 integrantes</Text>
+                      <Text style={styles.miniSub}>Próximo aviso: Vacuna de Toby</Text>
+                    </View>
+                  </View>
+                </>
+              )}
             </View>
 
             <Text style={styles.panelPie}>Proyecto de Prácticas Profesionalizantes II · IES Santa Fe</Text>
@@ -164,7 +208,8 @@ const styles = StyleSheet.create({
   marcaAgua: { position: 'absolute', right: -90, bottom: -80, opacity: 0.04 },
   panelTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   panelCentro: { width: '100%', maxWidth: 480, alignSelf: 'center', gap: 28 },
-  panelTitle: { fontSize: 36, lineHeight: 46, fontFamily: SERIF_BOLD, color: colors.ink },
+  // Un escalón por debajo del título del formulario: el panel acompaña, no compite.
+  panelTitle: { fontSize: 32, lineHeight: 42, fontFamily: SERIF_BOLD, color: colors.ink },
   puntos: { gap: 8 },
   punto: { flexDirection: 'row', alignItems: 'center', gap: 16, minHeight: 52 },
   puntoIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
@@ -179,25 +224,51 @@ const styles = StyleSheet.create({
     paddingRight: 20,
     borderRadius: 16,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: 'rgba(42, 36, 33, 0.1)',
-    transform: [{ rotate: '-2deg' }],
+    // Tarjeta física apoyada: borde blanco, sombra cálida (en web, de dos capas vía theme/paper.js),
+    // sin giro — tiene texto que hay que poder leer.
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
     shadowColor: '#2A2421',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.06,
     shadowRadius: 24,
     elevation: 2,
   },
+  resumen: {
+    padding: 20,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#2A2421',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.07,
+    shadowRadius: 28,
+    elevation: 3,
+    gap: 16,
+  },
+  resumenHead: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  resumenAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#D6E2D6', alignItems: 'center', justifyContent: 'center' },
+  resumenTitle: { fontSize: 18, lineHeight: 26, fontFamily: poppinsWeight('700'), color: colors.ink },
+  resumenSub: { fontSize: 15, lineHeight: 22, color: '#3F3631' },
+  avisos: { gap: 12 },
+  aviso: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 10, backgroundColor: '#FAF5EF' },
+  avisoIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  avisoTexto: { flex: 1 },
+  avisoCuando: { fontSize: 14, lineHeight: 20, color: '#574E49', fontFamily: poppinsWeight('600') },
+  avisoQue: { fontSize: 16, lineHeight: 22, color: colors.ink },
   miniIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#D6E2D6', alignItems: 'center', justifyContent: 'center' },
   miniTitle: { fontSize: 15, lineHeight: 22, fontFamily: poppinsWeight('700'), color: colors.ink },
   miniSub: { fontSize: 14, lineHeight: 20, color: '#3F3631' },
   panelPie: { fontSize: 14, lineHeight: 20, color: '#574E49' },
 
   // ---- mitad derecha
+  // El cambio de pantalla flota arriba (absoluto) para que el formulario quede centrado
+  // de verdad en la columna, a la misma altura que el contenido del panel.
   derecha: { flex: 1, backgroundColor: '#FFFFFF' },
-  derechaTop: { alignItems: 'flex-end', paddingHorizontal: 32, paddingTop: 16, minHeight: 80 },
+  derechaTop: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1, alignItems: 'flex-end', paddingHorizontal: 32, paddingTop: 16 },
   formScroll: { flex: 1 },
-  scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24 },
+  scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 24 },
   column: { width: '100%', maxWidth: FORM_MAX_WIDTH, alignSelf: 'center' },
   logoMovil: { marginBottom: 20 },
 

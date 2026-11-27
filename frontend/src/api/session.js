@@ -12,6 +12,7 @@ const TOKEN_KEY = 'domus_token';
 // mostrar datos en pantalla sin esperar un round-trip al arrancar la app.
 const USER_KEY  = 'domus_usuario';
 const GRUPO_KEY = 'domus_grupo';
+const RECORDAR_KEY = 'domus_recordar';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -42,7 +43,19 @@ export async function saveSession({ token, usuario, grupo }) {
   await AsyncStorage.setItem(GRUPO_KEY, JSON.stringify(grupo ?? null));
 }
 
+// "Mantener sesión iniciada": por defecto sí. Si la persona lo desmarca, la sesión sirve
+// mientras la app siga abierta y se descarta al volver a abrirla (ver loadSession).
+export async function setRecordarSesion(recordar) {
+  return AsyncStorage.setItem(RECORDAR_KEY, recordar ? 'true' : 'false');
+}
+
 export async function loadSession() {
+  if ((await AsyncStorage.getItem(RECORDAR_KEY)) === 'false') {
+    await clearSession();
+    await AsyncStorage.removeItem(RECORDAR_KEY);
+    return { token: null, usuario: null, grupo: null };
+  }
+
   const [token, usuarioRaw, grupoRaw] = await Promise.all([
     readToken(),
     AsyncStorage.getItem(USER_KEY),

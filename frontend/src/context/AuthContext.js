@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import api, { setUnauthorizedHandler } from '../api/client';
-import { saveSession, loadSession, clearSession, setToken as persistToken } from '../api/session';
+import {
+  saveSession,
+  loadSession,
+  clearSession,
+  setToken as persistToken,
+  setRecordarSesion,
+} from '../api/session';
 
 const AuthContext = createContext(null);
 
@@ -9,6 +15,9 @@ export function AuthProvider({ children }) {
   const [usuario, setUsuario] = useState(null);
   const [grupo, setGrupo] = useState(null);
   const [booting, setBooting] = useState(true);
+  // Código de invitación escrito antes de tener cuenta (Login → "Unirme con un código"): se guarda
+  // en memoria y GroupSetupScreen lo usa para precargar el paso de unirse al grupo.
+  const [codigoPendiente, setCodigoPendiente] = useState('');
 
   function resetState() {
     setToken(null);
@@ -19,6 +28,7 @@ export function AuthProvider({ children }) {
   async function logout() {
     await clearSession();
     resetState();
+    setCodigoPendiente('');
   }
 
   // 1 — Rehidratar sesión al arrancar y resolver si falta onboarding (grupo)
@@ -73,8 +83,9 @@ export function AuthProvider({ children }) {
     });
   }, []);
 
-  async function login(email, password) {
+  async function login(email, password, recordar = true) {
     const datos = await api.post('/api/auth/login', { email, password });
+    await setRecordarSesion(recordar);
 
     // Persistir el token ANTES de pedir el grupo — el interceptor de
     // client.js lee el token desde SecureStore/AsyncStorage en cada
@@ -133,6 +144,7 @@ export function AuthProvider({ children }) {
     await api.post('/api/familia/grupo/unirse', { codigo });
     const datosGrupo = await api.get('/api/familia/grupo');
     setGrupo(datosGrupo);
+    setCodigoPendiente('');
     return datosGrupo;
   }
 
@@ -168,7 +180,7 @@ export function AuthProvider({ children }) {
   }
 
   const value = {
-    token, usuario, grupo, booting,
+    token, usuario, grupo, booting, codigoPendiente, setCodigoPendiente,
     login, register, crearGrupo, unirseGrupo, salirDelGrupo, logout,
     actualizarPerfil, renombrarGrupo,
   };
