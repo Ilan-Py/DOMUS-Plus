@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated } from 'react-native';
+import useReducedMotion from '../hooks/useReducedMotion';
 
 // Entrada escalonada para filas de lista (MemberCard/recordCard/reminder
 // row) cuando los datos reales aparecen post-skeleton. `index` viene del
@@ -16,6 +17,7 @@ const STAGGER_CAP = 8;
 
 export default function FadeSlideIn({ index = 0, style, children }) {
   const anim = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     Animated.timing(anim, {
@@ -27,7 +29,8 @@ export default function FadeSlideIn({ index = 0, style, children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
+  // Reducir movimiento: sin desplazamiento, sólo el fade.
+  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [reduceMotion ? 0 : 10, 0] });
 
   return (
     <Animated.View style={[style, { opacity: anim, transform: [{ translateY }] }]}>

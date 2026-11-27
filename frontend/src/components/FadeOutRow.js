@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated } from 'react-native';
+import useReducedMotion from '../hooks/useReducedMotion';
 
 // Feedback de salida para una fila que se está borrando/desactivando —
 // opacity+scale (ambos nativeDriver), NO height-collapse. Se evaluó
@@ -18,13 +19,15 @@ export const EXIT_DURATION = 180;
 
 export default function FadeOutRow({ exiting, style, children }) {
   const anim = useRef(new Animated.Value(1)).current;
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (!exiting) return;
     Animated.timing(anim, { toValue: 0, duration: EXIT_DURATION, useNativeDriver: true }).start();
   }, [exiting, anim]);
 
-  const scale = anim.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] });
+  // Reducir movimiento: sin escala, sólo el fade.
+  const scale = anim.interpolate({ inputRange: [0, 1], outputRange: [reduceMotion ? 1 : 0.92, 1] });
 
   return (
     <Animated.View style={[style, { opacity: anim, transform: [{ scale }] }]}>

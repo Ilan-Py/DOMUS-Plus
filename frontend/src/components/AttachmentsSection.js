@@ -243,7 +243,7 @@ export default function AttachmentsSection({
                               <Ionicons name="document-text-outline" size={24} color={colors.iconWarm} />
                             </View>
                           ) : (
-                            <Image source={{ uri: item.url }} style={styles.thumbImage} />
+                            <Image source={{ uri: item.url }} style={styles.thumbImage} accessible={false} accessibilityIgnoresInvertColors />
                           )}
                           <Text style={styles.rowName} numberOfLines={2}>
                             {nombre}
@@ -304,7 +304,7 @@ export default function AttachmentsSection({
             <Ionicons name="close" size={24} color={colors.onAccent} />
           </PressScale>
           {!!visorUrl && (
-            <Image source={{ uri: visorUrl }} style={styles.visorImage} resizeMode="contain" />
+            <Image source={{ uri: visorUrl }} style={styles.visorImage} resizeMode="contain" accessibilityLabel="Foto adjunta ampliada" />
           )}
         </View>
       </Modal>

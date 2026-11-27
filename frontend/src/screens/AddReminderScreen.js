@@ -364,7 +364,7 @@ export default function AddReminderScreen({ navigation, route }) {
                     setVeces(t.replace(/\D/g, ''));
                     setRepeticionError('');
                   }}
-                  placeholder="10"
+                  placeholder="Ej. 10…"
                   keyboardType="number-pad"
                   style={{ paddingTop: 20, paddingBottom: 0 }}
                 />

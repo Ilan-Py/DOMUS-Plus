@@ -3,6 +3,7 @@ import { Animated, Easing } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { colors } from '../theme/colors';
 import { BLOB_PATH } from './RadialFab';
+import useReducedMotion from '../hooks/useReducedMotion';
 
 // Reusa el mismo path de blob de RadialFab (import, no copiado a mano de
 // nuevo) para el único lugar de la app con un loading state realmente de
@@ -14,7 +15,10 @@ export default function BlobSpinner({ size = 56, color = colors.ink }) {
   const rotate = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0)).current;
 
+  const reduceMotion = useReducedMotion();
+
   useEffect(() => {
+    // Reducir movimiento: sin giro; queda sólo el pulso suave como señal de "cargando".
     const rotateLoop = Animated.loop(
       Animated.timing(rotate, {
         toValue: 1,
@@ -29,13 +33,13 @@ export default function BlobSpinner({ size = 56, color = colors.ink }) {
         Animated.timing(pulse, { toValue: 0, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ])
     );
-    rotateLoop.start();
+    if (!reduceMotion) rotateLoop.start();
     pulseLoop.start();
     return () => {
       rotateLoop.stop();
       pulseLoop.stop();
     };
-  }, [rotate, pulse]);
+  }, [rotate, pulse, reduceMotion]);
 
   const spin = rotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
   const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] });

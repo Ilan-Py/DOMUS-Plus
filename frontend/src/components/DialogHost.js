@@ -112,7 +112,14 @@ export default function DialogHost() {
   return (
     <Modal transparent animationType="none" visible onRequestClose={() => close()}>
       <Animated.View style={[styles.backdrop, Platform.OS === 'web' && styles.backdropWeb, { opacity: anim }]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={() => close()} accessibilityLabel="Cerrar" />
+        {/* Tocar afuera cierra, pero oculto a lectores de pantalla: ya está el botón X. */}
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={() => close()}
+          accessible={false}
+          importantForAccessibility="no"
+          focusable={false}
+        />
         <Animated.View
           style={[
             styles.card,
