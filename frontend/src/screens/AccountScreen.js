@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { mostrarToast } from '../components/ToastHost';
 import { View, Text, StyleSheet, Share, ActivityIndicator, ScrollView, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { colors } from '../theme/colors';
@@ -21,11 +21,23 @@ import { paper } from '../theme/paper';
 import CasaRecorte from '../components/CasaRecorte';
 import EntityAvatar from '../components/EntityAvatar';
 import AvatarPicker from '../components/AvatarPicker';
+import { useFamily } from '../context/FamilyContext';
+import { usePreferencias } from '../context/PreferenciasContext';
+import { armarResumenFichas, entregarTexto } from '../utils/resumenFichas';
 
-// Layout (ver DESIGN.md): desde 1024px, dos columnas (38% perfil y seguridad / 62% grupo)
-// en un contenedor de hasta 1040px; debajo, una sola columna en el mismo orden.
+// Layout: contenedor de hasta 1440 px alineado a la izquierda. Desde 1280 px, 3 columnas (perfil y seguridad /
+// grupo / preferencias y privacidad); en tablet (desde 768 px), 2 columnas; en móvil, una sola.
 const DESKTOP_BREAKPOINT = 1024;
-const CONTAINER_MAX_WIDTH = 1180;
+const TRES_COLUMNAS = 1280;
+const DOS_COLUMNAS = 768;
+const CONTAINER_MAX_WIDTH = 1440;
+
+const OPCIONES_TEXTO = [
+  { label: 'Normal', value: 'normal' },
+  { label: 'Grande', value: 'grande' },
+  { label: 'Muy grande', value: 'muygrande' },
+];
+const normalizar = (t) => (t || '').trim().toLowerCase();
 
 // Botón de sólo texto (Editar / Renombrar): sin ícono, fondo arena, 48dp.
 function TextButton({ label, onPress, accessibilityLabel }) {
@@ -90,6 +102,11 @@ export default function AccountScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const desktop = width >= DESKTOP_BREAKPOINT;
+  const columnas = width >= TRES_COLUMNAS ? 3 : width >= DOS_COLUMNAS ? 2 : 1;
+  const navigation = useNavigation();
+  const { integrantes } = useFamily();
+  const { escala, setEscala, anticipados, setAnticipados } = usePreferencias();
+  const [armandoResumen, setArmandoResumen] = useState(false);
 
   const [editandoPerfil, setEditandoPerfil] = useState(false);
   const [perfilNombre, setPerfilNombre] = useState('');
@@ -169,6 +186,37 @@ export default function AccountScreen() {
       await logout();
     } finally {
       setLoggingOut(false);
+    }
+  }
+
+  // "Mi ficha": el integrante del grupo que lleva mi nombre y apellido. Si todavía no está cargado, se avisa
+  // y se lleva a Familia para sumarse.
+  const miFicha = integrantes.find(
+    (i) => normalizar(i.nombre) === normalizar(usuario?.nombre) && normalizar(i.apellido) === normalizar(usuario?.apellido)
+  );
+  function verMiFicha() {
+    if (miFicha) {
+      navigation.navigate('Familia', {
+        screen: 'Emergency',
+        params: { id: miFicha.id, nombre: `${miFicha.nombre} ${miFicha.apellido}` },
+      });
+    } else {
+      mostrarToast('Todavía no estás cargado en Familia. Sumate como integrante para tener tu ficha.');
+      navigation.navigate('Familia');
+    }
+  }
+
+  async function descargarResumen() {
+    if (armandoResumen) return;
+    setArmandoResumen(true);
+    try {
+      const texto = await armarResumenFichas({ grupoNombre: grupo?.nombre, integrantes });
+      await entregarTexto('fichas-de-emergencia.txt', texto);
+      mostrarToast('Resumen de fichas listo');
+    } catch {
+      mostrarToast('No pudimos armar el resumen. Probá de nuevo.');
+    } finally {
+      setArmandoResumen(false);
     }
   }
 
@@ -363,12 +411,27 @@ export default function AccountScreen() {
         </View>
       ) : (
         <View style={styles.profileBody}>
-          <EntityAvatar avatarId={usuario?.avatar_id} type="person" name={usuario?.nombre} apellido={usuario?.apellido} size={64} />
+          <View style={styles.avatarWrap}>
+            <EntityAvatar avatarId={usuario?.avatar_id} type="person" name={usuario?.nombre} apellido={usuario?.apellido} size={64} />
+            {/* Mini botón para cambiar el ícono rápido (abre la edición, que arranca con el selector de ícono). */}
+            <PressScale
+              contentStyle={styles.avatarEdit}
+              onPress={abrirEditarPerfil}
+              hitSlop={12}
+              accessibilityLabel="Cambiar mi ícono"
+            >
+              <Ionicons name="pencil" size={13} color={colors.onAccent} />
+            </PressScale>
+          </View>
           <View style={styles.profileInfo}>
             <Text style={styles.profileNombre} numberOfLines={2}>
               {usuario?.nombre} {usuario?.apellido}
             </Text>
             <Text style={styles.profileEmail} numberOfLines={1}>{usuario?.email}</Text>
+            <PressScale contentStyle={styles.fichaLink} onPress={verMiFicha} accessibilityLabel="Ver mi ficha de emergencia">
+              <Text style={styles.fichaLinkText}>Ver mi ficha de emergencia</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.accentStrong} />
+            </PressScale>
           </View>
           <TextButton label="Editar" onPress={abrirEditarPerfil} accessibilityLabel="Editar perfil" />
         </View>
@@ -558,6 +621,84 @@ export default function AccountScreen() {
     </View>
   );
 
+  const preferenciasCard = (
+    <View {...paper('cartulina')} style={styles.card}>
+      <Text style={styles.cardLabel} accessibilityRole="header">Preferencias</Text>
+      <View style={styles.formPad}>
+        <Text style={styles.prefTitulo}>Tamaño de texto</Text>
+        <Text style={styles.prefAyuda}>Se aplica a toda la app, en este dispositivo.</Text>
+        <View style={styles.escalas} accessibilityRole="radiogroup" accessibilityLabel="Tamaño de texto">
+          {OPCIONES_TEXTO.map((o) => {
+            const on = escala === o.value;
+            return (
+              <PressScale
+                key={o.value}
+                style={styles.escalaCelda}
+                contentStyle={[styles.escalaBtn, on && styles.escalaBtnOn]}
+                onPress={() => setEscala(o.value)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: on, selected: on }}
+                accessibilityLabel={o.label}
+              >
+                <Text style={[styles.escalaTexto, on && styles.escalaTextoOn]} numberOfLines={1} adjustsFontSizeToFit>
+                  {o.label}
+                </Text>
+              </PressScale>
+            );
+          })}
+        </View>
+      </View>
+
+      <View style={styles.hairline} />
+
+      <PressScale
+        contentStyle={styles.toggleFila}
+        onPress={() => setAnticipados(!anticipados)}
+        accessibilityRole="switch"
+        accessibilityState={{ checked: anticipados }}
+        accessibilityLabel="Recordatorios anticipados: recibir aviso antes de cada dosis o turno"
+      >
+        <View style={styles.rowTextWrap}>
+          <Text style={styles.prefTitulo}>Recordatorios anticipados</Text>
+          <Text style={styles.prefAyuda}>Recibir aviso 30 minutos antes de cada dosis o turno (en el celular).</Text>
+        </View>
+        <View style={[styles.pista, anticipados && styles.pistaOn]}>
+          <View style={[styles.perilla, anticipados && styles.perillaOn]} />
+        </View>
+      </PressScale>
+    </View>
+  );
+
+  const privacidadCard = (
+    <View {...paper('cartulina')} style={styles.card}>
+      <View style={styles.privCuerpo}>
+        <View style={styles.privHead}>
+          <View style={styles.escudo}>
+            <Ionicons name="shield-checkmark" size={24} color={colors.salvia} />
+          </View>
+          <Text style={styles.privTitulo} accessibilityRole="header">Privacidad y datos</Text>
+        </View>
+        <Text style={styles.privTexto}>
+          Solo los miembros de {grupo?.nombre || 'tu grupo familiar'} pueden ver esta información.
+        </Text>
+        <PressScale
+          contentStyle={styles.privBtn}
+          onPress={descargarResumen}
+          disabled={armandoResumen || integrantes.length === 0}
+          accessibilityLabel="Descargar resumen de fichas de emergencia"
+        >
+          {armandoResumen ? (
+            <ActivityIndicator size="small" color={colors.salvia} />
+          ) : (
+            <Ionicons name="download-outline" size={20} color={colors.salvia} />
+          )}
+          <Text style={styles.privBtnText}>{armandoResumen ? 'Armando resumen…' : 'Descargar resumen de fichas'}</Text>
+        </PressScale>
+        {integrantes.length === 0 && <Text style={styles.prefAyuda}>Cuando sumes integrantes, vas a poder descargar sus fichas.</Text>}
+      </View>
+    </View>
+  );
+
   return (
     <View style={styles.root}>
       <ScrollView
@@ -574,19 +715,39 @@ export default function AccountScreen() {
             <Text style={styles.subtitle}>Administrá tus datos personales y tu grupo familiar.</Text>
           </View>
 
-          {desktop ? (
+          {columnas === 3 ? (
             <View style={styles.columns}>
-              <View style={styles.colLeft}>
+              <View style={styles.col}>
                 {perfilCard}
                 {seguridadCard}
               </View>
-              <View style={styles.colRight}>{grupoCard}</View>
+              <View style={styles.col}>{grupoCard}</View>
+              <View style={styles.col}>
+                {preferenciasCard}
+                {privacidadCard}
+              </View>
+            </View>
+          ) : columnas === 2 ? (
+            <View style={styles.stack}>
+              <View style={styles.columns}>
+                <View style={styles.col}>
+                  {perfilCard}
+                  {seguridadCard}
+                </View>
+                <View style={styles.col}>{grupoCard}</View>
+              </View>
+              <View style={styles.columns}>
+                <View style={styles.col}>{preferenciasCard}</View>
+                <View style={styles.col}>{privacidadCard}</View>
+              </View>
             </View>
           ) : (
             <View style={styles.stack}>
               {perfilCard}
               {seguridadCard}
               {grupoCard}
+              {preferenciasCard}
+              {privacidadCard}
             </View>
           )}
         </View>
@@ -609,8 +770,7 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 16, lineHeight: 22, color: colors.textBody, marginTop: 4 },
 
   columns: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
-  colLeft: { flex: 38, gap: 16 },
-  colRight: { flex: 62 },
+  col: { flex: 1, gap: 16, minWidth: 0 },
   stack: { gap: 16 },
 
   // Nivel 2: tarjeta blanca con borde fino y una sombra cálida casi imperceptible.
@@ -656,6 +816,66 @@ const styles = StyleSheet.create({
   // ---- perfil
   profileBody: { padding: 16, gap: 16 },
   profileInfo: { gap: 4 },
+  avatarWrap: { alignSelf: 'flex-start' },
+  avatarEdit: {
+    position: 'absolute',
+    right: -4,
+    bottom: -4,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.accentStrong,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fichaLink: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4, minHeight: 48 },
+  fichaLinkText: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.accentStrong },
+
+  // ---- preferencias
+  prefTitulo: { fontSize: 16, lineHeight: 24, fontFamily: poppinsWeight('600'), color: colors.ink },
+  prefAyuda: { fontSize: 14, lineHeight: 20, color: colors.textBody, marginTop: 2 },
+  escalas: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  escalaCelda: { flex: 1 },
+  escalaBtn: {
+    minHeight: 48,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: colors.borderInput,
+    backgroundColor: colors.glassStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  escalaBtnOn: { backgroundColor: colors.accentStrong, borderColor: colors.accentStrong },
+  escalaTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.ink },
+  escalaTextoOn: { color: colors.onAccent },
+  toggleFila: { flexDirection: 'row', alignItems: 'center', gap: 16, minHeight: 72, padding: 16 },
+  pista: { width: 52, height: 30, borderRadius: 15, backgroundColor: '#D9D0C5', justifyContent: 'center', paddingHorizontal: 3 },
+  pistaOn: { backgroundColor: colors.salvia },
+  perilla: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#FFFFFF' },
+  perillaOn: { alignSelf: 'flex-end' },
+
+  // ---- privacidad y datos
+  privCuerpo: { padding: 16, gap: 12 },
+  privHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  escudo: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.salviaSoft, alignItems: 'center', justifyContent: 'center' },
+  privTitulo: { fontSize: 17, lineHeight: 24, fontFamily: poppinsWeight('700'), color: colors.ink },
+  privTexto: { fontSize: 15, lineHeight: 22, color: colors.textBody },
+  privBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 48,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(74, 107, 93, 0.45)',
+    backgroundColor: colors.salviaSoft,
+  },
+  privBtnText: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.salvia },
   profileNombre: { fontSize: 20, lineHeight: 28, fontFamily: poppinsWeight('700'), color: colors.ink },
   profileEmail: { fontSize: 15, color: colors.textBody },
   avatar: { alignItems: 'center', justifyContent: 'center' },

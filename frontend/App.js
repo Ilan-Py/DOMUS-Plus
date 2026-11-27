@@ -13,6 +13,8 @@ import {
 import { Lora_700Bold } from '@expo-google-fonts/lora';
 import * as Notifications from 'expo-notifications';
 
+import './src/theme/escalaTexto';
+import { PreferenciasProvider } from './src/context/PreferenciasContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { FamilyProvider } from './src/context/FamilyContext';
 import WelcomeScreen from './src/screens/WelcomeScreen';
@@ -225,6 +227,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
+      <PreferenciasProvider>
       <AuthProvider>
         <NavigationContainer
           ref={navigationRef}
@@ -238,6 +241,7 @@ export default function App() {
           <ToastHost />
         </NavigationContainer>
       </AuthProvider>
+      </PreferenciasProvider>
     </SafeAreaProvider>
   );
 }
