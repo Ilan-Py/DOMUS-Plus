@@ -19,3 +19,7 @@ yarn-error.*
 .DS_Store
 # Playwright CLI output (may contain credentials)
 .playwright-cli/
+
+# Capturas del review UI/UX (≈130 MB, se regeneran con Playwright; ver docs/ux/08-handoff.md §8)
+docs/ux/capturas/antes/
+docs/ux/capturas/despues/

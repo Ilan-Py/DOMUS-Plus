@@ -35,7 +35,7 @@ frontend/
   App.js                      # Fuentes, ramas de navegación (boot/auth/onboarding/main)
   src/api/client.js           # Axios: token + desenvuelve el envelope (ÚNICO lugar)
   src/context/                # AuthContext, FamilyContext
-  src/navigation/MainTabs.js  # Tabs Familia / Calendario / Cuenta + stacks
+  src/navigation/MainTabs.js  # Tabs Familia / Calendario / Emergencia / Cuenta + stacks
   src/screens/                # Pantallas
   src/components/             # Componentes compartidos (FormField, PrimaryButton, ScreenHeader...)
   src/utils/                  # confirm.js, displayFormat.js, notifications.js
@@ -159,6 +159,19 @@ return res.status(200).json({ codigo: 200, estado: 'ok', datos: resultado });
 - Enums: la UI muestra labels capitalizados; el payload va en minúscula.
 - Usar `ScreenHeader`, `FormField`, `PrimaryButton`, `ErrorBanner`, `EmptyState` y los tokens de
   `src/theme/` en vez de estilos sueltos. Ver `docs/DESIGN_SYSTEM.md`.
+- **Sistema papercut (review UI/UX, `docs/ux/`):** código nuevo importa de `src/theme/tokens.js` (`color`, `texto`,
+  `espacio`, `radio`, `tactil`, `tipoEvento`, `estadoDosis`). Componentes: `PaperBanner`, `StatChip`, `EventItem`,
+  `EmptySlot`, `AddMenu` (el único «Agregar» de la app), `Ilustracion`, `MemberCard`/`PetCard`; catálogo vivo en
+  `http://localhost:8081/styleguide` y reglas en `docs/ux/04-design-system.md`. Sin degradados, vidrio ni blur;
+  sombras de papel (corridas, `shadowRadius: 0`).
+- **Textos:** voz y vocabulario en `docs/ux/05-copy.md` (dosis «dada / no se dio / sin marcar», «persona con acceso»
+  vs «integrante», sin «¿Seguro que…?»). Plurales y fechas con `src/utils/formato.js` (`plural`, `cuandoEvento`,
+  `fechaCorta` — nunca «mar 24»); textos repetidos en `src/utils/textos.js`.
+- **Toasts:** `mostrarToast(texto, 'error')` en todo `catch`; acciones reversibles con
+  `mostrarToast(texto, { accion: { etiqueta: 'Deshacer', onPress } })`.
+- **Marcar dosis/turnos:** siempre por `src/data/dosis.js` (`marcar`, `pasar`, `horaParaPasar`), no con `desactivar`.
+- **Sin conexión:** `src/utils/cacheLocal.js` guarda familia, contactos y tratamientos para abrir la ficha sin red; se
+  borra en `clearSession`. No guardar ahí nada más.
 - Se prueba en **web** (Chrome, Firefox, Brave) y Android físico (`adb reverse tcp:3000 tcp:3000`).
   iOS no está validado.
 

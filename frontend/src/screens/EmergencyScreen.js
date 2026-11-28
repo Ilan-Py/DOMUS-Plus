@@ -383,6 +383,7 @@ export default function EmergencyScreen({ navigation, route }) {
 
                   <View style={columnas && styles.allergyCol}>
                     <Text style={styles.medLabel}>Alergias</Text>
+                    {/* TODO(backend): distinguir «sin cargar» (null) de «no tiene alergias conocidas» (05-copy §4.2). */}
                     {listaAlergias.length === 0 ? (
                       <EspacioVacio texto="Agregar alergias" onPress={() => iniciarEdicion('alergias')} />
                     ) : (

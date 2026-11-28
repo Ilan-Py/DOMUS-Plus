@@ -218,6 +218,8 @@ export default function AccountScreen() {
 
   // "Mi ficha": el integrante del grupo que lleva mi nombre y apellido. Si todavía no está cargado, se avisa
   // y se lleva a Familia para sumarse.
+  // TODO(backend): FAM-01 — vincular Integrante.usuarioId al crear el grupo o al «Sumarme»; buscar por nombre falla
+  // con apodos («Moni») o con dos personas que se llaman igual.
   const miFicha = integrantes.find(
     (i) => normalizar(i.nombre) === normalizar(usuario?.nombre) && normalizar(i.apellido) === normalizar(usuario?.apellido)
   );
@@ -415,6 +417,7 @@ export default function AccountScreen() {
     setInvitacionError('');
     setGenerandoCodigo(true);
     try {
+      // TODO(backend): CTA-07 — rol al invitar («Puede editar» / «Sólo mira»): hoy todo el que entra con el código edita.
       const datos = await api.post('/api/familia/grupo/invitacion');
       setCodigoInvitacion(datos.codigo_invitacion);
       setCopiado(false);

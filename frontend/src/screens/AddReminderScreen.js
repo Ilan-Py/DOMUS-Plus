@@ -197,6 +197,7 @@ export default function AddReminderScreen({ navigation, route }) {
     const fechaHoraLocal = combinarFechaHora(fecha, hora);
 
     // Misma regla que recordatoriosController: la fecha debe ser futura.
+    // TODO(backend): FRM-05 — aceptar fechas pasadas para registrar una toma que ya se dio (no para avisos).
     if (fechaHoraLocal <= new Date()) {
       setFechaHoraError('Elegí una hora que todavía no pasó. Para anotar una dosis que ya se dio, marcala en Hoy.');
       focusFirst([[true, 'fecha']]);
