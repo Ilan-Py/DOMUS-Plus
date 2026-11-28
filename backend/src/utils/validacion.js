@@ -176,4 +176,17 @@ function validarIdDeRuta(req, res, next, valor) {
     next();
 }
 
-module.exports = { esIdValido, esFechaValida, validarCampos, validarIdDeRuta, FECHA_MINIMA, hoy, hoyMasAnios };
+// Fecha y hora que manda la app → instante. Con zona («…Z» o «…-03:00») se respeta tal cual. Sin zona
+// («2026-11-28 05:00:00», lo que mandaban las versiones de la app anteriores al commit 220bce4) se interpreta como
+// hora de Argentina (UTC−3, sin horario de verano), NO con la zona del servidor: en Render el servidor corre en UTC
+// y esas horas quedaban 3 h antes (las «02:00» de la serie «Si»).
+const CON_ZONA = /([zZ]|[+-]\d{2}:?\d{2})$/;
+function instanteDe(valor) {
+    if (valor instanceof Date) return valor;
+    const texto = String(valor).trim();
+    if (CON_ZONA.test(texto)) return new Date(texto);
+    const conHora = /\d{2}:\d{2}/.test(texto) ? texto : `${texto} 00:00`;
+    return new Date(`${conHora.replace(' ', 'T')}-03:00`);
+}
+
+module.exports = { esIdValido, esFechaValida, validarCampos, validarIdDeRuta, FECHA_MINIMA, hoy, hoyMasAnios, instanteDe };

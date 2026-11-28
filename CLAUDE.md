@@ -142,6 +142,8 @@ return res.status(200).json({ codigo: 200, estado: 'ok', datos: resultado });
   Cada recordatorio tiene `estado` (`pendiente|hecho|omitido`), `hecho_a` y `marcado_por: { id, nombre }`; `activo` queda en
   sincronía (`activo` = `estado === 'pendiente'`).
 - En Windows, nodemon dentro de Docker a veces no ve los cambios de `src/`: `docker compose restart backend`.
+- Fechas y horas que llegan sin zona (`"2026-11-28 05:00:00"`, de apps viejas) se interpretan como hora de Argentina con
+  `instanteDe()` (`utils/validacion.js`), nunca con la zona del servidor (Render corre en UTC). La app manda ISO con `Z`.
 - Recordatorios periódicos (MEJ-005): `POST /api/recordatorios` con `repetir_cada_dias` (1–365; "cada mes" = 30)
   y `repetir_veces` (2–100, default 10) crea **una fila por repetición**, todas con el mismo `serie_id`.
   `DELETE /api/recordatorios/:id?alcance=siguientes` borra esa y las posteriores de la serie; sin

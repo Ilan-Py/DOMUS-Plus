@@ -5,7 +5,7 @@ const { randomUUID } = require('crypto');
 const prisma = require('../config/prisma');
 const { resolverGrupoId, verificarPertenenciaDirecta } = require('../utils/grupo');
 const { verificarPertenenciaVacuna, verificarPertenenciaTratamiento } = require('./saludController');
-const { validarCampos, hoyMasAnios } = require('../utils/validacion');
+const { validarCampos, hoyMasAnios, instanteDe } = require('../utils/validacion');
 
 // Tipo, formato y largo de cada campo (ERR-011). Los obligatorios se chequean en cada función.
 const REGLAS_RECORDATORIO = {
@@ -71,7 +71,7 @@ async function crearRecordatorio(req, res) {
     if (!TIPOS_VALIDOS.includes(tipo)) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: `tipo debe ser uno de: ${TIPOS_VALIDOS.join(', ')}.` });
     }
-    if (new Date(fecha_hora) <= new Date()) {
+    if (instanteDe(fecha_hora) <= new Date()) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'Elegí una hora que todavía no pasó. Para anotar una dosis que ya se dio, marcala en Hoy.' });
     }
 
@@ -105,7 +105,7 @@ async function crearRecordatorio(req, res) {
             tipo,
             descripcion:   descripcion || null
         };
-        const inicio = new Date(fecha_hora);
+        const inicio = instanteDe(fecha_hora);
         const cadaDias = seRepite ? Number(repetir_cada_dias) : null;
         const veces    = seRepite ? Number(repetir_veces || VECES_POR_DEFECTO) : 1;
         const serieId  = seRepite ? randomUUID() : null;
@@ -181,7 +181,7 @@ async function editarRecordatorio(req, res) {
     if (!TIPOS_VALIDOS.includes(tipo)) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: `tipo debe ser uno de: ${TIPOS_VALIDOS.join(', ')}.` });
     }
-    if (new Date(fecha_hora) <= new Date()) {
+    if (instanteDe(fecha_hora) <= new Date()) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'Elegí una hora que todavía no pasó. Para anotar una dosis que ya se dio, marcala en Hoy.' });
     }
 
@@ -191,7 +191,7 @@ async function editarRecordatorio(req, res) {
             return res.status(404).json({ codigo: 404, estado: 'error', datos: 'No encontramos ese aviso. Puede que alguien lo haya eliminado.' });
         }
 
-        const data = { tipo, fechaHora: new Date(fecha_hora), descripcion: descripcion || null };
+        const data = { tipo, fechaHora: instanteDe(fecha_hora), descripcion: descripcion || null };
         // "Para quién" sólo se toca si el pedido lo incluye (los clientes viejos no lo mandan).
         if ('integrante_id' in req.body || 'mascota_id' in req.body) {
             const paraQuien = await resolverParaQuien(req.body, usuarioId);
@@ -300,7 +300,7 @@ async function marcarRecordatorio(req, res) {
     if (errorCampos) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
     }
-    const hechoA = hecho_a ? new Date(hecho_a) : new Date();
+    const hechoA = hecho_a ? instanteDe(hecho_a) : new Date();
     if (hechoA.getTime() > Date.now() + MARGEN_FUTURO_MS) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'La hora no puede ser después de ahora.' });
     }
