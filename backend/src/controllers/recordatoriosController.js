@@ -74,6 +74,15 @@ async function crearRecordatorio(req, res) {
     if (instanteDe(fecha_hora) <= new Date()) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'Elegí una hora que todavía no pasó. Para anotar una dosis que ya se dio, marcala en Hoy.' });
     }
+    // Una vacuna diaria o un turno diario no tienen sentido (pasó con la serie «Si»): mínimo de días según el tipo.
+    const MINIMO_DIAS = { medicacion: 1, control: 7, vacuna: 28 };
+    if (seRepite && Number(repetir_cada_dias) < MINIMO_DIAS[tipo]) {
+        return res.status(400).json({
+            codigo: 400,
+            estado: 'error',
+            datos: tipo === 'vacuna' ? 'Una vacuna no se repite tan seguido: elegí 28 días o más.' : 'Un turno no se repite tan seguido: elegí 7 días o más.'
+        });
+    }
 
     try {
         const grupoId = await resolverGrupoId(usuarioId);

@@ -45,12 +45,15 @@ const TIPOS_VALIDOS = TIPO_OPTIONS.map((opt) => opt.value);
 // Date local, usando siempre getters locales para no mezclar con UTC.
 // Repetición: opciones frecuentes y "Otra cantidad" (días escritos a mano).
 // Mismos límites que valida el backend: cada 1–365 días, 2–100 veces.
-const REPETICIONES = {
-  'Todos los días': 1,
-  'Cada semana': 7,
-  'Cada 15 días': 15,
-  'Cada 30 días': 30,
+// Opciones de repetición según el tipo: una vacuna diaria o un turno diario no tienen sentido (arruinaban el
+// calendario y el resumen). Mismos límites que el backend: cada 1–365 días, 2–100 veces.
+const REPETICIONES_POR_TIPO = {
+  medicacion: { 'Todos los días': 1, 'Día por medio': 2, 'Cada semana': 7 },
+  control: { 'Cada semana': 7, 'Cada 15 días': 15, 'Cada mes': 30, 'Cada 6 meses': 182 },
+  vacuna: { 'Cada mes': 30, 'Cada 6 meses': 182, 'Cada año': 365 },
 };
+// Mínimo de días entre repeticiones que se acepta con «Otra cantidad».
+const MINIMO_DIAS = { medicacion: 1, control: 7, vacuna: 28 };
 const VECES_POR_DEFECTO = '10';
 
 function combinarFechaHora(fecha, hora) {
@@ -129,6 +132,7 @@ export default function AddReminderScreen({ navigation, route }) {
       : { mascota_id: paraMiembro.id }
     : {};
   const [repeticion, setRepeticion] = useState('');
+  const REPETICIONES = REPETICIONES_POR_TIPO[tipo] || REPETICIONES_POR_TIPO.medicacion;
   const [veces, setVeces] = useState(VECES_POR_DEFECTO);
   const [repeticionError, setRepeticionError] = useState('');
   // Ya no hay interruptor «Recordatorio activo»: el estado lo dan las marcas (dada / no se dio) en Hoy y el Calendario.
@@ -182,6 +186,10 @@ export default function AddReminderScreen({ navigation, route }) {
     let repetirVeces;
     if (!isEditing && repeticion) {
       repetirCadaDias = REPETICIONES[repeticion] ?? Number(repeticion.trim());
+      if (Number.isInteger(repetirCadaDias) && repetirCadaDias < (MINIMO_DIAS[tipo] || 1)) {
+        setRepeticionError(tipo === 'vacuna' ? 'Una vacuna no se repite tan seguido: elegí 28 días o más.' : 'Un turno no se repite tan seguido: elegí 7 días o más.');
+        return;
+      }
       repetirVeces = Number(veces);
       if (!Number.isInteger(repetirCadaDias) || repetirCadaDias < 1 || repetirCadaDias > 365) {
         setRepeticionError('Escribí un número de días entre 1 y 365.');
@@ -316,7 +324,7 @@ export default function AddReminderScreen({ navigation, route }) {
           <SegmentedControl
             options={TIPO_OPTIONS}
             selectedValue={tipo}
-            onChange={(v) => { setTipo(v); setTipoError(false); }}
+            onChange={(v) => { setTipo(v); setTipoError(false); setRepeticion(''); setRepeticionError(''); }}
             style={styles.segmented}
           />
           {tipoError && <Text style={styles.errorCampo} accessibilityRole="alert">Elegí qué es: una dosis, un turno o una vacuna.</Text>}
