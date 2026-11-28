@@ -171,7 +171,18 @@ export default function MainTabs() {
     >
       <Tab.Screen name="Familia" component={FamiliaStackNavigator} />
       <Tab.Screen name="Calendario" component={CalendarioStackNavigator} />
-      <Tab.Screen name="Emergencia" component={EmergenciaStackNavigator} />
+      {/* Tocar «Emergencia» siempre vuelve a «¿De quién es la ficha?»: si quedara abierta la última ficha vista,
+          en un apuro se podría leer la de otra persona. */}
+      <Tab.Screen
+        name="Emergencia"
+        component={EmergenciaStackNavigator}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.navigate('Emergencia', { screen: 'EmergenciaInicio' });
+          },
+        })}
+      />
       <Tab.Screen name="Cuenta" component={AccountScreen} />
     </Tab.Navigator>
   );
