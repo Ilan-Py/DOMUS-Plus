@@ -12,6 +12,7 @@ const {
 const {
     crearProfesional, listarProfesionales, editarProfesional, eliminarProfesional
 } = require('../controllers/profesionalSaludController');
+const { listarPesos, registrarPeso, eliminarPeso } = require('../controllers/pesoController');
 
 router.use(verificarToken);
 
@@ -29,6 +30,10 @@ router.patch('/tratamientos/:id', editarTratamiento);
 router.delete('/tratamientos/:id', eliminarTratamiento);
 
 router.get('/historial',       consultarHistorial);
+
+router.get('/pesos',           listarPesos);
+router.post('/pesos',          registrarPeso);
+router.delete('/pesos/:id',    eliminarPeso);
 
 router.post('/profesionales',      crearProfesional);
 router.get('/profesionales',       listarProfesionales);

@@ -147,8 +147,22 @@ const REGLAS_MASCOTA = {
     nombre:           { tipo: 'texto', max: 100 },
     especie:          { tipo: 'nombrePersona', max: 50 }, // MEJ-001: sólo letras (sin números ni símbolos)
     raza:             { tipo: 'texto', max: 100 },
-    fecha_nacimiento: { tipo: 'fecha', etiqueta: 'fecha de nacimiento', desde: FECHA_MINIMA, hasta: hoy, mensajeDesde: 'La fecha de nacimiento no puede ser anterior a 1900.', mensajeHasta: 'La fecha de nacimiento no puede ser una fecha futura.' }
+    fecha_nacimiento: { tipo: 'fecha', etiqueta: 'fecha de nacimiento', desde: FECHA_MINIMA, hasta: hoy, mensajeDesde: 'La fecha de nacimiento no puede ser anterior a 1900.', mensajeHasta: 'La fecha de nacimiento no puede ser una fecha futura.' },
+    sexo:             { tipo: 'enum', valores: ['macho', 'hembra'], etiqueta: 'sexo' },
+    microchip:        { tipo: 'texto', max: 30, etiqueta: 'microchip' },
+    observaciones:    { tipo: 'texto', max: 500, etiqueta: 'nota' }
 };
+
+// Campos opcionales de la ficha rápida y la nota de la mascota. Sólo se tocan los que vienen en el pedido (las apps
+// viejas no los mandan y no tienen que borrarlos).
+function datosFichaMascota(body) {
+    const datos = {};
+    if ('sexo' in body) datos.sexo = body.sexo || null;
+    if ('castrado' in body) datos.castrado = body.castrado === null || body.castrado === '' ? null : body.castrado === true || body.castrado === 'true';
+    if ('microchip' in body) datos.microchip = body.microchip ? String(body.microchip).trim() : null;
+    if ('observaciones' in body) datos.observaciones = body.observaciones ? String(body.observaciones).trim() : null;
+    return datos;
+}
 
 //2 — Validacion: fecha no puede ser futura (CU4, CU5)
 function esFechaFutura(fechaStr) {
@@ -702,6 +716,7 @@ async function agregarMascota(req, res) {
                 especie:         especie.trim(),
                 raza:            raza ? raza.trim() : null,
                 fechaNacimiento: fecha_nacimiento ? new Date(fecha_nacimiento) : null,
+                ...datosFichaMascota(req.body),
                 ...datosAvatar(req.body)
             }
         });
@@ -768,6 +783,7 @@ async function editarMascota(req, res) {
                 especie:         especie.trim(),
                 raza:            raza ? raza.trim() : null,
                 fechaNacimiento: fecha_nacimiento ? new Date(fecha_nacimiento) : null,
+                ...datosFichaMascota(req.body),
                 ...datosAvatar(req.body)
             }
         });

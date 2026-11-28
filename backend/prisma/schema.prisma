@@ -163,6 +163,7 @@ model Integrante {
   profesionales       ProfesionalSalud[]
   adjuntos            Adjunto[]            @relation("AdjuntoIntegrante")
   recordatorios       Recordatorio[]
+  pesos               Peso[]
 
   @@map("integrante")
 }
@@ -177,6 +178,12 @@ model Mascota {
   especie          String    @db.VarChar(50)
   raza             String?   @db.VarChar(100)
   fechaNacimiento  DateTime? @map("fecha_nacimiento") @db.Date
+  // Ficha rápida de la libreta sanitaria (docs/ux/06 · ronda de la ficha de mascota). Todo opcional.
+  sexo             String?   @db.VarChar(10)   // 'macho' | 'hembra'
+  castrado         Boolean?
+  microchip        String?   @db.VarChar(30)
+  // Nota humana para quien la cuide («No le gusta que le toquen las patas»). Se muestra como post-it.
+  observaciones    String?   @db.Text
 
   // Foto de perfil (ver Integrante.fotoUrl).
   fotoUrl      String?          @map("foto_url") @db.VarChar(500)
@@ -190,6 +197,7 @@ model Mascota {
   profesionales ProfesionalSalud[]
   adjuntos     Adjunto[]        @relation("AdjuntoMascota")
   recordatorios Recordatorio[]
+  pesos        Peso[]
 
   @@map("mascota")
 }
@@ -390,4 +398,23 @@ model RegistroActividad {
   @@index([fecha])
   @@index([usuarioId])
   @@map("registro_actividad")
+}
+
+// ------------------------------------------------------------
+// Peso: registros de peso de un integrante O una mascota (para el gráfico de evolución). Mismo criterio de
+// «exactamente un padre» que Vacuna/Tratamiento/Historial: se valida en el controller (pesoController.js).
+// ------------------------------------------------------------
+model Peso {
+  id            Int         @id @default(autoincrement())
+  integranteId  Int?        @map("integrante_id")
+  mascotaId     Int?        @map("mascota_id")
+  fecha         DateTime    @db.Date
+  kg            Decimal     @db.Decimal(6, 2)
+
+  integrante Integrante? @relation(fields: [integranteId], references: [id], onDelete: Cascade)
+  mascota    Mascota?    @relation(fields: [mascotaId], references: [id], onDelete: Cascade)
+
+  @@index([mascotaId])
+  @@index([integranteId])
+  @@map("peso")
 }

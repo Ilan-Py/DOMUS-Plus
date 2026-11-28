@@ -51,6 +51,8 @@ crud('/familia/mascotas', 'mascota');
 crud('/salud/vacunas',       'vacuna');
 crud('/salud/tratamientos',  'tratamiento');
 crud('/salud/profesionales', 'profesional');
+ruta('POST',   '/salud/pesos',          'alta',        'peso', 'respuesta');
+ruta('DELETE', '/salud/pesos/(\\d+)',   'eliminacion', 'peso', 'url');
 
 ruta('PATCH',  '/recordatorios/(\\d+)/desactivar', 'modificacion', 'recordatorio', 'url');
 ruta('PATCH',  '/recordatorios/(\\d+)/marcar',     'modificacion', 'recordatorio', 'url');
