@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
@@ -13,7 +13,7 @@ import InlineError from './InlineError';
 import ErrorBanner from './ErrorBanner';
 import { useAuth } from '../context/AuthContext';
 import { color, texto, espacio, radio, tactil } from '../theme/tokens';
-import { hora, fechaLarga } from '../utils/formato';
+import { hora, fechaLarga, fechaCorta, plural } from '../utils/formato';
 import { marcar, pasar, horaParaPasar, separarHoy, estadoParaMostrar, palabras, detalleDeMarca } from '../data/dosis';
 import { dayKey, TONO_CATEGORIA, FondoCategorias } from './MiniCalendar';
 import {
@@ -339,7 +339,8 @@ export function SemanaTira({ avisos, onElegirDia }) {
   return (
     <PaperCard nivel={1} style={estilos.card}>
       <Text style={estilos.titulo} accessibilityRole="header">Esta semana</Text>
-      <View style={estilos.semana}>
+      {/* FAM-04: cada día mide al menos 44 px de ancho; si no entran los 7, la tira se desplaza de costado. */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={estilos.semana}>
         {dias.map((d, i) => {
           const delDia = (avisos || []).filter((a) => (i === 0 ? a.fecha <= finDeDia(d) : mismoDia(a.fecha, d)));
           const esHoy = i === 0;
@@ -351,7 +352,7 @@ export function SemanaTira({ avisos, onElegirDia }) {
               style={estilos.diaCelda}
               contentStyle={[estilos.dia, esHoy ? estilos.diaHoy : tono && { backgroundColor: tono.bg, borderWidth: 1, borderColor: tono.borde }]}
               onPress={() => onElegirDia(dayKey(d))}
-              accessibilityLabel={`${NOMBRE_DIA[d.getDay()]} ${d.getDate()}: ${delDia.length === 0 ? 'sin pendientes' : `${delDia.length} pendiente${delDia.length === 1 ? '' : 's'}`}`}
+              accessibilityLabel={`${esHoy ? 'Hoy, ' : ''}${fechaCorta(d)}: ${delDia.length === 0 ? 'nada programado' : plural(delDia.length, 'aviso')}`}
             >
               <FondoCategorias categorias={categorias} />
               <Text style={[estilos.diaNombre, esHoy && estilos.diaNombreHoy]}>{esHoy ? 'hoy' : NOMBRE_DIA[d.getDay()]}</Text>
@@ -359,7 +360,7 @@ export function SemanaTira({ avisos, onElegirDia }) {
             </PressScale>
           );
         })}
-      </View>
+      </ScrollView>
     </PaperCard>
   );
 }
@@ -393,8 +394,8 @@ const estilos = StyleSheet.create({
   alertaDanger: { backgroundColor: '#FAECE7', borderColor: 'rgba(194, 70, 35, 0.35)' },
   alertaAviso: { backgroundColor: '#FDF3E1', borderColor: 'rgba(200, 141, 50, 0.45)' },
   alertaTexto: { flex: 1, fontSize: 14, lineHeight: 20, fontFamily: poppinsWeight('600') },
-  semana: { flexDirection: 'row', gap: 8 },
-  diaCelda: { flex: 1, minWidth: 0 },
+  semana: { flexDirection: 'row', gap: 8, flexGrow: 1 },
+  diaCelda: { flex: 1, minWidth: 48 },
   dia: { alignItems: 'center', justifyContent: 'center', gap: 2, minHeight: 88, paddingVertical: 10, borderRadius: 12, backgroundColor: '#FBF8F3', borderWidth: 1, borderColor: 'rgba(42, 36, 33, 0.08)', overflow: 'hidden' },
   diaHoy: { backgroundColor: '#C24623', borderColor: '#C24623' },
   diaNombre: { fontSize: 13, lineHeight: 18, color: colors.textBody, textTransform: 'uppercase' },

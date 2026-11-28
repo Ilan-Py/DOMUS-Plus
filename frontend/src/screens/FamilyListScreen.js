@@ -18,13 +18,16 @@ import { useAuth } from '../context/AuthContext';
 import { useFamily } from '../context/FamilyContext';
 import ErrorBanner from '../components/ErrorBanner';
 import { textoGuardadoEn } from '../utils/cacheLocal';
-import { plural } from '../utils/formato';
+import { plural, cuandoEvento, edadDe } from '../utils/formato';
+import PaperBanner from '../components/PaperBanner';
+import StatChip from '../components/StatChip';
+import AddMenu from '../components/AddMenu';
+import Ilustracion from '../components/Ilustracion';
 import EmptyState from '../components/EmptyState';
 import PrimaryButton from '../components/PrimaryButton';
-import BannerRecortes from '../components/BannerRecortes';
 import { HoyPanel, SemanaTira, AlertasFamilia, calcularAlertas } from '../components/FamiliaHoy';
 import useAvisos, { useVacunas } from '../hooks/useAvisos';
-import { duenoDeAviso, inicioDeDia, cuando } from '../utils/avisos';
+import { duenoDeAviso, inicioDeDia } from '../utils/avisos';
 import { paper } from '../theme/paper';
 import PaperCard from '../components/PaperCard';
 import SlotVacio from '../components/SlotVacio';
@@ -44,34 +47,15 @@ const CONTAINER_MAX_WIDTH = 1440;
 const TRES_COLUMNAS = 1280;
 const DOS_COLUMNAS = 768;
 
-const TIPO_LABELS = { adulto: 'Adulto', menor: 'Menor', mayor: 'Mayor' };
-
-// El backend guarda fecha_nacimiento, no una edad — se calcula acá para el
-// subtítulo ("Adulto · 41 años") que antes venía escrito a mano en el mock.
-function calcularEdad(fechaNacimiento) {
-  if (!fechaNacimiento) return null;
-  const nacimiento = new Date(fechaNacimiento);
-  if (Number.isNaN(nacimiento.getTime())) return null;
-  const hoy = new Date();
-  let edad = hoy.getFullYear() - nacimiento.getFullYear();
-  const aunNoCumple =
-    hoy.getMonth() < nacimiento.getMonth() ||
-    (hoy.getMonth() === nacimiento.getMonth() && hoy.getDate() < nacimiento.getDate());
-  if (aunNoCumple) edad -= 1;
-  return edad;
-}
-
 // Tarjeta de integrante o mascota: avatar circular con la paleta cálida de su categoría,
 // nombre y datos. En web, al pasar el mouse sube 2px y el borde se vuelve terracota
 // claro. Los integrantes llevan un botón rápido de «Emergencia».
-function MemberCard({ icon, nombre, apellido, nombreCompleto, fotoUrl, avatarId, subt, chips, progreso, proximo, detalle, detalleTono, color, tipo, mascota, onPress, onLongPress, onEmergencyPress, accionLabel, disabled }) {
+function MemberCard({ incompleta, icon, nombre, apellido, nombreCompleto, fotoUrl, avatarId, subt, chips, progreso, proximo, detalle, detalleTono, color, tipo, mascota, onPress, onLongPress, onEmergencyPress, accionLabel, disabled }) {
   // La tarjeta no es un botón entero: abrir el perfil (toda la parte de datos) y la acción rápida son dos
   // controles hermanos, nunca uno dentro del otro.
   return (
     <PaperCard nivel={1} style={styles.cardWrap}>
       <View style={styles.memberCard}>
-        {/* Barra lateral de 4 px: terracota para personas, verde salvia para mascotas */}
-        <View pointerEvents="none" style={[styles.barra, { backgroundColor: color || (mascota ? colors.salvia : colors.accentStrong) }]} />
         <PressScale onPress={onPress} onLongPress={onLongPress} disabled={disabled} accessibilityLabel={`${nombreCompleto || nombre}, ${subt}`}>
           <View style={styles.memberHead}>
             <EntityAvatar avatarId={avatarId} type={mascota ? 'pet' : 'person'} name={nombre} apellido={apellido} size={48} tipo={tipo} fotoUrl={fotoUrl} />
@@ -100,12 +84,12 @@ function MemberCard({ icon, nombre, apellido, nombreCompleto, fotoUrl, avatarId,
           {!!proximo && (
             <View style={styles.detalleFila}>
               <Ionicons name="time-outline" size={16} color={colors.textBody} />
-              <Text style={styles.detalleTexto} numberOfLines={1}>{proximo}</Text>
+              <Text style={styles.detalleTexto} numberOfLines={1} {...(Platform.OS === 'web' ? { title: proximo } : null)}>{proximo}</Text>
             </View>
           )}
           {progreso !== null && progreso !== undefined && progreso < 100 && (
             <View style={styles.progresoBloque}>
-              <Text style={styles.detalleTexto}>Ficha al {progreso}%</Text>
+              <Text style={styles.detalleTexto}>Ficha de emergencia sin completar</Text>
               <View style={styles.progresoPista} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: progreso }}>
                 <View style={[styles.progresoRelleno, { width: `${progreso}%` }]} />
               </View>
@@ -114,13 +98,13 @@ function MemberCard({ icon, nombre, apellido, nombreCompleto, fotoUrl, avatarId,
         </PressScale>
         {!!onEmergencyPress && (
           <PressScale
-            contentStyle={styles.emergencyBadge}
+            contentStyle={[styles.emergencyBadge, incompleta && styles.emergencyBadgePrincipal]}
             onPress={onEmergencyPress}
             disabled={disabled}
             accessibilityLabel={`${accionLabel || 'Ficha de emergencia'} de ${nombreCompleto || nombre}`}
           >
-            <Ionicons name={mascota ? 'document-text-outline' : 'medkit-outline'} size={20} color={colors.limeDeep} />
-            <Text style={styles.emergencyLabel}>{accionLabel || 'Emergencia'}</Text>
+            <Ionicons name={mascota ? 'document-text-outline' : incompleta ? 'add-circle-outline' : 'medkit-outline'} size={20} color={incompleta ? '#FFFFFF' : colors.limeDeep} />
+            <Text style={[styles.emergencyLabel, incompleta && { color: '#FFFFFF' }]}>{accionLabel || 'Ficha'}</Text>
           </PressScale>
         )}
       </View>
@@ -156,7 +140,6 @@ export default function FamilyListScreen({ navigation }) {
   // Clave `${tipo}-${id}` de la fila que se está borrando — dispara su
   // fade-out (FadeOutRow) antes de que refresh() la saque del array.
   const [exitingKey, setExitingKey] = useState(null);
-  const [menuAgregar, setMenuAgregar] = useState(false);
   const { avisos, todos, error: errorAvisos, actualizar, recargar } = useAvisos();
   const vacunas = useVacunas(integrantes, mascotas);
 
@@ -228,7 +211,6 @@ export default function FamilyListScreen({ navigation }) {
   }
 
   function irAAgregar(tipoMiembro) {
-    setMenuAgregar(false);
     navigation.navigate('AddMember', { tipoMiembro });
   }
 
@@ -245,7 +227,8 @@ export default function FamilyListScreen({ navigation }) {
   // Estado de salud de cada mascota con los datos que ya existen: vacunas vencidas o al día.
   function detalleDeMascota(m) {
     const propias = vacunas.filter((v) => v.duenoClase === 'mascota' && v.duenoId === m.id && v.proxima);
-    if (propias.some((v) => v.proxima < hoyInicio)) return { texto: 'Vacuna vencida', tono: 'alerta' };
+    const atrasada = propias.find((v) => v.proxima < hoyInicio);
+    if (atrasada) return { texto: `Vacuna atrasada: ${atrasada.nombre}`, tono: 'alerta' };
     if (propias.length) return { texto: 'Vacunas al día', tono: 'ok' };
     return null;
   }
@@ -269,80 +252,44 @@ export default function FamilyListScreen({ navigation }) {
   function chipsDe(i) {
     const c = [];
     if (i.tipo_sangre) c.push({ texto: i.tipo_sangre, tono: 'sangre' });
-    if (i.alergias) c.push({ texto: `Alergias: ${i.alergias}`, tono: 'alergia' });
+    const alergias = (i.alergias || '').split(',').map((a) => a.trim()).filter(Boolean);
+    if (alergias.length) {
+      const texto = alergias.length > 2 ? `Alergias: ${alergias.slice(0, 2).join(', ')} y ${alergias.length - 2} más` : `Alergias: ${alergias.join(', ')}`;
+      c.push({ texto, tono: 'alergia' });
+    }
     return c;
   }
   function proximoDe(clase, id) {
     const a = (avisos || []).find((x) => duenoDeAviso(x)?.clase === clase && duenoDeAviso(x).id === id);
-    return a ? `${a.descripcion || 'Recordatorio'} · ${cuando(a.fecha)}` : null;
+    return a ? `${a.descripcion || (a.tipo === 'medicacion' ? 'Dosis' : a.tipo === 'vacuna' ? 'Vacuna' : 'Turno')} · ${cuandoEvento(a.fecha)}` : null;
   }
 
-  const resumen = `${integrantes.length} integrante${integrantes.length === 1 ? '' : 's'} · ${mascotas.length} mascota${mascotas.length === 1 ? '' : 's'}`;
+  const resumen = `${plural(integrantes.length, 'integrante')} · ${plural(mascotas.length, 'mascota')}`;
+
+  // «Agregar»: el mismo menú en toda la app (AddMenu, CAL-06 / FAM-08).
+  function alElegirAgregar(clave) {
+    if (clave === 'persona') irAAgregar('integrante');
+    else if (clave === 'mascota') irAAgregar('mascota');
+    else if (clave === 'invitar') navigation.navigate('Cuenta');
+    else irARecordatorio(clave);
+  }
 
   // ---------------- bloques ----------------
-  // Encabezado compacto: nombre del grupo, tres datos clave y un único botón principal con menú.
+  // Encabezado: nombre del grupo, los datos que piden acción (los ceros no se muestran, FAM-02) y «Agregar».
+  const cargandoAvisos = avisos === null;
   const banner = (
-    <View style={styles.banner}>
-      <View pointerEvents="none" style={[styles.bannerCapa, styles.bannerSombra]} {...paper('recorte')} />
-      <View pointerEvents="none" style={styles.bannerCapa} {...paper('recorte')} />
-      <View style={[styles.bannerDoodle, !desktop && styles.bannerDoodleMobile]} pointerEvents="none">
-        <BannerRecortes width={desktop ? 190 : 130} />
+    <PaperBanner
+      titulo={grupo?.nombre}
+      bajada={resumen}
+      ilustracion={<Ilustracion nombre="familia" size={desktop ? 112 : 80} />}
+    >
+      <View style={styles.stats}>
+        <StatChip valor={cargandoAvisos ? null : dosisHoy} singular="dosis" plural="dosis" sufijo="hoy" tono="alerta" ocultarSiCero />
+        <StatChip valor={cargandoAvisos ? null : turnosSemana} singular="turno" sufijo="esta semana" ocultarSiCero />
+        <StatChip valor={fichasIncompletas} singular="ficha sin completar" plural="fichas sin completar" tono="alerta" ocultarSiCero />
       </View>
-      <View style={styles.bannerText}>
-        <Text style={styles.bannerTitle} numberOfLines={2} accessibilityRole="header">
-          {grupo?.nombre}
-        </Text>
-        <Text style={styles.bannerSummary}>{resumen}</Text>
-        <View style={styles.stats}>
-          <View style={styles.stat}>
-            <Text style={[styles.statNum, dosisHoy > 0 && styles.statAlerta]}>{avisos === null ? '…' : `${dosisHoy} dosis hoy`}</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statNum}>{avisos === null ? '…' : `${turnosSemana} turno${turnosSemana === 1 ? '' : 's'} esta semana`}</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={[styles.statNum, fichasIncompletas > 0 && styles.statAlerta]}>{`${fichasIncompletas} ficha${fichasIncompletas === 1 ? '' : 's'} incompleta${fichasIncompletas === 1 ? '' : 's'}`}</Text>
-          </View>
-        </View>
-        <View style={styles.bannerAction}>
-          <PrimaryButton title="+ Agregar" variant="accent" fullWidth={false} onPress={() => setMenuAgregar((v) => !v)} />
-          {menuAgregar && (
-            <View style={styles.menuAgregar} accessibilityRole="menu">
-              {[
-                { t: 'Integrante con cuenta', s: 'Invitalo con un código', icon: 'mail-outline', col: colors.accentStrong, ir: () => navigation.navigate('Cuenta') },
-                { t: 'Perfil sin cuenta', s: 'Niño o adulto mayor', icon: 'person-add-outline', col: colors.accentStrong, ir: () => irAAgregar('integrante') },
-                { t: 'Mascota', icon: 'paw-outline', col: colors.salvia, ir: () => irAAgregar('mascota') },
-                { sep: true },
-                { t: 'Medicación', icon: 'medkit-outline', col: colors.accentStrong, ir: () => irARecordatorio('medicacion') },
-                { t: 'Turno', icon: 'calendar-outline', col: colors.ocre, ir: () => irARecordatorio('control') },
-                { t: 'Vacuna', icon: 'shield-checkmark-outline', col: colors.salvia, ir: () => irARecordatorio('vacuna') },
-              ].map((it, i) =>
-                it.sep ? (
-                  <View key={i} style={styles.menuSep} />
-                ) : (
-                  <PressScale
-                    key={it.t}
-                    contentStyle={styles.menuFila}
-                    onPress={() => {
-                      setMenuAgregar(false);
-                      it.ir();
-                    }}
-                    accessibilityRole="menuitem"
-                    accessibilityLabel={it.s ? `${it.t}: ${it.s}` : it.t}
-                  >
-                    <Ionicons name={it.icon} size={20} color={it.col} />
-                    <View>
-                      <Text style={styles.menuTexto}>{it.t}</Text>
-                      {!!it.s && <Text style={styles.menuSub}>{it.s}</Text>}
-                    </View>
-                  </PressScale>
-                )
-              )}
-            </View>
-          )}
-        </View>
-      </View>
-    </View>
+      <AddMenu onElegir={alElegirAgregar} style={styles.agregar} />
+    </PaperBanner>
   );
 
   const alertasBloque = <AlertasFamilia alertas={alertas} />;
@@ -376,7 +323,8 @@ export default function FamilyListScreen({ navigation }) {
       ) : (
         <View style={styles.grid}>
           {integrantes.map((item, i) => {
-            const edad = calcularEdad(item.fecha_nacimiento);
+            const edad = edadDe(item.fecha_nacimiento);
+            const incompleta = progresoFicha(item) < 100;
             const nombreCompleto = `${item.nombre} ${item.apellido}`;
             const key = `integrante-${item.id}`;
             return (
@@ -389,7 +337,9 @@ export default function FamilyListScreen({ navigation }) {
                     fotoUrl={item.foto_url}
                     avatarId={item.avatar_id}
                     nombreCompleto={nombreCompleto}
-                    subt={`${TIPO_LABELS[item.tipo] ?? item.tipo}${edad !== null ? ` · ${edad} años` : ''}`}
+                    subt={edad !== null ? plural(edad, 'año') : 'Edad sin cargar'}
+                    incompleta={incompleta}
+                    accionLabel={incompleta ? 'Completar ficha' : 'Ficha de emergencia'}
                     tipo={item.tipo}
                     chips={chipsDe(item)}
                     progreso={progresoFicha(item)}
@@ -461,16 +411,12 @@ export default function FamilyListScreen({ navigation }) {
   const vacio = !loading && !error && integrantes.length === 0 && mascotas.length === 0;
   const primerIngreso = (
     <EmptyState
-      titulo="¡Armemos tu familia!"
-      message="Sumá a tu primer familiar o mascota para empezar a guardar vacunas, tratamientos y recordatorios."
-      recortes={[
-        { icon: 'people', tinte: 'terracota' },
-        { icon: 'heart', tinte: 'arena' },
-        { icon: 'paw', tinte: 'salvia' },
-      ]}
+      titulo="Empecemos por tu familia"
+      message="Sumá a la primera persona o mascota que cuidás. Después vas a poder cargar sus vacunas, su medicación y su ficha de emergencia."
+      ilustracion="familia"
       acciones={[
-        { label: 'Agregar un familiar', onPress: () => navigation.navigate('AddMember', { tipoMiembro: 'integrante' }) },
-        { label: 'Agregar una mascota', onPress: () => navigation.navigate('AddMember', { tipoMiembro: 'mascota' }) },
+        { label: 'Agregar persona', onPress: () => navigation.navigate('AddMember', { tipoMiembro: 'integrante' }) },
+        { label: 'Agregar mascota', onPress: () => navigation.navigate('AddMember', { tipoMiembro: 'mascota' }) },
       ]}
     />
   );
@@ -567,6 +513,8 @@ export default function FamilyListScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  agregar: { alignSelf: 'flex-start' },
+  emergencyBadgePrincipal: { backgroundColor: '#C24623', borderColor: '#C24623' },
   root: { flex: 1, backgroundColor: colors.bg },
   scroll: { paddingBottom: 112 },
   scrollDesktop: { paddingHorizontal: 48 },
@@ -575,57 +523,10 @@ const styles = StyleSheet.create({
   // Escritorio: alineado a la izquierda, pegado a la barra lateral (sin pasillo vacío).
   containerIzq: { alignSelf: 'flex-start' },
 
-  // ---- banner cálido
-  banner: {
-    position: 'relative',
-    marginBottom: 6,
-    zIndex: 10, // el menú "+ Agregar" tiene que pasar por encima de las tarjetas de abajo
-    paddingVertical: 24,
-    paddingHorizontal: 28,
-    minHeight: 168,
-    justifyContent: 'center',
-  },
-  // Recorta los dibujos en la esquina (el banner ya no recorta para que el menú pueda salirse).
-  bannerDoodle: { position: 'absolute', right: 0, bottom: 0, paddingRight: 16, overflow: 'hidden', borderBottomRightRadius: 15, opacity: 1 },
-  bannerDoodleMobile: { top: 0, bottom: undefined, opacity: 0.75 },
-  bannerText: { zIndex: 1, gap: 4, maxWidth: '62%' },
-  bannerTitle: { fontSize: 32, lineHeight: 40, fontFamily: SERIF_BOLD, color: colors.ink },
-  stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, flexShrink: 1, maxWidth: '100%' },
   stat: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: 'rgba(255, 255, 255, 0.7)' },
-  statNum: { fontSize: 14, lineHeight: 20, fontFamily: poppinsWeight('600'), color: colors.ink },
-  statAlerta: { color: '#9A3416' },
-  bannerAction: { marginTop: 16, alignSelf: 'flex-start', zIndex: 20 },
-  menuAgregar: {
-    position: 'absolute',
-    top: '100%',
-    left: 0,
-    marginTop: 8,
-    minWidth: 260,
-    padding: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(42, 36, 33, 0.1)',
-    backgroundColor: '#FFFFFF',
-    zIndex: 30,
-    elevation: 6,
-  },
-  menuFila: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, paddingHorizontal: 12, borderRadius: 8 },
-  menuTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.ink },
   colHoy: { flex: 1.2, minWidth: 0, gap: 24 },
   colMiembros: { flex: 1, minWidth: 0, gap: 24 },
-  slot: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 72,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(42, 36, 33, 0.3)',
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-  },
-  slotTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.textBody },
   detalleFila: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
   detallePunto: { width: 8, height: 8, borderRadius: 4 },
   puntoOk: { backgroundColor: colors.salvia },
@@ -661,9 +562,6 @@ const styles = StyleSheet.create({
   // ---- tarjetas de integrantes y mascotas
   // Sombra de cartulina: en web, de dos capas vía theme/paper.js; en nativo, una corta y nítida.
   cardWrap: { width: '100%' },
-  barra: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 4 },
-  cardWrapWeb: { transitionProperty: 'transform', transitionDuration: '150ms', transitionTimingFunction: 'ease-out' },
-  cardWrapHover: { transform: [{ translateY: -2 }] },
   memberCard: {
     gap: 12,
     minHeight: 80,
@@ -682,13 +580,7 @@ const styles = StyleSheet.create({
   progresoBloque: { marginTop: 10, gap: 4 },
   progresoPista: { height: 8, borderRadius: 4, backgroundColor: colors.arena, overflow: 'hidden' },
   progresoRelleno: { height: 8, borderRadius: 4, backgroundColor: colors.ocre },
-  menuSub: { fontSize: 13, lineHeight: 18, color: colors.textBody },
-  menuSep: { height: 1, marginVertical: 4, marginHorizontal: 8, backgroundColor: 'rgba(42, 36, 33, 0.1)' },
-  bannerSummary: { fontSize: 15, lineHeight: 22, color: colors.textBody },
-  bannerCapa: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.arena, borderTopLeftRadius: 16, borderTopRightRadius: 16 },
-  bannerSombra: { top: 4, left: 4, right: -4, bottom: -4, backgroundColor: '#E4D6C6' },
   memberHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   memberInfo: { flex: 1, minWidth: 0 },
   memberName: { fontSize: 17, lineHeight: 24, fontFamily: poppinsWeight('700'), color: colors.ink },
   memberSubt: { fontSize: 15, lineHeight: 22, color: colors.textBody },
