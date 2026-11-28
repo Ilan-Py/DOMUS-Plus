@@ -7,16 +7,19 @@ import { paper } from '../theme/paper';
 // levanta 2 px (CSS en theme/paper.js, respeta prefers-reduced-motion).
 //
 // `hoja`: color ('terracota' | 'salvia' | 'mostaza' | 'rosa' | 'arena') de una segunda hoja que asoma unos px
-// detrás, apenas girada. Es sólo decoración y va detrás: la tarjeta en sí nunca se gira. Usarla en tarjetas
+// detrás, girada ±1° (`rotacion`, en grados; usar -1 para alternar). Es sólo decoración y va detrás: la tarjeta en sí nunca se gira. Usarla en tarjetas
 // destacadas (Hoy, ficha de emergencia), no en formularios ni en listas.
 //
 //   <PaperCard nivel={2} hoja="terracota" style={{ padding: 24 }}>…</PaperCard>
-export default function PaperCard({ nivel = 1, hoja, rotacion = 1.2, style, wrapperStyle, children, ...rest }) {
+export default function PaperCard({ nivel = 1, hoja, rotacion = 1, style, wrapperStyle, children, ...rest }) {
   const color = hoja ? papel.hoja[hoja] || hoja : null;
+  // Con hoja, la hoja es el papel apilado: la tarjeta lleva sólo la sombra de contacto (nivel 1) para que la hoja se
+  // vea. Una sola señal de apilado por tarjeta.
+  const nivelEfectivo = color ? 1 : nivel;
   const card = (
     <View
-      {...paper('papel', `p${nivel}`)}
-      style={[styles.card, Platform.OS !== 'web' && SOMBRA_NATIVA[nivel], style]}
+      {...paper('papel', `p${nivelEfectivo}`)}
+      style={[styles.card, Platform.OS !== 'web' && SOMBRA_NATIVA[nivelEfectivo], style]}
       {...rest}
     >
       {children}

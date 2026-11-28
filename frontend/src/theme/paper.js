@@ -37,6 +37,12 @@ body::after {
   background-size: 160px 160px;
 }
 
+/* Grano sobre un elemento puntual (cabeceras, estados vacíos). El grano global de arriba ya cubre el fondo. */
+[data-paper~="grano"] {
+  background-image: url("data:image/svg+xml,${encodeURIComponent(RUIDO_SVG)}");
+  background-size: 160px 160px;
+}
+
 /* Tarjetas/stickers flotantes: borde blanco limpio + sombra cálida en dos capas. */
 .paper-cutout,
 [data-paper~="cutout"] {

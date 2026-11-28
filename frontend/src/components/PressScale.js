@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { forwardRef, useRef } from 'react';
 import { Animated, Pressable } from 'react-native';
 import useReducedMotion from '../hooks/useReducedMotion';
 
@@ -12,7 +12,8 @@ const PRESS_SCALE = 0.98;
 const PRESS_OPACITY = 0.85;
 const PRESS_DURATION = 100;
 
-export default function PressScale({
+// forwardRef: AddMenu necesita medir el botón y devolverle el foco al cerrar.
+function PressScale({
   onPress,
   onLongPress,
   disabled,
@@ -22,7 +23,7 @@ export default function PressScale({
   accessibilityRole = 'button',
   onPressedChange,
   ...rest
-}) {
+}, ref) {
   const anim = useRef(new Animated.Value(0)).current;
   // Pressable dispara onPress en el release incluso después de que
   // onLongPress ya calificó — sin este flag, soltar un long-press también
@@ -66,6 +67,7 @@ export default function PressScale({
 
   return (
     <Pressable
+      ref={ref}
       onPress={handlePress}
       onLongPress={onLongPress ? handleLongPress : undefined}
       disabled={disabled}
@@ -84,3 +86,5 @@ export default function PressScale({
     </Pressable>
   );
 }
+
+export default forwardRef(PressScale);

@@ -26,6 +26,7 @@ import Logo from './src/components/Logo';
 import DialogHost from './src/components/DialogHost';
 import ToastHost from './src/components/ToastHost';
 import NotFoundScreen from './src/screens/NotFoundScreen';
+import StyleguideScreen from './src/screens/StyleguideScreen';
 import { formatearTitulo, sincronizarTitulo } from './src/navigation/titulos';
 import { injectPaperCss } from './src/theme/paper';
 import { colors } from './src/theme/colors';
@@ -182,8 +183,11 @@ function RootNavigator() {
 // pegado en la barra) muestra la página 404 en vez de la app como si nada.
 function direccionDesconocida() {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
-  return !['', '/', '/index.html'].includes(window.location.pathname);
+  return !['', '/', '/index.html', '/styleguide'].includes(window.location.pathname);
 }
+
+// /styleguide (sólo web): tokens y componentes del sistema visual renderizados (docs/ux/04-design-system.md).
+const esStyleguide = () => Platform.OS === 'web' && typeof window !== 'undefined' && window.location.pathname === '/styleguide';
 
 export default function App() {
   const [noEncontrada, setNoEncontrada] = useState(direccionDesconocida);
@@ -212,6 +216,18 @@ export default function App() {
 
   if (!fontsLoaded && !fontError) {
     return <SplashScreen />;
+  }
+
+  if (esStyleguide()) {
+    if (typeof document !== 'undefined') document.title = 'Sistema visual · DOMUS+';
+    return (
+      <SafeAreaProvider>
+        <PreferenciasProvider>
+          <StyleguideScreen />
+          <ToastHost />
+        </PreferenciasProvider>
+      </SafeAreaProvider>
+    );
   }
 
   if (noEncontrada) {

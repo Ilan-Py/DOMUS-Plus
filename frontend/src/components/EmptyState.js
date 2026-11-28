@@ -4,6 +4,7 @@ import { colors } from '../theme/colors';
 import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
 import PaperCutout from './PaperCutout';
 import PrimaryButton from './PrimaryButton';
+import Ilustracion from './Ilustracion';
 
 // Estado vacío cálido: un par de recortes de papel + mensaje claro + (opcional) acción directa.
 // Usado por FamilyListScreen, CalendarScreen, EmergencyScreen y ProfileDetailScreen.
@@ -17,9 +18,12 @@ const RECORTES_POR_DEFECTO = [
 ];
 const GIROS = [-7, 5, -3];
 
+//  - `ilustracion` (opcional): nombre de una Ilustracion ('familia', 'calendario', 'aldia', 'mascota', 'vacuna',
+//    'receta', 'ficha'). Si viene, reemplaza a los recortes.
 export default function EmptyState({
   titulo,
   message,
+  ilustracion,
   recortes = RECORTES_POR_DEFECTO,
   acciones,
   actionLabel,
@@ -32,7 +36,7 @@ export default function EmptyState({
   return (
     <View style={[styles.root, compacto && styles.rootCompacto]}>
       <View style={styles.recortes}>
-        {recortes.slice(0, 3).map((r, i) => (
+        {ilustracion ? <Ilustracion nombre={ilustracion} size={compacto ? 80 : 112} /> : recortes.slice(0, 3).map((r, i) => (
           <PaperCutout
             key={r.icon}
             icon={r.icon}
