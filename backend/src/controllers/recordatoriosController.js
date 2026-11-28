@@ -150,7 +150,10 @@ async function listarRecordatorios(req, res) {
                 tipo: true, fechaHora: true, descripcion: true,
                 activo: true, creadoPor: true,
                 integranteId: true, mascotaId: true,
-                serieId: true, repeticionDias: true
+                serieId: true, repeticionDias: true,
+                estado: true, hechoA: true,
+                // Sólo el nombre de quien marcó (para «Dada por Mónica a las 08:10»), nunca otros datos.
+                marcadoPor: { select: { id: true, nombre: true } }
             }
         });
 
@@ -262,9 +265,10 @@ async function desactivarRecordatorio(req, res) {
             return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Recordatorio no encontrado.' });
         }
 
+        // Compatibilidad con la app anterior: «desactivar» = marcar como hecho ahora.
         const resultado = await prisma.recordatorio.updateMany({
             where: { id, grupoId },
-            data: { activo: false }
+            data: { activo: false, estado: 'hecho', hechoA: new Date(), hechoPor: usuarioId }
         });
         if (resultado.count === 0) {
             return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Recordatorio no encontrado.' });
@@ -277,4 +281,79 @@ async function desactivarRecordatorio(req, res) {
     }
 }
 
-module.exports = { crearRecordatorio, listarRecordatorios, editarRecordatorio, eliminarRecordatorio, desactivarRecordatorio };
+// PATCH /api/recordatorios/:id/marcar  { estado: 'hecho' | 'omitido', hecho_a? }
+// Marca una dosis como dada o como «no se dio» (un turno: fue / no fue). `hecho_a` es cuándo pasó; si no viene,
+// ahora. No puede ser futura ni de antes de que existiera el recordatorio menos un día (una dosis adelantada).
+const ESTADOS_MARCA = ['hecho', 'omitido'];
+const REGLAS_MARCA = { hecho_a: { tipo: 'fechaHora', etiqueta: 'hora en que pasó' } };
+const MARGEN_FUTURO_MS = 5 * 60 * 1000; // relojes del celular un poco adelantados
+
+async function marcarRecordatorio(req, res) {
+    const usuarioId = req.usuario.id;
+    const id = Number(req.params.id);
+    const { estado, hecho_a } = req.body;
+
+    if (!ESTADOS_MARCA.includes(estado)) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'Elegí si se hizo o no se hizo.' });
+    }
+    const errorCampos = validarCampos(req.body, REGLAS_MARCA);
+    if (errorCampos) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: errorCampos });
+    }
+    const hechoA = hecho_a ? new Date(hecho_a) : new Date();
+    if (hechoA.getTime() > Date.now() + MARGEN_FUTURO_MS) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'La hora no puede ser después de ahora.' });
+    }
+
+    try {
+        const grupoId = await resolverGrupoId(usuarioId);
+        if (!grupoId) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Recordatorio no encontrado.' });
+        }
+        const recordatorio = await prisma.recordatorio.findFirst({ where: { id, grupoId }, select: { fechaHora: true } });
+        if (!recordatorio) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Recordatorio no encontrado.' });
+        }
+        if (hechoA.getTime() < recordatorio.fechaHora.getTime() - DIA_MS) {
+            return res.status(400).json({ codigo: 400, estado: 'error', datos: 'La hora no puede ser más de un día antes de lo programado.' });
+        }
+
+        await prisma.recordatorio.updateMany({
+            where: { id, grupoId },
+            data: { activo: false, estado, hechoA, hechoPor: usuarioId }
+        });
+        return res.status(200).json({ codigo: 200, estado: 'ok', datos: { id, estado, hecho_a: hechoA } });
+    } catch (err) {
+        console.error('marcarRecordatorio=', err.message);
+        return res.status(500).json({ codigo: 500, estado: 'error', datos: 'Error interno del servidor.' });
+    }
+}
+
+// PATCH /api/recordatorios/:id/reactivar — «Deshacer»: vuelve a pendiente y borra la marca.
+async function reactivarRecordatorio(req, res) {
+    const usuarioId = req.usuario.id;
+    const id = Number(req.params.id);
+
+    try {
+        const grupoId = await resolverGrupoId(usuarioId);
+        if (!grupoId) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Recordatorio no encontrado.' });
+        }
+        const resultado = await prisma.recordatorio.updateMany({
+            where: { id, grupoId },
+            data: { activo: true, estado: 'pendiente', hechoA: null, hechoPor: null }
+        });
+        if (resultado.count === 0) {
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Recordatorio no encontrado.' });
+        }
+        return res.status(200).json({ codigo: 200, estado: 'ok', datos: { id, estado: 'pendiente' } });
+    } catch (err) {
+        console.error('reactivarRecordatorio=', err.message);
+        return res.status(500).json({ codigo: 500, estado: 'error', datos: 'Error interno del servidor.' });
+    }
+}
+
+module.exports = {
+    crearRecordatorio, listarRecordatorios, editarRecordatorio, eliminarRecordatorio, desactivarRecordatorio,
+    marcarRecordatorio, reactivarRecordatorio
+};

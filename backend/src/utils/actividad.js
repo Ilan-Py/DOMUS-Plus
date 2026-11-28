@@ -53,6 +53,8 @@ crud('/salud/tratamientos',  'tratamiento');
 crud('/salud/profesionales', 'profesional');
 
 ruta('PATCH',  '/recordatorios/(\\d+)/desactivar', 'modificacion', 'recordatorio', 'url');
+ruta('PATCH',  '/recordatorios/(\\d+)/marcar',     'modificacion', 'recordatorio', 'url');
+ruta('PATCH',  '/recordatorios/(\\d+)/reactivar',  'modificacion', 'recordatorio', 'url');
 crud('/recordatorios', 'recordatorio');
 
 ruta('POST',   '/adjuntos',         'alta',        'adjunto', 'respuesta');

@@ -135,7 +135,13 @@ return res.status(200).json({ codigo: 200, estado: 'ok', datos: resultado });
   el objeto de Prisma tal cual; **no** mapear claves a mano ni leer camelCase en el frontend.
 - El interceptor de `client.js` devuelve directamente `datos`; los errores llegan como
   `{ status, mensaje }`. Para listas usar `getList(url)` (garantiza array).
-- `PATCH /api/recordatorios/:id/desactivar` devuelve un string en `datos`, no un objeto.
+- `PATCH /api/recordatorios/:id/desactivar` devuelve un string en `datos`, no un objeto. Hoy equivale a marcar «hecho» ahora;
+  la app usa `marcar`/`reactivar`.
+- Marca de dosis/turnos: `PATCH /api/recordatorios/:id/marcar` con `{ estado: 'hecho' | 'omitido', hecho_a? }` (cuándo pasó;
+  ni futura ni más de un día antes de lo programado) y `PATCH /api/recordatorios/:id/reactivar` («Deshacer», vuelve a `pendiente`).
+  Cada recordatorio tiene `estado` (`pendiente|hecho|omitido`), `hecho_a` y `marcado_por: { id, nombre }`; `activo` queda en
+  sincronía (`activo` = `estado === 'pendiente'`).
+- En Windows, nodemon dentro de Docker a veces no ve los cambios de `src/`: `docker compose restart backend`.
 - Recordatorios periódicos (MEJ-005): `POST /api/recordatorios` con `repetir_cada_dias` (1–365; "cada mes" = 30)
   y `repetir_veces` (2–100, default 10) crea **una fila por repetición**, todas con el mismo `serie_id`.
   `DELETE /api/recordatorios/:id?alcance=siguientes` borra esa y las posteriores de la serie; sin

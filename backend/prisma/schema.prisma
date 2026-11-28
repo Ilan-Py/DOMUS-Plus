@@ -59,6 +59,14 @@ enum TipoRecordatorio {
   medicacion
 }
 
+// Marca de un recordatorio (docs/ux/03-definicion.md §2): pendiente hasta que alguien dice si se hizo.
+// «omitido» = se marcó que no se dio / no fue. `activo` se mantiene en sincronía (activo = estado pendiente).
+enum EstadoRecordatorio {
+  pendiente
+  hecho
+  omitido
+}
+
 enum TipoArchivoAdjunto {
   imagen
   pdf
@@ -80,7 +88,8 @@ model Usuario {
 
   // Relaciones
   membresia        GrupoMiembro?
-  recordatorios    Recordatorio[]
+  recordatorios    Recordatorio[] @relation("RecordatorioCreadoPor")
+  marcasHechas     Recordatorio[] @relation("RecordatorioMarcadoPor")
   adjuntosSubidos  Adjunto[]      @relation("AdjuntoSubidoPor")
   actividad        RegistroActividad[]
 
@@ -273,10 +282,15 @@ model Recordatorio {
   // "Para quién" es el recordatorio: un integrante O una mascota del grupo (o ninguno).
   integranteId   Int?             @map("integrante_id")
   mascotaId      Int?             @map("mascota_id")
+  // Quién marcó y cuándo pasó (no cuándo se tocó el botón): «se la dimos a las 09:30» aunque se marque a la tarde.
+  estado         EstadoRecordatorio @default(pendiente)
+  hechoA         DateTime?        @map("hecho_a")
+  hechoPor       Int?             @map("hecho_por")
 
   // Relaciones
   grupo       GrupoFamiliar @relation(fields: [grupoId], references: [id], onDelete: Cascade)
-  usuario     Usuario       @relation(fields: [creadoPor], references: [id], onDelete: Cascade)
+  usuario     Usuario       @relation("RecordatorioCreadoPor", fields: [creadoPor], references: [id], onDelete: Cascade)
+  marcadoPor  Usuario?      @relation("RecordatorioMarcadoPor", fields: [hechoPor], references: [id], onDelete: SetNull)
   vacuna      Vacuna?       @relation(fields: [vacunaId], references: [id], onDelete: SetNull)
   tratamiento Tratamiento?  @relation(fields: [tratamientoId], references: [id], onDelete: SetNull)
   integrante  Integrante?   @relation(fields: [integranteId], references: [id], onDelete: SetNull)

@@ -9,7 +9,9 @@ const {
     listarRecordatorios,
     editarRecordatorio,
     eliminarRecordatorio,
-    desactivarRecordatorio
+    desactivarRecordatorio,
+    marcarRecordatorio,
+    reactivarRecordatorio
 } = require('../controllers/recordatoriosController');
 
 router.use(verificarToken);
@@ -20,6 +22,8 @@ router.param('id', validarIdDeRuta);
 router.post('/',           crearRecordatorio);
 router.get('/',            listarRecordatorios);
 router.patch('/:id/desactivar', desactivarRecordatorio);
+router.patch('/:id/marcar',     marcarRecordatorio);
+router.patch('/:id/reactivar',  reactivarRecordatorio);
 router.patch('/:id',       editarRecordatorio);
 router.delete('/:id',      eliminarRecordatorio);
 
