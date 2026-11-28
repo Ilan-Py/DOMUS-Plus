@@ -53,9 +53,11 @@ export const color = {
 // Tipos de evento. `marca` es el color del punto/ícono (≥ 3:1 sobre cartulina, 1.4.11); `texto` va sobre `fondo`
 // (≥ 4.5:1). El tipo nunca se comunica sólo por color: siempre lleva ícono y nombre.
 export const tipoEvento = {
-  medicacion: { etiqueta: 'Medicación', icono: 'medkit', marca: '#D27C6B', fondo: '#F8E1DB', texto: '#8E3A2A', hoja: color.rosa },
-  vacuna: { etiqueta: 'Vacuna', icono: 'shield-checkmark', marca: '#B9841F', fondo: '#F8EBCB', texto: '#6E4A0E', hoja: color.mostaza },
-  control: { etiqueta: 'Turno o control', icono: 'calendar', marca: '#8A7663', fondo: '#EEE4D8', texto: '#4A3B32', hoja: '#E4D6C6' },
+  // Ícono (MaterialCommunityIcons, ver components/IconoTipo.js) + color, nunca uno solo. Tres tonos que no se confunden
+  // entre sí: rosa terracota, mostaza y azul pizarra (antes el mostaza y el verde del turno/vacuna eran casi iguales).
+  medicacion: { etiqueta: 'Medicación', icono: 'pill', marca: '#C2614F', fondo: '#F8E1DB', texto: '#8E3A2A', hoja: color.rosa }, // marca 4,04:1
+  vacuna: { etiqueta: 'Vacuna', icono: 'needle', marca: '#B9841F', fondo: '#F8EBCB', texto: '#6E4A0E', hoja: color.mostaza }, // marca 3,24:1
+  control: { etiqueta: 'Turno o control', icono: 'stethoscope', marca: '#4F7390', fondo: '#E2EAF1', texto: '#2F4A60', hoja: '#C9D7E3' }, // marca 4,94:1
 };
 // 6.02:1 · 6.70:1 · 8.52:1 (texto sobre fondo)
 

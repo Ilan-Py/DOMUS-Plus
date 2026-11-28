@@ -3,8 +3,10 @@ import { View, Text, StyleSheet, Platform } from 'react-native';
 import Svg, { Polygon } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
+import { tipoEvento } from '../theme/tokens';
 import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
 import PressScale from './PressScale';
+import IconoTipo from './IconoTipo';
 
 // Calendario mensual (semana de lunes a domingo, como en Argentina). Superficie limpia y plana: celdas sin
 // relleno y con línea fina; el fondo sólo aparece al pasar el mouse, en hoy y en el día elegido. Los días del mes
@@ -22,12 +24,14 @@ const DIAS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
 // Tono pastel y borde sutil por tipo de aviso (medicación, vacuna, turno o control). `mascota` y `turno` se
 // conservan para el resumen semanal de Familia.
+// Sale de theme/tokens.js (tipoEvento). `mascota`/`turno` quedan como alias para el código viejo.
+const tono = (t) => ({ bg: t.fondo, borde: `${t.marca}59`, fg: t.marca, texto: t.texto });
 export const TONO_CATEGORIA = {
-  medicacion: { bg: '#FAECE7', borde: 'rgba(194, 70, 35, 0.35)', fg: '#C24623', texto: '#9A3416' },
-  vacuna: { bg: '#E8F0EC', borde: 'rgba(74, 107, 93, 0.35)', fg: '#4A6B5D', texto: '#3B5A4C' },
-  control: { bg: '#FDF3E1', borde: 'rgba(200, 141, 50, 0.35)', fg: '#C88D32', texto: '#7A5112' },
+  medicacion: tono(tipoEvento.medicacion),
+  vacuna: tono(tipoEvento.vacuna),
+  control: tono(tipoEvento.control),
+  turno: tono(tipoEvento.control),
   mascota: { bg: '#E8F0EC', borde: 'rgba(74, 107, 93, 0.35)', fg: '#4A6B5D', texto: '#3B5A4C' },
-  turno: { bg: '#FDF3E1', borde: 'rgba(200, 141, 50, 0.35)', fg: '#C88D32', texto: '#7A5112' },
 };
 const VACIO = { bg: '#FBF8F3', borde: 'rgba(42, 36, 33, 0.08)' };
 const NOMBRE_TIPO = { medicacion: 'medicación', vacuna: 'vacuna', control: 'turno o control' };
@@ -99,23 +103,29 @@ function DayCell({ fecha, info, esHoy, esSel, fuera, pasado, onPress, onAgregar,
   };
   const eventos = info ? info.eventos : [];
   const total = eventos.length;
-  const fondo = esSel ? '#FFFFFF' : hover ? '#F5EFE6' : esHoy ? '#FDF3EE' : 'transparent';
-  // CAL-03: los días de otro mes y los pasados se atenúan con color (≥ 4,5:1), no con opacidad.
-  const colorNumero = fuera ? '#726A5D' : pasado && !esHoy ? '#574E49' : null;
+  // Días del mes: cartulina con borde. Días de otro mes (antes y después): sin tarjeta, número más chico y más claro.
+  // Pasados del mes: número atenuado. Todo con color (≥ 4,5:1), no con opacidad (CAL-03).
+  const fondo = hover ? '#F5EFE6' : esHoy ? '#FDF3EE' : fuera ? 'transparent' : '#FFFDF9';
+  const colorNumero = fuera || (pasado && !esHoy) ? '#726A5D' : null;
   const resumen = total
     ? `, ${total} ${total === 1 ? 'recordatorio' : 'recordatorios'} (${[...new Set(eventos.map((e) => NOMBRE_TIPO[e.tipo]))].join(', ')})`
     : ', sin recordatorios';
-  const verChips = ancha && !compacta;
+  // En pantallas con lugar: chip = barra de color + ícono de tipo + hora (sin título: no entraba y se leía
+  // «04:00 Turn…»). El estado es el color del chip; la recurrencia queda para el detalle.
+  const verChips = !compacta;
 
   return (
     <View style={styles.cell}>
+      {/* Hoy: una hoja terracota asoma detrás de la celda (papercut). */}
+      {esHoy && <View pointerEvents="none" style={styles.hojaHoy} />}
       <PressScale
         style={styles.cellFill}
         contentStyle={[
           styles.carta,
           { minHeight: alto, backgroundColor: fondo },
           compacta && styles.cartaCompacta,
-          esSel && styles.cartaSel,
+          fuera && styles.cartaFuera,
+          esSel && !esHoy && styles.cartaSel,
         ]}
         onPress={onPress}
         onHoverIn={entrar}
@@ -126,25 +136,27 @@ function DayCell({ fecha, info, esHoy, esSel, fuera, pasado, onPress, onAgregar,
         <View style={{ flex: 1, gap: 6 }}>
         <View style={styles.arriba}>
           <View style={[styles.num, esHoy && styles.numHoy]}>
-            <Text style={[styles.dayText, colorNumero && { color: colorNumero, fontFamily: 'PlusJakartaSans_500Medium' }, esHoy && styles.dayTextHoy]}>{fecha.getDate()}</Text>
+            <Text style={[styles.dayText, colorNumero && { color: colorNumero, fontFamily: 'PlusJakartaSans_500Medium' }, fuera && styles.dayTextFuera, esHoy && styles.dayTextHoy]}>{fecha.getDate()}</Text>
           </View>
         </View>
         {total > 0 && verChips && (
           <View style={styles.chips}>
             {eventos.slice(0, 2).map((e) => {
               const t = TONO_CATEGORIA[e.tipo] || TONO_CATEGORIA.control;
+              const marcado = e.hecho || e.omitido;
               return (
-                <View key={e.id} style={[styles.chip, { backgroundColor: t.bg }]}>
-                  {e.hecho ? (
-                    <Ionicons name="checkmark" size={12} color={colors.salvia} />
-                  ) : e.omitido ? (
-                    <Ionicons name="remove" size={12} color="#6B6357" />
-                  ) : e.vencido ? (
-                    <Ionicons name="close" size={12} color="#B5391C" />
-                  ) : null}
-                  <Text style={[styles.chipTexto, { color: t.texto }]} numberOfLines={1}>
-                    {e.serie ? '↻ ' : ''}
-                    {e.hora} {e.titulo}
+                <View
+                  key={e.id}
+                  style={[
+                    styles.chip,
+                    { backgroundColor: t.bg, borderLeftColor: t.fg },
+                    marcado && styles.chipMarcado,
+                    e.vencido && styles.chipSinMarcar,
+                  ]}
+                >
+                  <IconoTipo tipo={e.tipo} size={13} color={marcado ? '#6B6357' : t.texto} />
+                  <Text style={[styles.chipTexto, { color: marcado ? '#6B6357' : t.texto }, e.omitido && styles.tachado]} numberOfLines={1}>
+                    {e.hora}
                   </Text>
                 </View>
               );
@@ -187,7 +199,7 @@ export default function MiniCalendar({
   const hoyKey = dayKey(new Date());
   const filas = [];
   for (let i = 0; i < celdas.length; i += 7) filas.push(celdas.slice(i, i + 7));
-  const alto = compacta ? 56 : ancha ? 104 : 84;
+  const alto = compacta ? 56 : 96;
 
   return (
     <View>
@@ -279,6 +291,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   cartaCompacta: { padding: 4 },
+  cartaFuera: { borderColor: 'transparent' },
+  hojaHoy: { position: 'absolute', top: 5, left: 5, right: -4, bottom: -4, borderRadius: 10, backgroundColor: '#E3A28C', transform: [{ rotate: '1.5deg' }] },
   // Elegido: borde sólido de 2 px en tinta + sombra corta de cartulina.
   cartaSel: {
     borderWidth: 2,
@@ -290,11 +304,15 @@ const styles = StyleSheet.create({
   numHoy: { backgroundColor: colors.accentStrong },
   dayText: { fontVariant: ['tabular-nums'], fontSize: 17, fontFamily: poppinsWeight('600'), color: '#2A2421' },
   dayTextHoy: { color: colors.onAccent, fontFamily: poppinsWeight('700') },
+  dayTextFuera: { fontSize: 15 },
   punto: { width: 10, height: 10, borderRadius: 5 },
   puntos: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
   chips: { gap: 3 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  chipTexto: { flexShrink: 1, fontSize: 12, lineHeight: 16, fontFamily: poppinsWeight('600') },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6, borderLeftWidth: 3, borderWidth: 1, borderColor: 'transparent' },
+  chipMarcado: { backgroundColor: '#F1ECE5', opacity: 0.85 },
+  chipSinMarcar: { borderColor: '#B5391C', borderLeftColor: '#B5391C' },
+  chipTexto: { flexShrink: 1, fontSize: 13, lineHeight: 17, fontFamily: poppinsWeight('600'), fontVariant: ['tabular-nums'] },
+  tachado: { textDecorationLine: 'line-through' },
   mas: { fontSize: 12, lineHeight: 16, fontFamily: poppinsWeight('600'), color: colors.textBody },
   mas2: { position: 'absolute', top: 6, right: 6 },
   masBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.accentStrong, alignItems: 'center', justifyContent: 'center' },

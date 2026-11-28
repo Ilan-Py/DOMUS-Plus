@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { colors } from '../theme/colors';
 import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
 import PressScale from './PressScale';
 import Evento from './Evento';
 import { dayKey, TONO_CATEGORIA } from './MiniCalendar';
-import { mismoDia } from '../utils/avisos';
+import { mismoDia, TIPO_AVISO } from '../utils/avisos';
+import { hora } from '../utils/formato';
+import IconoTipo from './IconoTipo';
 
 // Vista Semana (franjas horarias × 7 días) y vista Lista (agenda corrida agrupada por día) del Calendario.
 // `eventos`: [{ item, fecha, hecho, vencido, dueno }] ya filtrados y ordenados por fecha.
@@ -26,6 +28,9 @@ export function lunesDe(fecha) {
 }
 
 export function VistaSemana({ base, eventos, seleccionado, onElegirDia, onAbrir }) {
+  // El ancho de la semana es el del contenedor (mínimo 600 px; si no entra, se desplaza de costado). Sin esto, los
+  // títulos largos ensanchaban cada día y se veían tres.
+  const [ancho, setAncho] = useState(0);
   const lunes = lunesDe(base);
   const dias = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(lunes);
@@ -39,8 +44,9 @@ export function VistaSemana({ base, eventos, seleccionado, onElegirDia, onAbrir 
   const franjas = FRANJAS.filter((f) => f.id !== 'madrugada' || dias.some((d) => delDia(d, f).length > 0));
 
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
-      <View style={estilos.semana}>
+    <View onLayout={(e) => setAncho(e.nativeEvent.layout.width)}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <View style={[estilos.semana, { width: Math.max(600, ancho) }]}>
         <View style={estilos.filaSemana}>
           <View style={estilos.etiqueta} />
           {dias.map((d) => {
@@ -75,16 +81,21 @@ export function VistaSemana({ base, eventos, seleccionado, onElegirDia, onAbrir 
                     return (
                       <PressScale
                         key={e.item.id}
-                        contentStyle={[estilos.evento, { backgroundColor: t.bg, borderLeftColor: t.fg }, e.hecho && { opacity: 0.6 }]}
+                        contentStyle={[
+                          estilos.evento,
+                          { backgroundColor: t.bg, borderLeftColor: t.fg },
+                          (e.hecho || e.omitido) && estilos.eventoMarcado,
+                          e.vencido && estilos.eventoSinMarcar,
+                        ]}
                         onPress={() => onAbrir(e.item)}
-                        accessibilityLabel={`${e.item.descripcion || 'Recordatorio'}, ${e.fecha.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })}`}
+                        accessibilityLabel={`${e.item.descripcion || TIPO_AVISO[e.item.tipo]?.label || 'Aviso'}, ${TIPO_AVISO[e.item.tipo]?.label || ''}, ${hora(e.fecha)}${e.hecho ? ', hecho' : e.omitido ? ', no se dio' : e.vencido ? ', sin marcar' : ''}`}
                       >
-                        <Text style={[estilos.eventoHora, { color: t.texto }]}>
-                          {e.item.serie_id ? '↻ ' : ''}
-                          {e.fecha.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })}
-                        </Text>
-                        <Text style={[estilos.eventoTitulo, e.hecho && { textDecorationLine: 'line-through' }]} numberOfLines={2}>
-                          {e.item.descripcion || 'Recordatorio'}
+                        <View style={estilos.eventoCab}>
+                          <IconoTipo tipo={e.item.tipo} size={14} />
+                          <Text style={[estilos.eventoHora, { color: t.texto }]}>{hora(e.fecha)}</Text>
+                        </View>
+                        <Text style={[estilos.eventoTitulo, e.omitido && { textDecorationLine: 'line-through' }]} numberOfLines={2}>
+                          {e.item.descripcion || TIPO_AVISO[e.item.tipo]?.label}
                         </Text>
                       </PressScale>
                     );
@@ -96,6 +107,7 @@ export function VistaSemana({ base, eventos, seleccionado, onElegirDia, onAbrir 
         ))}
       </View>
     </ScrollView>
+    </View>
   );
 }
 
@@ -127,7 +139,7 @@ export function VistaLista({ eventos, onAbrir, renderAcciones, vacio }) {
         <View key={g.k} style={estilos.grupo}>
           <Text style={estilos.grupoTitulo} accessibilityRole="header">{etiquetaDia(g.fecha)}</Text>
           {g.items.map((e) => (
-            <Evento key={e.item.id} item={e.item} fecha={e.fecha} dueno={e.dueno} hecho={e.hecho} vencido={e.vencido} onPress={() => onAbrir(e.item)}>
+            <Evento key={e.item.id} item={e.item} fecha={e.fecha} dueno={e.dueno} hecho={e.hecho || e.omitido} vencido={e.vencido} onPress={() => onAbrir(e.item)}>
               {renderAcciones ? renderAcciones(e) : null}
             </Evento>
           ))}
@@ -138,7 +150,7 @@ export function VistaLista({ eventos, onAbrir, renderAcciones, vacio }) {
 }
 
 const estilos = StyleSheet.create({
-  semana: { minWidth: 720, flex: 1, gap: 4 },
+  semana: { gap: 4 },
   filaSemana: { flexDirection: 'row', gap: 4 },
   etiqueta: { width: 76, justifyContent: 'center', paddingRight: 6 },
   franjaTitulo: { fontSize: 13, lineHeight: 18, fontFamily: poppinsWeight('600'), color: colors.ink },
@@ -152,8 +164,11 @@ const estilos = StyleSheet.create({
   blanco: { color: '#FFFFFF' },
   celda: { minHeight: 72, gap: 4, padding: 4, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(42, 36, 33, 0.08)' },
   evento: { paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, borderLeftWidth: 3, minHeight: 40, justifyContent: 'center' },
-  eventoHora: { fontSize: 12, lineHeight: 16, fontFamily: poppinsWeight('700') },
-  eventoTitulo: { fontSize: 12, lineHeight: 16, color: colors.ink },
+  eventoCab: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  eventoMarcado: { opacity: 0.6 },
+  eventoSinMarcar: { borderWidth: 1, borderColor: '#B5391C', borderLeftColor: '#B5391C' },
+  eventoHora: { fontSize: 13, lineHeight: 17, fontFamily: poppinsWeight('700'), fontVariant: ['tabular-nums'] },
+  eventoTitulo: { fontSize: 13, lineHeight: 17, color: colors.ink },
   lista: { gap: 20 },
   grupo: { gap: 8 },
   grupoTitulo: { fontSize: 17, lineHeight: 24, fontFamily: SERIF_BOLD, color: colors.ink },

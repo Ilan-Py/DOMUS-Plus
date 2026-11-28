@@ -4,11 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 import PressScale from './PressScale';
-import EntityAvatar from './EntityAvatar';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import IconoTipo from './IconoTipo';
 import { tipoDeAviso } from '../utils/avisos';
 
-// Evento reutilizable (agenda, pendientes, lista): ícono y color por tipo, hora, título, ↻ si es recurrente,
-// avatar de quién es y, a la derecha, las acciones (`children`). Tocar el texto abre el detalle (`onPress`);
+// Evento reutilizable (agenda, pendientes, lista): ícono de tipo en un círculo de su color (+ el nombre del tipo),
+// hora, título, ↻ si es recurrente, de quién es (sólo el nombre; una pata si es mascota) y, a la derecha, las acciones
+// (`children`). Un solo acento: el ícono (sin barra lateral). Tocar el texto abre el detalle (`onPress`);
 // las acciones son controles hermanos, nunca anidados dentro del botón.
 //   item: recordatorio de la API · fecha: Date · dueno: { nombre, apellido, avatarId, clase } | null
 export default function Evento({ item, fecha, dueno, hecho, vencido, mostrarDia, onPress, children }) {
@@ -18,16 +20,13 @@ export default function Evento({ item, fecha, dueno, hecho, vencido, mostrarDia,
   const titulo = item.descripcion || t.label;
   return (
     <View style={[estilos.fila, hecho && estilos.hecho]}>
-      <View pointerEvents="none" style={[estilos.barra, { backgroundColor: t.fg }]} />
       <PressScale
         style={estilos.press}
         contentStyle={estilos.pressContenido}
         onPress={onPress}
         accessibilityLabel={`${titulo}, ${dia}${hora}${item.serie_id ? ', se repite' : ''}${dueno ? `, de ${dueno.nombre}` : ''}`}
       >
-        <View style={[estilos.icono, { backgroundColor: t.bg }]}>
-          <Ionicons name={t.icon} size={20} color={t.fg} />
-        </View>
+        <IconoTipo tipo={item.tipo} circulo size={20} diametro={40} />
         <View style={estilos.texto}>
           <View style={estilos.cab}>
             <Text style={estilos.hora}>{dia}{hora}</Text>
@@ -40,7 +39,7 @@ export default function Evento({ item, fecha, dueno, hecho, vencido, mostrarDia,
           <Text style={[estilos.titulo, hecho && estilos.tituloHecho]} numberOfLines={2}>{titulo}</Text>
           {!!dueno && (
             <View style={estilos.quien}>
-              <EntityAvatar avatarId={dueno.avatarId} type={dueno.clase === 'mascota' ? 'pet' : 'person'} name={dueno.nombre} apellido={dueno.apellido} size={22} />
+              {dueno.clase === 'mascota' && <MaterialCommunityIcons name="paw" size={15} color="#4A6B5D" accessibilityLabel="Mascota" />}
               <Text style={estilos.quienTexto}>{dueno.nombre}</Text>
             </View>
           )}

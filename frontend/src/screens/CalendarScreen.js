@@ -2,6 +2,10 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { mostrarToast } from '../components/ToastHost';
 import { useAuth } from '../context/AuthContext';
 import AddMenu from '../components/AddMenu';
+import PaperBanner from '../components/PaperBanner';
+import Ilustracion, { ilustracionDelMes } from '../components/Ilustracion';
+import IconoTipo from '../components/IconoTipo';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import EmptyState from '../components/EmptyState';
 import { marcar, estadoParaMostrar, palabras, detalleDeMarca } from '../data/dosis';
 import { plural, fechaCorta, hora as horaDe } from '../utils/formato';
@@ -58,11 +62,6 @@ const DIAS = Array.from({ length: 7 }, (_, i) => {
 const MESES = Array.from({ length: 12 }, (_, i) => fmtMes.format(new Date(2024, i, 1)));
 const TIPO_LABELS = { vacuna: 'Vacuna', control: 'Control', medicacion: 'Medicación' };
 
-const FILTROS = [
-  { label: 'Todos', value: 'todos' },
-  { label: 'Personas', value: 'personas' },
-  { label: 'Mascotas', value: 'mascotas' },
-];
 
 function formatSectionTitle(fecha) {
   return `${DIAS[fecha.getDay()]} ${fecha.getDate()} de ${MESES[fecha.getMonth()]}`;
@@ -99,7 +98,6 @@ export default function CalendarScreen({ navigation, route }) {
   // animación de salida (FadeOutRow).
   const [exitingId, setExitingId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [filtro, setFiltro] = useState('todos');
   // Vista (mes / semana / lista): en pantallas angostas arranca en lista.
   const [vista, setVista] = useState(() => (width < 768 ? 'lista' : 'mes'));
   const [miembro, setMiembro] = useState(null); // { clase, id }
@@ -280,7 +278,7 @@ export default function CalendarScreen({ navigation, route }) {
   }
   // CAL-04: en el celular los filtros van detrás de «Filtrar» para que el primer evento se vea sin bajar.
   const [verFiltros, setVerFiltros] = useState(false);
-  const filtrosActivos = (filtro !== 'todos' ? 1 : 0) + (miembro ? 1 : 0) + (tipoFiltro ? 1 : 0);
+  const filtrosActivos = (miembro ? 1 : 0) + (tipoFiltro ? 1 : 0);
 
   // De quién es el recordatorio: el integrante/mascota guardado; si no, el dueño de
   // la vacuna o tratamiento al que está vinculado.
@@ -320,8 +318,6 @@ export default function CalendarScreen({ navigation, route }) {
   const porQuien = useMemo(
     () =>
       recordatorios.filter((r) => {
-        if (filtro === 'mascotas' && !esDeMascota(r)) return false;
-        if (filtro === 'personas' && esDeMascota(r)) return false;
         if (tipoFiltro && r.tipo !== tipoFiltro) return false;
         if (miembro) {
           const d = duenoInfo(r);
@@ -330,7 +326,7 @@ export default function CalendarScreen({ navigation, route }) {
         return true;
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [recordatorios, filtro, tipoFiltro, miembro, integrantes, mascotas, duenos]
+    [recordatorios, tipoFiltro, miembro, integrantes, mascotas, duenos]
   );
   const evs = useMemo(() => {
     const ahora = new Date();
@@ -566,22 +562,27 @@ export default function CalendarScreen({ navigation, route }) {
   );
 
   // ---------------- bloques ----------------
+  // Cabecera: el mes sobre una bandera de papel recortada con una ilustración de la época. Controles en tres grupos:
+  // navegación (‹ Hoy ›, un solo control), vista (Mes · Semana · Lista) y acciones («…», Filtrar, Agregar).
+  // «Agregar» es la única acción primaria: «Hoy» ya no lleva borde de color.
   const header = (
-    <View style={[styles.header, !desktop && styles.headerMobile]}>
-      <Text style={styles.mesTitulo} accessibilityRole="header">
-        {NOMBRE_MES(mes.getMonth())} {mes.getFullYear()}
-      </Text>
+    <PaperBanner
+      titulo={`${NOMBRE_MES(mes.getMonth())} ${mes.getFullYear()}`}
+      compacto
+      ilustracion={<Ilustracion nombre={ilustracionDelMes(mes.getMonth())} size={desktop ? 96 : 72} />}
+    >
       <View style={styles.controles}>
-        <PressScale contentStyle={styles.ctrlBtn} onPress={() => mover(-1)} accessibilityLabel={vista === 'semana' ? 'Semana anterior' : 'Mes anterior'}>
-          <Ionicons name="chevron-back" size={24} color={colors.ink} />
-        </PressScale>
-        <PressScale contentStyle={styles.ctrlBtn} onPress={() => mover(1)} accessibilityLabel={vista === 'semana' ? 'Semana siguiente' : 'Mes siguiente'}>
-          <Ionicons name="chevron-forward" size={24} color={colors.ink} />
-        </PressScale>
-        {/* "Hoy" se distingue de las flechas: contorno terracota. */}
-        <PressScale contentStyle={styles.hoyBtn} onPress={irAHoy} accessibilityLabel="Ir a hoy">
-          <Text style={styles.hoyBtnText}>Hoy</Text>
-        </PressScale>
+        <View style={styles.navGrupo} accessibilityRole="toolbar" accessibilityLabel="Moverse en el calendario">
+          <PressScale contentStyle={styles.navBtn} onPress={() => mover(-1)} accessibilityLabel={vista === 'semana' ? 'Semana anterior' : 'Mes anterior'}>
+            <Ionicons name="chevron-back" size={22} color={colors.ink} />
+          </PressScale>
+          <PressScale contentStyle={styles.navHoy} onPress={irAHoy} accessibilityLabel="Ir a hoy">
+            <Text style={styles.navHoyTexto}>Hoy</Text>
+          </PressScale>
+          <PressScale contentStyle={styles.navBtn} onPress={() => mover(1)} accessibilityLabel={vista === 'semana' ? 'Semana siguiente' : 'Mes siguiente'}>
+            <Ionicons name="chevron-forward" size={22} color={colors.ink} />
+          </PressScale>
+        </View>
         <View style={styles.vistas} accessibilityRole="radiogroup" accessibilityLabel="Vista del calendario">
           {[['mes', 'Mes'], ['semana', 'Semana'], ['lista', 'Lista']].map(([v, l]) => (
             <PressScale
@@ -596,108 +597,91 @@ export default function CalendarScreen({ navigation, route }) {
             </PressScale>
           ))}
         </View>
-        <PressScale contentStyle={styles.ctrlBtn} onPress={masAcciones} accessibilityLabel="Más acciones: exportar o imprimir">
-          <Ionicons name="ellipsis-horizontal" size={24} color={colors.ink} />
-        </PressScale>
-        {!desktop && (
-          <PressScale
-            contentStyle={[styles.ctrlBtn, styles.filtrarBtn, filtrosActivos > 0 && styles.filtrarBtnOn]}
-            onPress={() => setVerFiltros((v) => !v)}
-            accessibilityLabel={filtrosActivos ? `Filtrar, ${filtrosActivos} activos` : 'Filtrar'}
-            accessibilityState={{ expanded: verFiltros }}
-          >
-            <Ionicons name="options-outline" size={20} color={colors.ink} />
-            <Text style={styles.vistaTexto}>{filtrosActivos ? `Filtrar (${filtrosActivos})` : 'Filtrar'}</Text>
+        <View style={styles.acciones}>
+          <PressScale contentStyle={styles.ctrlBtn} onPress={masAcciones} accessibilityLabel="Exportar o imprimir">
+            <Ionicons name="ellipsis-horizontal" size={22} color={colors.ink} />
           </PressScale>
-        )}
-        <AddMenu onElegir={alElegirAgregar} style={styles.agregarBtn} />
+          {!desktop && (
+            <PressScale
+              contentStyle={[styles.ctrlBtn, styles.filtrarBtn, filtrosActivos > 0 && styles.filtrarBtnOn]}
+              onPress={() => setVerFiltros((v) => !v)}
+              accessibilityLabel={filtrosActivos ? `Filtrar, ${filtrosActivos} activos` : 'Filtrar'}
+              accessibilityState={{ expanded: verFiltros }}
+            >
+              <Ionicons name="options-outline" size={20} color={colors.ink} />
+              <Text style={styles.vistaTexto}>{filtrosActivos ? `Filtrar (${filtrosActivos})` : 'Filtrar'}</Text>
+            </PressScale>
+          )}
+          <AddMenu onElegir={alElegirAgregar} />
+        </View>
       </View>
-    </View>
+    </PaperBanner>
   );
 
+  // Filtros en una sola fila: Todos · personas y mascotas (con nombre) | tipos. Los chips de tipo, con ícono y color,
+  // son también la leyenda de tipos; abajo de la grilla queda sólo la leyenda de estados.
+  const miembrosFiltro = [...integrantes.map((m) => ({ ...m, clase: 'integrante' })), ...mascotas.map((m) => ({ ...m, clase: 'mascota' }))];
   const filtros = (
-    <View style={styles.filtrosBloque}>
-      <View style={styles.filtros} accessibilityRole="radiogroup">
-        {FILTROS.map((f) => {
-          const on = filtro === f.value;
-          return (
-            <PressScale
-              key={f.value}
-              contentStyle={[styles.pill, on && styles.pillOn]}
-              onPress={() => {
-                setFiltro(f.value);
-                setMiembro(null);
-              }}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: on, selected: on }}
-              accessibilityLabel={f.label}
-            >
-              <Text style={[styles.pillText, on && styles.pillTextOn]}>{f.label}</Text>
-            </PressScale>
-          );
-        })}
-        <View style={styles.separador} />
-        {[...integrantes.map((m) => ({ ...m, clase: 'integrante' })), ...mascotas.map((m) => ({ ...m, clase: 'mascota' }))].map((m) => {
-          const on = miembro && miembro.clase === m.clase && miembro.id === m.id;
-          return (
-            <PressScale
-              key={`${m.clase}-${m.id}`}
-              contentStyle={[styles.avatarChip, on && styles.avatarChipOn]}
-              onPress={() => setMiembro(on ? null : { clase: m.clase, id: m.id })}
-              accessibilityRole="button"
-              accessibilityState={{ selected: !!on }}
-              accessibilityLabel={`Ver sólo los avisos de ${m.nombre}`}
-            >
-              <EntityAvatar avatarId={m.avatar_id} type={m.clase === 'mascota' ? 'pet' : 'person'} name={m.nombre} apellido={m.apellido} size={28} />
-              <Text style={[styles.pillText, styles.avatarChipTexto]}>{m.nombre}</Text>
-            </PressScale>
-          );
-        })}
-      </View>
-      <View style={styles.filtros}>
-        {Object.entries(TIPO_AVISO).map(([k, t]) => {
-          const on = tipoFiltro === k;
-          return (
-            <PressScale
-              key={k}
-              contentStyle={[styles.tipoChip, on && { backgroundColor: t.bg, borderColor: t.fg }]}
-              onPress={() => setTipoFiltro(on ? null : k)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: on }}
-              accessibilityLabel={`Mostrar sólo ${t.label.toLowerCase()}`}
-            >
-              <View style={[styles.swatch, { backgroundColor: t.fg }]} />
-              <Text style={styles.tipoChipTexto}>{t.label}</Text>
-            </PressScale>
-          );
-        })}
-      </View>
+    <View style={styles.filtros}>
+      <PressScale
+        contentStyle={[styles.pill, !miembro && !tipoFiltro && styles.pillOn]}
+        onPress={() => { setMiembro(null); setTipoFiltro(null); }}
+        accessibilityRole="button"
+        accessibilityState={{ selected: !miembro && !tipoFiltro }}
+        accessibilityLabel="Ver todo"
+      >
+        <Text style={[styles.pillText, !miembro && !tipoFiltro && styles.pillTextOn]}>Todos</Text>
+      </PressScale>
+      {miembrosFiltro.map((m) => {
+        const on = miembro && miembro.clase === m.clase && miembro.id === m.id;
+        return (
+          <PressScale
+            key={`${m.clase}-${m.id}`}
+            contentStyle={[styles.avatarChip, on && styles.avatarChipOn]}
+            onPress={() => setMiembro(on ? null : { clase: m.clase, id: m.id })}
+            accessibilityRole="button"
+            accessibilityState={{ selected: !!on }}
+            accessibilityLabel={`Ver sólo lo de ${m.nombre}`}
+          >
+            {m.clase === 'mascota' && <MaterialCommunityIcons name="paw" size={15} color={on ? '#FFFFFF' : '#4A6B5D'} />}
+            <Text style={[styles.pillText, styles.avatarChipTexto, on && styles.pillTextOn]}>{m.nombre}</Text>
+          </PressScale>
+        );
+      })}
+      <View style={styles.separador} />
+      {Object.entries(TIPO_AVISO).map(([k, t]) => {
+        const on = tipoFiltro === k;
+        return (
+          <PressScale
+            key={k}
+            contentStyle={[styles.tipoChip, { backgroundColor: on ? t.bg : '#FFFDF9', borderColor: on ? t.fg : 'rgba(42, 36, 33, 0.18)' }]}
+            onPress={() => setTipoFiltro(on ? null : k)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: on }}
+            accessibilityLabel={`Mostrar sólo ${t.label.toLowerCase()}`}
+          >
+            <View style={[styles.tipoBarra, { backgroundColor: t.fg }]} />
+            <IconoTipo tipo={k} size={16} />
+            <Text style={styles.tipoChipTexto}>{k === 'control' ? 'Turno' : t.label}</Text>
+          </PressScale>
+        );
+      })}
     </View>
   );
 
   const leyenda = (
-    <View style={styles.leyenda}>
-      {Object.entries(TIPO_AVISO).map(([k, t]) => (
-        <View key={k} style={styles.leyendaItem}>
-          <View style={[styles.swatch, { backgroundColor: t.fg }]} />
-          <Text style={styles.leyendaText}>{t.label}</Text>
-        </View>
-      ))}
+    <View style={styles.leyenda} accessibilityLabel="Referencias de estado">
       <View style={styles.leyendaItem}>
-        <Ionicons name="checkmark-circle" size={14} color={colors.salvia} />
-        <Text style={styles.leyendaText}>Dada / hecho</Text>
+        <View style={[styles.muestra, styles.muestraMarcada]}><Ionicons name="checkmark" size={12} color="#3D5A4B" /></View>
+        <Text style={styles.leyendaText}>Dada / hecho (atenuado)</Text>
       </View>
       <View style={styles.leyendaItem}>
-        <Ionicons name="remove-circle" size={14} color="#6B6357" />
-        <Text style={styles.leyendaText}>No se dio</Text>
+        <View style={[styles.muestra, styles.muestraMarcada]}><Text style={styles.muestraTachada}>08</Text></View>
+        <Text style={styles.leyendaText}>No se dio (tachado)</Text>
       </View>
       <View style={styles.leyendaItem}>
-        <Ionicons name="close-circle" size={14} color="#B5391C" />
-        <Text style={styles.leyendaText}>Sin marcar</Text>
-      </View>
-      <View style={styles.leyendaItem}>
-        <Ionicons name="repeat" size={14} color={colors.textBody} />
-        <Text style={styles.leyendaText}>Se repite</Text>
+        <View style={[styles.muestra, styles.muestraSinMarcar]} />
+        <Text style={styles.leyendaText}>Sin marcar (borde rojo)</Text>
       </View>
     </View>
   );
@@ -739,7 +723,7 @@ export default function CalendarScreen({ navigation, route }) {
   );
 
   const agenda = (
-    <PaperCard nivel={1} style={styles.cartulina}>
+    <PaperCard nivel={2} hoja="mostaza" rotacion={-1} style={styles.cartulina} wrapperStyle={styles.hojaMargen}>
       <Text style={styles.agendaEyebrow} accessibilityRole="header">Agenda del día</Text>
       <View style={styles.agendaTitulo}>
         <Text style={styles.agendaFecha}>{formatSectionTitle(fechaElegida)}</Text>
@@ -762,6 +746,12 @@ export default function CalendarScreen({ navigation, route }) {
       )}
 
       {!!actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError('')} />}
+      {!loading && !loadError && sinMarcar.length === 0 && (
+        <View style={styles.alDia} accessibilityLabel="Todo al día: no quedó nada sin marcar">
+          <Ionicons name="checkmark-circle" size={18} color="#3D5A4B" />
+          <Text style={styles.alDiaTexto}>Todo al día</Text>
+        </View>
+      )}
 
       {loading ? (
         <View style={styles.lista}>
@@ -772,8 +762,8 @@ export default function CalendarScreen({ navigation, route }) {
         <InlineError message="No pudimos cargar el calendario." onRetry={fetchRecordatorios} />
       ) : delDia.length === 0 ? (
         <View style={styles.diaLibre}>
-          <PaperCutout icon="sun" tinte="ocre" size={96} rotate={-3} />
-          <Text style={styles.diaLibreTitulo}>Nada programado este día</Text>
+          <Ilustracion nombre="aldia" size={88} />
+          <Text style={styles.diaLibreTitulo}>{esHoyElegido ? 'Nada para hoy' : 'Nada programado este día'}</Text>
           <Text style={styles.diaLibreText}>
             {esPasado ? 'Ese día no hubo dosis ni turnos.' : 'Podés programar una dosis, un turno o una vacuna.'}
           </Text>
@@ -787,49 +777,62 @@ export default function CalendarScreen({ navigation, route }) {
     </PaperCard>
   );
 
-  const pendientes = (
-    <PaperCard nivel={1} hoja={sinMarcar.length ? 'terracota' : undefined} style={styles.cartulina} wrapperStyle={sinMarcar.length ? styles.hojaMargen : undefined}>
+  // «Quedó sin marcar» sólo aparece cuando hay algo; si no, la agenda dice «Todo al día» en una línea.
+  const pendientes = loading || sinMarcar.length === 0 ? null : (
+    <PaperCard nivel={2} hoja="terracota" style={styles.cartulina} wrapperStyle={styles.hojaMargen}>
       <Text style={styles.agendaEyebrow} accessibilityRole="header">Quedó sin marcar</Text>
-      {loading ? (
-        <SkeletonReminderRow />
-      ) : sinMarcar.length === 0 ? (
-        <Text style={styles.proximoVacio}>Todo marcado. No quedó nada sin marcar.</Text>
-      ) : (
-        <View style={styles.lista}>
-          <Text style={styles.agendaSub}>
-            {sinMarcar.length === 1 ? '1 aviso ya pasó y nadie lo marcó.' : `${sinMarcar.length} avisos ya pasaron y nadie los marcó.`}
-          </Text>
-          {sinMarcar.slice(0, 4).map((e, i) => fila(e, i, true))}
-          {sinMarcar.length > 4 && <Text style={styles.proximoVacio}>y {sinMarcar.length - 4} más…</Text>}
-        </View>
-      )}
+      <View style={styles.lista}>
+        <Text style={styles.agendaSub}>
+          {sinMarcar.length === 1 ? '1 aviso ya pasó y nadie lo marcó.' : `${sinMarcar.length} avisos ya pasaron y nadie los marcó.`}
+        </Text>
+        {sinMarcar.slice(0, 4).map((e, i) => fila(e, i, true))}
+        {sinMarcar.length > 4 && <Text style={styles.proximoVacio}>y {sinMarcar.length - 4} más…</Text>}
+      </View>
     </PaperCard>
   );
 
+  // Resumen del mes: «3 de 4 dosis dadas» con una barrita (sin párrafo explicativo: va como tooltip/ayuda).
+  // Si en el mes no pasó ninguna dosis, ese dato no se muestra.
+  const ayudaDosis = 'De las dosis que ya pasaron este mes, cuántas se marcaron como dadas.';
   const resumen = (
-    <PaperCard nivel={1} style={styles.cartulina}>
-      <Text style={styles.agendaEyebrow} accessibilityRole="header">Resumen de {NOMBRE_MES(mes.getMonth()).toLowerCase()}</Text>
-      <View style={styles.resumenGrilla}>
-        <View style={styles.resumenDato}>
-          <Text style={styles.resumenNum}>{loading ? '…' : resumenMes.pasadas === 0 ? '—' : `${resumenMes.dadas} de ${resumenMes.pasadas}`}</Text>
-          <Text style={styles.resumenEtiqueta}>Dosis dadas</Text>
-        </View>
-        <View style={styles.resumenDato}>
-          <Text style={styles.resumenNum}>{loading ? '…' : resumenMes.turnos}</Text>
-          <Text style={styles.resumenEtiqueta}>{resumenMes.turnos === 1 ? 'Turno' : 'Turnos'}</Text>
-        </View>
-        <View style={styles.resumenDato}>
-          <Text style={styles.resumenNum}>{loading ? '…' : resumenMes.vacunas}</Text>
-          <Text style={styles.resumenEtiqueta}>{resumenMes.vacunas === 1 ? 'Vacuna' : 'Vacunas'}</Text>
-        </View>
-      </View>
-      <Text style={styles.proximoVacio}>
-        {loading
-          ? 'Cargando el mes…'
-          : resumenMes.total === 0
-          ? 'Nada programado este mes.'
-          : `Dosis dadas: de las que ya pasaron este mes, cuántas se marcaron como dadas (${plural(resumenMes.total, 'aviso')} en el mes).`}
-      </Text>
+    <PaperCard nivel={2} style={styles.cartulina}>
+      <Text style={styles.agendaEyebrow} accessibilityRole="header">{NOMBRE_MES(mes.getMonth())}</Text>
+      {loading ? (
+        <Text style={styles.proximoVacio}>Cargando el mes…</Text>
+      ) : resumenMes.total === 0 ? (
+        <Text style={styles.proximoVacio}>Nada programado este mes.</Text>
+      ) : (
+        <>
+          {resumenMes.pasadas > 0 && (
+            <View
+              style={styles.dosisBloque}
+              accessibilityLabel={`${resumenMes.dadas} de ${resumenMes.pasadas} dosis dadas. ${ayudaDosis}`}
+              {...(Platform.OS === 'web' ? { title: ayudaDosis } : null)}
+            >
+              <Text style={styles.dosisTexto}>
+                <Text style={styles.resumenNum}>{resumenMes.dadas} de {resumenMes.pasadas}</Text> dosis dadas
+              </Text>
+              <View style={styles.barraPista}>
+                <View style={[styles.barraRelleno, { width: `${Math.round((100 * resumenMes.dadas) / resumenMes.pasadas)}%` }]} />
+              </View>
+            </View>
+          )}
+          <View style={styles.resumenGrilla}>
+            {resumenMes.turnos > 0 && (
+              <View style={styles.resumenDato}>
+                <IconoTipo tipo="control" size={18} />
+                <Text style={styles.resumenEtiqueta}>{resumenMes.turnos === 1 ? '1 turno' : `${resumenMes.turnos} turnos`}</Text>
+              </View>
+            )}
+            {resumenMes.vacunas > 0 && (
+              <View style={styles.resumenDato}>
+                <IconoTipo tipo="vacuna" size={18} />
+                <Text style={styles.resumenEtiqueta}>{resumenMes.vacunas === 1 ? '1 vacuna' : `${resumenMes.vacunas} vacunas`}</Text>
+              </View>
+            )}
+          </View>
+        </>
+      )}
     </PaperCard>
   );
 
@@ -870,6 +873,23 @@ export default function CalendarScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
+  navGrupo: { flexDirection: 'row', alignItems: 'center', borderRadius: 24, borderWidth: 1, borderColor: 'rgba(42, 36, 33, 0.18)', backgroundColor: '#FFFDF9', overflow: 'hidden' },
+  navBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  navHoy: { minHeight: 44, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', borderLeftWidth: 1, borderRightWidth: 1, borderColor: 'rgba(42, 36, 33, 0.12)' },
+  navHoyTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.ink },
+  acciones: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  tipoBarra: { width: 3, alignSelf: 'stretch', borderRadius: 2, marginVertical: 8 },
+  muestra: { width: 26, height: 18, borderRadius: 4, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'transparent', borderLeftWidth: 3, borderLeftColor: '#B9A99A' },
+  muestraMarcada: { backgroundColor: '#F1ECE5' },
+  muestraTachada: { fontSize: 11, lineHeight: 14, color: '#6B6357', textDecorationLine: 'line-through' },
+  muestraSinMarcar: { backgroundColor: '#FFFDF9', borderColor: '#B5391C', borderLeftColor: '#B5391C' },
+  alDia: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
+  alDiaTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: '#3D5A4B' },
+  hojaMargen: { marginRight: 7, marginBottom: 8 },
+  dosisBloque: { gap: 8, marginTop: 4 },
+  dosisTexto: { fontSize: 15, lineHeight: 22, color: colors.textBody },
+  barraPista: { height: 8, borderRadius: 4, backgroundColor: '#EFE7DC', overflow: 'hidden' },
+  barraRelleno: { height: 8, borderRadius: 4, backgroundColor: '#4A6B5D' },
   root: { flex: 1, backgroundColor: colors.bg },
   scroll: { paddingBottom: 112 },
   scrollDesktop: { paddingHorizontal: 48 },
@@ -882,7 +902,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 },
   headerMobile: { flexDirection: 'column', alignItems: 'flex-start' },
   mesTitulo: { fontSize: 36, lineHeight: 44, fontFamily: SERIF_BOLD, color: colors.ink },
-  controles: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  controles: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, flexShrink: 1, maxWidth: '100%' },
   ctrlBtn: {
     minWidth: 48,
     height: 48,
@@ -923,8 +943,8 @@ const styles = StyleSheet.create({
   btnSecTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.ink },
   volverHoy: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', minHeight: 48 },
   volverHoyTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.limeDeep },
-  resumenGrilla: { flexDirection: 'row', gap: 12 },
-  resumenDato: { flex: 1, alignItems: 'flex-start', gap: 2 },
+  resumenGrilla: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 8 },
+  resumenDato: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   resumenNum: { fontSize: 28, lineHeight: 34, fontFamily: SERIF_BOLD, color: colors.ink },
   resumenEtiqueta: { fontSize: 14, lineHeight: 20, color: colors.textBody },
   agregarBtn: { marginLeft: 8 },

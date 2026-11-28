@@ -139,6 +139,81 @@ const DIBUJOS = {
   ),
 };
 
+// ---- Estacionales (cabecera del Calendario): una por época del año en Buenos Aires.
+const LILA = '#9B87C4';
+const LILA_CLARO = '#C8B8E6';
+Object.assign(DIBUJOS, {
+  // Jacarandá en flor (octubre–noviembre): rama con racimos lilas y dos flores caídas.
+  jacaranda: (
+    <>
+      {/* La rama es un trazo: va sin «Capa» (la sombra rellenaría la curva). */}
+      <Path d="M17 100 C37 82 55 68 79 56 C91 50 101 44 109 34" fill="none" stroke="#E4D6C6" strokeWidth={5} strokeLinecap="round" />
+      <Path d="M14 96 C34 78 52 64 76 52 C88 46 98 40 106 30" fill="none" stroke="#6E5A47" strokeWidth={5} strokeLinecap="round" />
+      <Path d="M48 68 C46 58 40 50 32 48" fill="none" stroke="#6E5A47" strokeWidth={3} strokeLinecap="round" />
+      {[[30, 44, 11], [44, 36, 9], [70, 40, 12], [88, 26, 10], [100, 46, 8], [58, 56, 8]].map(([cx, cy, r], i) => (
+        <Capa key={i}>
+          <Circle cx={cx} cy={cy} r={r} fill={i % 2 ? LILA_CLARO : LILA} {...CANTO} />
+        </Capa>
+      ))}
+      <Ellipse cx={26} cy={104} rx={5} ry={3} fill={LILA} transform="rotate(-20 26 104)" />
+      <Ellipse cx={62} cy={108} rx={5} ry={3} fill={LILA_CLARO} transform="rotate(15 62 108)" />
+    </>
+  ),
+  // Sol de papel (diciembre–febrero).
+  verano: (
+    <>
+      {[0, 45, 90, 135, 180, 225, 270, 315].map((g) => (
+        <Rect key={g} x={57} y={12} width={6} height={18} rx={3} fill={hoja.colores.mostaza} transform={`rotate(${g} 60 60)`} />
+      ))}
+      <Capa>
+        <Circle cx={60} cy={60} r={30} fill={color.mostaza} {...CANTO} />
+      </Capa>
+      <Circle cx={50} cy={56} r={3} fill={color.tinta} />
+      <Circle cx={70} cy={56} r={3} fill={color.tinta} />
+      <Path d="M50 68 Q60 76 70 68" fill="none" stroke={color.tinta} strokeWidth={3} strokeLinecap="round" />
+    </>
+  ),
+  // Hojas de otoño (marzo–mayo).
+  otono: (
+    <>
+      <Capa>
+        <Path d="M30 84 C20 60 34 36 58 30 C62 54 54 76 30 84 Z" fill={color.terracota} {...CANTO} />
+      </Capa>
+      <Capa>
+        <Path d="M64 92 C60 66 76 46 100 44 C100 68 88 88 64 92 Z" fill={color.mostaza} {...CANTO} />
+      </Capa>
+      <Path d="M32 82 L56 34" stroke="#FFFFFF" strokeWidth={2} strokeLinecap="round" />
+      <Path d="M66 90 L98 46" stroke="#FFFFFF" strokeWidth={2} strokeLinecap="round" />
+      <Capa>
+        <Path d="M50 104 C46 92 54 82 66 80 C66 92 62 100 50 104 Z" fill={color.rosa} {...CANTO} />
+      </Capa>
+    </>
+  ),
+  // Mate humeante (junio–septiembre).
+  invierno: (
+    <>
+      <Path d="M52 22 C46 30 58 34 52 42" fill="none" stroke="#C9BBA9" strokeWidth={3} strokeLinecap="round" />
+      <Path d="M66 18 C60 26 72 30 66 38" fill="none" stroke="#C9BBA9" strokeWidth={3} strokeLinecap="round" />
+      <Capa>
+        <Path d="M34 52 L86 52 C86 80 76 100 60 100 C44 100 34 80 34 52 Z" fill={color.salvia} {...CANTO} />
+      </Capa>
+      <Rect x={34} y={46} width={52} height={10} rx={5} fill={hoja.colores.mostaza} />
+      <Capa>
+        <Rect x={70} y={20} width={6} height={44} rx={3} fill="#B8B2A7" transform="rotate(18 73 42)" {...CANTO} />
+      </Capa>
+      <Rect x={40} y={70} width={40} height={6} rx={3} fill={color.terracota} />
+    </>
+  ),
+});
+
+// Ilustración de la época para un mes (0 = enero).
+export function ilustracionDelMes(mes) {
+  if (mes === 9 || mes === 10) return 'jacaranda';
+  if (mes === 11 || mes <= 1) return 'verano';
+  if (mes <= 4) return 'otono';
+  return 'invierno';
+}
+
 export const NOMBRES_ILUSTRACION = Object.keys(DIBUJOS);
 
 export default function Ilustracion({ nombre, size = 96, style }) {

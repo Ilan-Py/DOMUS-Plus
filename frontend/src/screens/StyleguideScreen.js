@@ -8,6 +8,7 @@ import StatChip from '../components/StatChip';
 import EventItem from '../components/EventItem';
 import EmptyState from '../components/EmptyState';
 import EmptySlot from '../components/EmptySlot';
+import IconoTipo from '../components/IconoTipo';
 import AddMenu from '../components/AddMenu';
 import MemberCard from '../components/MemberCard';
 import PetCard from '../components/PetCard';
@@ -180,7 +181,7 @@ export default function StyleguideScreen() {
           {Object.entries(tipoEvento).map(([k, t]) => (
             <View key={k} style={[estilos.tipo, { backgroundColor: t.fondo }]}>
               <View style={[estilos.punto, { backgroundColor: t.marca }]} />
-              <Ionicons name={t.icono} size={18} color={t.texto} />
+              <IconoTipo tipo={k} size={18} />
               <Text style={[texto.etiqueta, { color: t.texto }]}>{t.etiqueta}</Text>
               <Text style={[texto.meta, { color: t.texto }]}>{contraste(t.texto, t.fondo).toFixed(2)}:1 · marca {contraste(t.marca, color.cartulina).toFixed(2)}:1</Text>
             </View>

@@ -2,7 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import PressScale from './PressScale';
-import EntityAvatar from './EntityAvatar';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import IconoTipo from './IconoTipo';
 import { cuandoEvento } from '../utils/formato';
 import { color, texto, espacio, radio, tipoEvento, estadoDosis } from '../theme/tokens';
 
@@ -53,7 +54,7 @@ export default function EventItem({
   const cuerpo = (
     <>
       <View style={[estilos.icono, compacto && estilos.iconoCompacto, { backgroundColor: t.fondo }]}>
-        <Ionicons name={t.icono} size={compacto ? 18 : 20} color={t.texto} />
+        <IconoTipo tipo={tipo} size={compacto ? 18 : 20} />
       </View>
       <View style={estilos.textos}>
         <View style={estilos.linea}>
@@ -74,14 +75,7 @@ export default function EventItem({
           <View style={estilos.linea}>
             {!!persona && (
               <View style={estilos.quien}>
-                <EntityAvatar
-                  avatarId={persona.avatarId}
-                  fotoUrl={persona.fotoUrl}
-                  type={persona.clase === 'mascota' ? 'pet' : 'person'}
-                  name={persona.nombre}
-                  apellido={persona.apellido}
-                  size={22}
-                />
+                {persona.clase === 'mascota' && <MaterialCommunityIcons name="paw" size={15} color="#4A6B5D" accessibilityLabel="Mascota" />}
                 <Text style={[texto.meta, { color: color.texto }]}>{persona.nombre}</Text>
               </View>
             )}

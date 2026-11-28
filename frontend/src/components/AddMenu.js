@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Modal, Pressable, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import PressScale from './PressScale';
+import IconoTipo from './IconoTipo';
 import { paper } from '../theme/paper';
 import { color, texto, espacio, radio, tactil, tipoEvento } from '../theme/tokens';
 
@@ -110,7 +111,7 @@ export default function AddMenu({ onElegir, variante = 'boton', etiqueta = 'Agre
             accessibilityLabel={it.detalle ? `${it.etiqueta}. ${it.detalle}` : it.etiqueta}
           >
             <View style={[estilos.itemIcono, it.tono && { backgroundColor: it.tono.fondo }]}>
-              <Ionicons name={it.icono} size={20} color={it.tono ? it.tono.texto : color.terracotaTexto} />
+              {it.tono ? <IconoTipo tipo={it.clave} size={20} /> : <Ionicons name={it.icono} size={20} color={color.terracotaTexto} />}
             </View>
             <View style={estilos.itemTextos}>
               <Text style={[texto.etiqueta, { color: color.tinta }]}>{it.etiqueta}</Text>

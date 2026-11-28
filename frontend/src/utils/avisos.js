@@ -1,12 +1,12 @@
 import { parseFechaHora } from './displayFormat';
+import { tipoEvento } from '../theme/tokens';
 
 // Ayudas compartidas para mostrar recordatorios ("avisos") en Familia: ícono y color por tipo, color por
 // integrante o mascota, y formato de cuándo.
-export const TIPO_AVISO = {
-  medicacion: { label: 'Medicación', icon: 'medkit', fg: '#C24623', bg: '#FAECE7', texto: '#9A3416' },
-  control: { label: 'Turno o control', icon: 'calendar', fg: '#C88D32', bg: '#FDF3E1', texto: '#7A5112' },
-  vacuna: { label: 'Vacuna', icon: 'shield-checkmark', fg: '#4A6B5D', bg: '#E8F0EC', texto: '#3B5A4C' },
-};
+// Sale de theme/tokens.js (tipoEvento): una sola paleta por tipo en toda la app.
+export const TIPO_AVISO = Object.fromEntries(
+  Object.entries(tipoEvento).map(([k, t]) => [k, { label: t.etiqueta, icon: t.icono, fg: t.marca, bg: t.fondo, texto: t.texto }])
+);
 export const tipoDeAviso = (t) => TIPO_AVISO[t] || TIPO_AVISO.control;
 
 // Un color estable por persona o mascota (no depende del orden de la lista).
