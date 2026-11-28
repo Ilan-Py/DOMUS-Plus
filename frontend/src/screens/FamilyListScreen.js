@@ -22,8 +22,9 @@ import PrimaryButton from '../components/PrimaryButton';
 import BannerRecortes from '../components/BannerRecortes';
 import { HoyPanel, SemanaTira, AlertasFamilia, calcularAlertas } from '../components/FamiliaHoy';
 import useAvisos, { useVacunas } from '../hooks/useAvisos';
-import { duenoDeAviso, inicioDeDia } from '../utils/avisos';
+import { duenoDeAviso, inicioDeDia, cuando } from '../utils/avisos';
 import { paper } from '../theme/paper';
+import PaperCard from '../components/PaperCard';
 import PressScale from '../components/PressScale';
 import Skeleton from '../components/Skeleton';
 import FadeSlideIn from '../components/FadeSlideIn';
@@ -70,60 +71,67 @@ function SlotAgregar({ texto, icono, onPress }) {
 // Tarjeta de integrante o mascota: avatar circular con la paleta cálida de su categoría,
 // nombre y datos. En web, al pasar el mouse sube 2px y el borde se vuelve terracota
 // claro. Los integrantes llevan un botón rápido de «Emergencia».
-function MemberCard({ icon, nombre, apellido, nombreCompleto, fotoUrl, avatarId, subt, detalle, detalleTono, color, tipo, mascota, onPress, onLongPress, onEmergencyPress, disabled }) {
-  const [hover, setHover] = useState(false);
-  // La tarjeta no es un botón: abrir el perfil y "Emergencia" son dos controles hermanos (nunca uno dentro del
-  // otro). El hover se comparte entre los dos con una pequeña demora para que no parpadee al pasar de uno a otro.
-  const temporizador = useRef(null);
-  const entrar = () => {
-    clearTimeout(temporizador.current);
-    setHover(true);
-  };
-  const salir = () => {
-    temporizador.current = setTimeout(() => setHover(false), 60);
-  };
+function MemberCard({ icon, nombre, apellido, nombreCompleto, fotoUrl, avatarId, subt, chips, progreso, proximo, detalle, detalleTono, color, tipo, mascota, onPress, onLongPress, onEmergencyPress, accionLabel, disabled }) {
+  // La tarjeta no es un botón entero: abrir el perfil (toda la parte de datos) y la acción rápida son dos
+  // controles hermanos, nunca uno dentro del otro.
   return (
-    <View {...paper('cartulina')} style={[styles.cardWrap, Platform.OS === 'web' && styles.cardWrapWeb, hover && styles.cardWrapHover]}>
-      <View style={[styles.memberCard, hover && styles.memberCardHover]}>
+    <PaperCard nivel={1} style={styles.cardWrap}>
+      <View style={styles.memberCard}>
         {/* Barra lateral de 4 px: terracota para personas, verde salvia para mascotas */}
         <View pointerEvents="none" style={[styles.barra, { backgroundColor: color || (mascota ? colors.salvia : colors.accentStrong) }]} />
-        <PressScale
-          onPress={onPress}
-          onLongPress={onLongPress}
-          onHoverIn={entrar}
-          onHoverOut={salir}
-          disabled={disabled}
-          accessibilityLabel={`${nombreCompleto || nombre}, ${subt}`}
-        >
+        <PressScale onPress={onPress} onLongPress={onLongPress} disabled={disabled} accessibilityLabel={`${nombreCompleto || nombre}, ${subt}`}>
           <View style={styles.memberHead}>
             <EntityAvatar avatarId={avatarId} type={mascota ? 'pet' : 'person'} name={nombre} apellido={apellido} size={48} tipo={tipo} fotoUrl={fotoUrl} />
             <View style={styles.memberInfo}>
               <Text style={styles.memberName}>{nombreCompleto || nombre}</Text>
               <Text style={styles.memberSubt}>{subt}</Text>
-              {!!detalle && (
-                <View style={styles.detalleFila}>
-                  <View style={[styles.detallePunto, detalleTono === 'alerta' ? styles.puntoAlerta : styles.puntoOk]} />
-                  <Text style={[styles.detalleTexto, detalleTono === 'alerta' && styles.detalleAlerta]}>{detalle}</Text>
-                </View>
-              )}
             </View>
           </View>
+          {!!chips && chips.length > 0 && (
+            <View style={styles.chips}>
+              {chips.map((c) => (
+                <View key={c.texto} style={[styles.chip, c.tono === 'sangre' ? styles.chipSangre : c.tono === 'alergia' ? styles.chipAlergia : styles.chipSalvia]}>
+                  <Text style={[styles.chipTexto, c.tono === 'sangre' ? { color: '#9A3416' } : c.tono === 'alergia' ? { color: '#7A5112' } : { color: '#3B5A4C' }]} numberOfLines={1}>
+                    {c.texto}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+          {!!detalle && (
+            <View style={styles.detalleFila}>
+              <View style={[styles.detallePunto, detalleTono === 'alerta' ? styles.puntoAlerta : styles.puntoOk]} />
+              <Text style={[styles.detalleTexto, detalleTono === 'alerta' && styles.detalleAlerta]}>{detalle}</Text>
+            </View>
+          )}
+          {!!proximo && (
+            <View style={styles.detalleFila}>
+              <Ionicons name="time-outline" size={16} color={colors.textBody} />
+              <Text style={styles.detalleTexto} numberOfLines={1}>{proximo}</Text>
+            </View>
+          )}
+          {progreso !== null && progreso !== undefined && progreso < 100 && (
+            <View style={styles.progresoBloque}>
+              <Text style={styles.detalleTexto}>Ficha al {progreso}%</Text>
+              <View style={styles.progresoPista} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: progreso }}>
+                <View style={[styles.progresoRelleno, { width: `${progreso}%` }]} />
+              </View>
+            </View>
+          )}
         </PressScale>
         {!!onEmergencyPress && (
           <PressScale
             contentStyle={styles.emergencyBadge}
             onPress={onEmergencyPress}
-            onHoverIn={entrar}
-            onHoverOut={salir}
             disabled={disabled}
-            accessibilityLabel={`Ficha de emergencia de ${nombreCompleto || nombre}`}
+            accessibilityLabel={`${accionLabel || 'Ficha de emergencia'} de ${nombreCompleto || nombre}`}
           >
-            <Ionicons name="medkit-outline" size={20} color={colors.limeDeep} />
-            <Text style={styles.emergencyLabel}>Emergencia</Text>
+            <Ionicons name={mascota ? 'document-text-outline' : 'medkit-outline'} size={20} color={colors.limeDeep} />
+            <Text style={styles.emergencyLabel}>{accionLabel || 'Emergencia'}</Text>
           </PressScale>
         )}
       </View>
-    </View>
+    </PaperCard>
   );
 }
 
@@ -230,6 +238,10 @@ export default function FamilyListScreen({ navigation }) {
     navigation.navigate('AddMember', { tipoMiembro });
   }
 
+  function irARecordatorio(tipo) {
+    navigation.navigate('Calendario', { screen: 'AddReminder', params: { tipo } });
+  }
+
   const hoyFin = new Date();
   hoyFin.setHours(23, 59, 59, 999);
   const pendientesHoy = (avisos || []).filter((a) => a.fecha <= hoyFin).length;
@@ -248,53 +260,84 @@ export default function FamilyListScreen({ navigation }) {
     return n > 0 ? { texto: `${n} pendiente${n === 1 ? '' : 's'} hoy`, tono: 'alerta' } : null;
   }
 
+  // Datos para las tarjetas y las estadísticas, sólo con lo que ya existe en el backend.
+  const en7 = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const dosisHoy = (avisos || []).filter((a) => a.tipo === 'medicacion' && a.fecha <= hoyFin).length;
+  const turnosSemana = (avisos || []).filter((a) => a.tipo === 'control' && a.fecha <= en7).length;
+  const progresoFicha = (i) => Math.round((100 * [i.tipo_sangre, i.alergias, i.notas_emergencia].filter(Boolean).length) / 3);
+  const fichasIncompletas = integrantes.filter((i) => progresoFicha(i) < 100).length;
+  function chipsDe(i) {
+    const c = [];
+    if (i.tipo_sangre) c.push({ texto: i.tipo_sangre, tono: 'sangre' });
+    if (i.alergias) c.push({ texto: `Alergias: ${i.alergias}`, tono: 'alergia' });
+    return c;
+  }
+  function proximoDe(clase, id) {
+    const a = (avisos || []).find((x) => duenoDeAviso(x)?.clase === clase && duenoDeAviso(x).id === id);
+    return a ? `${a.descripcion || 'Recordatorio'} · ${cuando(a.fecha)}` : null;
+  }
+
   const resumen = `${integrantes.length} integrante${integrantes.length === 1 ? '' : 's'} · ${mascotas.length} mascota${mascotas.length === 1 ? '' : 's'}`;
 
   // ---------------- bloques ----------------
   // Encabezado compacto: nombre del grupo, tres datos clave y un único botón principal con menú.
   const banner = (
     <View style={styles.banner}>
+      <View pointerEvents="none" style={[styles.bannerCapa, styles.bannerSombra]} {...paper('recorte')} />
+      <View pointerEvents="none" style={styles.bannerCapa} {...paper('recorte')} />
       <View style={[styles.bannerDoodle, !desktop && styles.bannerDoodleMobile]} pointerEvents="none">
-        <BannerRecortes width={desktop ? 240 : 150} />
+        <BannerRecortes width={desktop ? 190 : 130} />
       </View>
       <View style={styles.bannerText}>
         <Text style={styles.bannerTitle} numberOfLines={2} accessibilityRole="header">
           {grupo?.nombre}
         </Text>
+        <Text style={styles.bannerSummary}>{resumen}</Text>
         <View style={styles.stats}>
           <View style={styles.stat}>
-            <Text style={styles.statNum}>{resumen}</Text>
+            <Text style={[styles.statNum, dosisHoy > 0 && styles.statAlerta]}>{avisos === null ? '…' : `${dosisHoy} dosis hoy`}</Text>
           </View>
           <View style={styles.stat}>
-            <Text style={[styles.statNum, pendientesHoy > 0 && styles.statAlerta]}>
-              {avisos === null ? '…' : pendientesHoy === 0 ? 'Nada pendiente hoy' : `${pendientesHoy} pendiente${pendientesHoy === 1 ? '' : 's'} hoy`}
-            </Text>
+            <Text style={styles.statNum}>{avisos === null ? '…' : `${turnosSemana} turno${turnosSemana === 1 ? '' : 's'} esta semana`}</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={[styles.statNum, fichasIncompletas > 0 && styles.statAlerta]}>{`${fichasIncompletas} ficha${fichasIncompletas === 1 ? '' : 's'} incompleta${fichasIncompletas === 1 ? '' : 's'}`}</Text>
           </View>
         </View>
         <View style={styles.bannerAction}>
           <PrimaryButton title="+ Agregar" variant="accent" fullWidth={false} onPress={() => setMenuAgregar((v) => !v)} />
           {menuAgregar && (
             <View style={styles.menuAgregar} accessibilityRole="menu">
-              <PressScale contentStyle={styles.menuFila} onPress={() => irAAgregar('integrante')} accessibilityRole="menuitem" accessibilityLabel="Agregar una persona">
-                <Ionicons name="person-add-outline" size={20} color={colors.accentStrong} />
-                <Text style={styles.menuTexto}>Persona</Text>
-              </PressScale>
-              <PressScale contentStyle={styles.menuFila} onPress={() => irAAgregar('mascota')} accessibilityRole="menuitem" accessibilityLabel="Agregar una mascota">
-                <Ionicons name="paw-outline" size={20} color={colors.salvia} />
-                <Text style={styles.menuTexto}>Mascota</Text>
-              </PressScale>
-              <PressScale
-                contentStyle={styles.menuFila}
-                onPress={() => {
-                  setMenuAgregar(false);
-                  navigation.navigate('Calendario', { screen: 'AddReminder' });
-                }}
-                accessibilityRole="menuitem"
-                accessibilityLabel="Programar un recordatorio"
-              >
-                <Ionicons name="alarm-outline" size={20} color={colors.ocre} />
-                <Text style={styles.menuTexto}>Recordatorio</Text>
-              </PressScale>
+              {[
+                { t: 'Integrante con cuenta', s: 'Invitalo con un código', icon: 'mail-outline', col: colors.accentStrong, ir: () => navigation.navigate('Cuenta') },
+                { t: 'Perfil sin cuenta', s: 'Niño o adulto mayor', icon: 'person-add-outline', col: colors.accentStrong, ir: () => irAAgregar('integrante') },
+                { t: 'Mascota', icon: 'paw-outline', col: colors.salvia, ir: () => irAAgregar('mascota') },
+                { sep: true },
+                { t: 'Medicación', icon: 'medkit-outline', col: colors.accentStrong, ir: () => irARecordatorio('medicacion') },
+                { t: 'Turno', icon: 'calendar-outline', col: colors.ocre, ir: () => irARecordatorio('control') },
+                { t: 'Vacuna', icon: 'shield-checkmark-outline', col: colors.salvia, ir: () => irARecordatorio('vacuna') },
+              ].map((it, i) =>
+                it.sep ? (
+                  <View key={i} style={styles.menuSep} />
+                ) : (
+                  <PressScale
+                    key={it.t}
+                    contentStyle={styles.menuFila}
+                    onPress={() => {
+                      setMenuAgregar(false);
+                      it.ir();
+                    }}
+                    accessibilityRole="menuitem"
+                    accessibilityLabel={it.s ? `${it.t}: ${it.s}` : it.t}
+                  >
+                    <Ionicons name={it.icon} size={20} color={it.col} />
+                    <View>
+                      <Text style={styles.menuTexto}>{it.t}</Text>
+                      {!!it.s && <Text style={styles.menuSub}>{it.s}</Text>}
+                    </View>
+                  </PressScale>
+                )
+              )}
             </View>
           )}
         </View>
@@ -346,6 +389,9 @@ export default function FamilyListScreen({ navigation }) {
                     nombreCompleto={nombreCompleto}
                     subt={`${TIPO_LABELS[item.tipo] ?? item.tipo}${edad !== null ? ` · ${edad} años` : ''}`}
                     tipo={item.tipo}
+                    chips={chipsDe(item)}
+                    progreso={progresoFicha(item)}
+                    proximo={proximoDe('integrante', item.id)}
                     detalle={detalleDeIntegrante(item)?.texto}
                     detalleTono={detalleDeIntegrante(item)?.tono}
                     disabled={busy}
@@ -389,8 +435,11 @@ export default function FamilyListScreen({ navigation }) {
                     avatarId={item.avatar_id}
                     nombre={item.nombre}
                     subt={item.raza ? `${item.especie} · ${item.raza}` : item.especie}
+                    proximo={proximoDe('mascota', item.id)}
                     detalle={detalleDeMascota(item)?.texto}
                     detalleTono={detalleDeMascota(item)?.tono}
+                    accionLabel="Ficha"
+                    onEmergencyPress={() => openProfile({ id: item.id, tipo: 'mascota', nombre: item.nombre, member: item })}
                     disabled={busy}
                     onPress={() => openProfile({ id: item.id, tipo: 'mascota', nombre: item.nombre, member: item })}
                     onLongPress={() => handleLongPress('mascota', item, item.nombre)}
@@ -516,11 +565,8 @@ const styles = StyleSheet.create({
   // ---- banner cálido
   banner: {
     position: 'relative',
+    marginBottom: 6,
     zIndex: 10, // el menú "+ Agregar" tiene que pasar por encima de las tarjetas de abajo
-    backgroundColor: colors.arena,
-    borderWidth: 1,
-    borderColor: 'rgba(42, 36, 33, 0.08)',
-    borderRadius: 16,
     paddingVertical: 24,
     paddingHorizontal: 28,
     minHeight: 168,
@@ -541,7 +587,7 @@ const styles = StyleSheet.create({
     top: '100%',
     left: 0,
     marginTop: 8,
-    minWidth: 220,
+    minWidth: 260,
     padding: 4,
     borderRadius: 12,
     borderWidth: 1,
@@ -594,21 +640,13 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(42, 36, 33, 0.08)',
     backgroundColor: '#F5EFE6',
   },
-  bandejaPersonas: { borderTopWidth: 4, borderTopColor: colors.accentStrong },
-  bandejaMascotas: { borderTopWidth: 4, borderTopColor: colors.salvia },
+  // Un solo acento por tarjeta (la barra lateral): las bandejas ya no llevan borde superior de color.
+  bandejaPersonas: {},
+  bandejaMascotas: {},
 
   // ---- tarjetas de integrantes y mascotas
   // Sombra de cartulina: en web, de dos capas vía theme/paper.js; en nativo, una corta y nítida.
-  cardWrap: {
-    width: '100%',
-    borderRadius: 16,
-    backgroundColor: colors.glassStrong,
-    shadowColor: '#2A2421',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.07,
-    shadowRadius: 0,
-    elevation: 2,
-  },
+  cardWrap: { width: '100%' },
   barra: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 4 },
   cardWrapWeb: { transitionProperty: 'transform', transitionDuration: '150ms', transitionTimingFunction: 'ease-out' },
   cardWrapHover: { transform: [{ translateY: -2 }] },
@@ -618,12 +656,23 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingLeft: 20,
     overflow: 'hidden',
-    backgroundColor: colors.glassStrong,
-    borderWidth: 1,
-    borderColor: colors.borderCard,
+    backgroundColor: 'transparent',
     borderRadius: 16,
   },
-  memberCardHover: { borderColor: '#E8B9A5' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  chip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, maxWidth: '100%' },
+  chipSangre: { backgroundColor: '#FAECE7' },
+  chipAlergia: { backgroundColor: '#FDF3E1' },
+  chipSalvia: { backgroundColor: '#E8F0EC' },
+  chipTexto: { fontSize: 13, lineHeight: 18, fontFamily: poppinsWeight('600') },
+  progresoBloque: { marginTop: 10, gap: 4 },
+  progresoPista: { height: 8, borderRadius: 4, backgroundColor: colors.arena, overflow: 'hidden' },
+  progresoRelleno: { height: 8, borderRadius: 4, backgroundColor: colors.ocre },
+  menuSub: { fontSize: 13, lineHeight: 18, color: colors.textBody },
+  menuSep: { height: 1, marginVertical: 4, marginHorizontal: 8, backgroundColor: 'rgba(42, 36, 33, 0.1)' },
+  bannerSummary: { fontSize: 15, lineHeight: 22, color: colors.textBody },
+  bannerCapa: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.arena, borderTopLeftRadius: 16, borderTopRightRadius: 16 },
+  bannerSombra: { top: 4, left: 4, right: -4, bottom: -4, backgroundColor: '#E4D6C6' },
   memberHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   memberInfo: { flex: 1, minWidth: 0 },

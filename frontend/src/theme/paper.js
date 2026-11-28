@@ -98,6 +98,12 @@ body::after {
   }
 }
 
+/* Bandera de papel: borde inferior irregular "cortado a tijera" (sólo en la capa de fondo, para no recortar
+   los menús que se despliegan). */
+[data-paper~="recorte"] {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 0px), 95% calc(100% - 7px), 90% calc(100% - 3px), 85% calc(100% - 7px), 80% calc(100% - 0px), 75% calc(100% - 7px), 70% calc(100% - 3px), 65% calc(100% - 7px), 60% calc(100% - 0px), 55% calc(100% - 7px), 50% calc(100% - 3px), 45% calc(100% - 7px), 40% calc(100% - 0px), 35% calc(100% - 7px), 30% calc(100% - 3px), 25% calc(100% - 7px), 20% calc(100% - 0px), 15% calc(100% - 7px), 10% calc(100% - 3px), 5% calc(100% - 7px), 0% calc(100% - 0px));
+}
+
 /* PaperCard: cartulina sin borde con sombra de papel apilado en 3 niveles. Al pasar el mouse la hoja se levanta
    2 px y pasa al nivel siguiente (150-200 ms). */
 [data-paper~="papel"] {
