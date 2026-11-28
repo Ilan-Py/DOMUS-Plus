@@ -104,11 +104,11 @@ function CardTitle({ children }) {
   );
 }
 
-// `onEdit` es un botón visible aparte (lápiz), no sólo el long-press: un
-// gesto oculto no es un affordance real para editar un registro de salud.
+// `onEdit` es el botón visible (lápiz). La fila en sí no es un botón: antes era un Pressable sólo para el long-press y
+// dejaba el lápiz como botón dentro de otro botón (inválido para lectores de pantalla). Eliminar está en la edición.
 function VaccineRow({ item, onEdit, onLongPress, disabled }) {
   return (
-    <PressScale contentStyle={styles.recordCard} onPress={() => {}} onLongPress={onLongPress} disabled={disabled}>
+    <View style={styles.recordCard}>
       <View style={styles.recordHeader}>
         <Text style={[styles.recordTitle, styles.recordTitleFlex]}>{toSentenceCase(item.nombre)}</Text>
         <PressScale
@@ -126,7 +126,7 @@ function VaccineRow({ item, onEdit, onLongPress, disabled }) {
       )}
       {!!item.notas && <Text style={styles.recordNotes}>{item.notas}</Text>}
       <AttachmentsSection parentType="vacuna" parentId={item.id} label="Documentos de esta vacuna" compact addLabel="Adjuntar" />
-    </PressScale>
+    </View>
   );
 }
 
@@ -144,7 +144,7 @@ function esTratamientoActivo(fechaFin) {
 function TreatmentRow({ item, onEdit, onLongPress, disabled }) {
   const activo = esTratamientoActivo(item.fecha_fin);
   return (
-    <PressScale contentStyle={styles.recordCard} onPress={() => {}} onLongPress={onLongPress} disabled={disabled}>
+    <View style={styles.recordCard}>
       <View style={styles.recordHeader}>
         <Text style={[styles.recordTitle, styles.recordTitleFlex]}>{toSentenceCase(item.descripcion)}</Text>
         <View style={[styles.statusBadge, !activo && styles.statusBadgeInactive]}>
@@ -167,7 +167,7 @@ function TreatmentRow({ item, onEdit, onLongPress, disabled }) {
         {item.fecha_fin ? ` hasta ${formatLongDate(item.fecha_fin)}` : ' · en curso'}
       </Text>
       <AttachmentsSection parentType="tratamiento" parentId={item.id} label="Documentos de este tratamiento" compact addLabel="Adjuntar" />
-    </PressScale>
+    </View>
   );
 }
 
