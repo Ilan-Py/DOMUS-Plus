@@ -34,6 +34,8 @@ import FadeOutRow, { EXIT_DURATION } from '../components/FadeOutRow';
 import { confirmarDestructivo } from '../utils/confirm';
 import OptionPicker from '../components/OptionPicker';
 import { guardarCache, leerCache, esErrorDeRed, textoGuardadoEn } from '../utils/cacheLocal';
+import { edadDe, plural } from '../utils/formato';
+import { parseApiDate } from '../utils/displayFormat';
 
 // Listas cerradas — mismas que valida el backend (familiaController.js).
 const GRUPOS_SANGUINEOS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
@@ -44,6 +46,21 @@ const ALERGIAS_FRECUENTES = [
 
 function listaDeAlergias(texto) {
   return (texto || '').split(',').map((a) => a.trim()).filter(Boolean);
+}
+
+// Teléfono que no se parte en dos líneas (EME-05): espacios y guiones que no cortan.
+function telefonoSinCortes(t) {
+  return formatearTelefono(t).replace(/ /g, '\u00A0').replace(/-/g, '\u2011');
+}
+
+// Tratamientos vigentes: sin fecha de fin o con fin de hoy en adelante (EME-03).
+function vigentes(tratamientos) {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  return tratamientos.filter((t) => {
+    const fin = t.fecha_fin ? parseApiDate(t.fecha_fin) : null;
+    return !fin || fin >= hoy;
+  });
 }
 
 // alergias/tipo_sangre/notas_emergencia ya vienen en el mismo
@@ -75,6 +92,9 @@ export default function EmergencyScreen({ navigation, route }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // EME-04: la ficha se abre en modo lectura (sólo «Llamar»). Editar contactos y datos va detrás de «Editar ficha».
+  const [modoEdicion, setModoEdicion] = useState(false);
+  const [tratamientos, setTratamientos] = useState([]);
   const [contactos, setContactos] = useState([]);
   const [loadingContactos, setLoadingContactos] = useState(true);
   // false | 'nuevo' | <id del contacto en edición>
@@ -112,6 +132,24 @@ export default function EmergencyScreen({ navigation, route }) {
     fetchContactos();
   }, [fetchContactos]);
 
+  // «Toma actualmente»: lo que el médico pregunta primero. Sale de los tratamientos ya cargados (también sin red).
+  const fetchTratamientos = useCallback(async () => {
+    try {
+      const datos = await getList('/api/salud/tratamientos', { params: { integrante_id: id } });
+      setTratamientos(vigentes(datos));
+      guardarCache(`tratamientos:${id}`, datos);
+    } catch (err) {
+      const copia = esErrorDeRed(err) ? await leerCache(`tratamientos:${id}`) : null;
+      if (copia) setTratamientos(vigentes(copia.datos || []));
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchTratamientos();
+  }, [fetchTratamientos]);
+
+  const edad = edadDe(integrante?.fecha_nacimiento);
+
   function iniciarEdicion(campo = 'todos') {
     setCampoEdit(campo);
     setAlergias(listaDeAlergias(integrante?.alergias));
@@ -141,20 +179,24 @@ export default function EmergencyScreen({ navigation, route }) {
 
   // Resumen en texto plano, listo para pegar en WhatsApp o guardar en notas.
   async function copiarResumen() {
-    const lineas = [`Ficha de emergencia: ${nombre}`, ''];
+    const lineas = [`Ficha de emergencia: ${nombre}${edad !== null ? ` (${plural(edad, 'año')})` : ''}`, ''];
     lineas.push(`Tipo de sangre: ${sangre || 'sin cargar'}`);
     lineas.push(`Alergias: ${listaAlergias.length ? listaAlergias.join(', ') : 'sin cargar'}`);
-    if (notasGuardadas) lineas.push(`Notas: ${notasGuardadas}`);
+    if (tratamientos.length) {
+      lineas.push(`Toma actualmente: ${tratamientos.map((t) => t.medicacion).join('; ')}`);
+    }
+    if (notasGuardadas) lineas.push(`Para tener en cuenta: ${notasGuardadas}`);
     if (contactos.length) {
-      lineas.push('', 'Contactos de emergencia:');
+      lineas.push('', 'A quién llamar:');
       contactos.forEach((c) =>
         lineas.push(`- ${c.nombre}${c.relacion ? ` (${c.relacion})` : ''}: ${formatearTelefono(c.telefono)}`)
       );
     }
-    lineas.push('', 'Generado con DOMUS+');
+    const hoy = new Date();
+    lineas.push('', `Ficha de DOMUS+ · copiada el ${String(hoy.getDate()).padStart(2, '0')}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${hoy.getFullYear()}`);
     await Clipboard.setStringAsync(lineas.join('\n'));
     setCopiado(true);
-    mostrarToast('Resumen copiado');
+    mostrarToast('Ficha copiada. Pegala en un mensaje.');
     setTimeout(() => setCopiado(false), 1500);
   }
 
@@ -216,9 +258,10 @@ export default function EmergencyScreen({ navigation, route }) {
 
   function confirmEliminarContacto(item) {
     confirmarDestructivo(
-      'Eliminar contacto',
-      `¿Seguro que querés eliminar a ${item.nombre} de los contactos de emergencia?`,
-      () => eliminarContacto(item)
+      `¿Quitar a ${item.nombre} de la ficha?`,
+      'Deja de aparecer en «A quién llamar».',
+      () => eliminarContacto(item),
+      `Quitar a ${item.nombre.split(' ')[0]}`
     );
   }
 
@@ -242,15 +285,15 @@ export default function EmergencyScreen({ navigation, route }) {
           />
           <View style={styles.flex}>
             <Text style={styles.nombre} accessibilityRole="header" numberOfLines={2}>{nombre}</Text>
-            <Text style={styles.subtitulo}>Ficha de emergencia</Text>
+            <Text style={styles.subtitulo}>{edad !== null ? `${plural(edad, 'año')} · ` : ''}Ficha de emergencia</Text>
           </View>
           <PressScale
             contentStyle={[styles.copiarBtn, angosto && styles.copiarBtnSolo]}
             onPress={copiarResumen}
-            accessibilityLabel="Copiar resumen de la ficha"
+            accessibilityLabel="Copiar la ficha"
           >
             <CrossfadeIcon a="copy-outline" b="checkmark" showB={copiado} size={20} color={colors.ink} />
-            {!angosto && <Text style={styles.copiarText}>{copiado ? 'Copiado' : 'Copiar resumen'}</Text>}
+            {!angosto && <Text style={styles.copiarText}>{copiado ? 'Copiada' : 'Copiar la ficha'}</Text>}
           </PressScale>
         </View>
         <View style={[styles.cabeceraLinea, { left: 18 + inset, right: 18 + inset }]} />
@@ -278,20 +321,18 @@ export default function EmergencyScreen({ navigation, route }) {
           <View style={styles.fichaWrap}>
             <View style={styles.hojaDetras} pointerEvents="none" />
             <View {...paper('ficha')} style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.sectionTitle}>Datos médicos</Text>
-              {/* Un solo Editar, en la tarjeta, y sólo cuando ya hay algún dato cargado */}
-              {!editing && !sinDatos && (
+            {modoEdicion && !editing && !sinDatos && (
+              <View style={styles.cardHeader}>
                 <PressScale
                   contentStyle={styles.editarBtn}
                   onPress={() => iniciarEdicion('todos')}
-                  accessibilityLabel="Editar datos médicos"
+                  accessibilityLabel="Editar tipo de sangre, alergias y notas"
                 >
                   <Ionicons name="pencil-outline" size={18} color={colors.iconWarm} />
-                  <Text style={styles.editarText}>Editar</Text>
+                  <Text style={styles.editarText}>Editar estos datos</Text>
                 </PressScale>
-              )}
-            </View>
+              </View>
+            )}
             {editing ? (
               <>
                 {(campoEdit === 'todos' || campoEdit === 'alergias') && (
@@ -317,7 +358,7 @@ export default function EmergencyScreen({ navigation, route }) {
                 />
                 )}
                 {(campoEdit === 'todos' || campoEdit === 'notas') && (
-                <FormField label="Notas de emergencia" value={notas} onChangeText={setNotas} placeholder="Condiciones crónicas, medicación habitual, etc." multiline style={styles.field} />
+                <FormField label="Para tener en cuenta" value={notas} onChangeText={setNotas} placeholder="Marcapasos, diabetes, usa audífono…" multiline style={styles.field} />
                 )}
                 <View style={styles.formActions}>
                   <PrimaryButton title="Guardar" onPress={guardarEmergencia} loading={saving} variant="accent" />
@@ -357,7 +398,24 @@ export default function EmergencyScreen({ navigation, route }) {
                 </View>
 
                 <View style={styles.notesBlock}>
-                  <Text style={styles.medLabel}>Notas médicas</Text>
+                  <Text style={styles.medLabel}>Toma actualmente</Text>
+                  {tratamientos.length === 0 ? (
+                    <Text style={styles.sinCargar}>Ningún tratamiento cargado</Text>
+                  ) : (
+                    tratamientos.map((t) => (
+                      <View key={t.id} style={styles.tomaFila}>
+                        <Ionicons name="medkit-outline" size={18} color="#8E3A2A" />
+                        <Text style={styles.notesText}>
+                          <Text style={styles.tomaMed}>{t.medicacion}</Text>
+                          {t.descripcion ? ` · ${t.descripcion}` : ''}
+                        </Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+
+                <View style={styles.notesBlock}>
+                  <Text style={styles.medLabel}>Para tener en cuenta</Text>
                   {notasGuardadas ? (
                     <Text style={styles.notesText}>{notasGuardadas}</Text>
                   ) : (
@@ -369,13 +427,25 @@ export default function EmergencyScreen({ navigation, route }) {
             </View>
           </View>
 
-          <Text style={styles.titulo}>Contactos de emergencia</Text>
+          <View style={styles.contactosCab}>
+            <Text style={styles.titulo} accessibilityRole="header">A quién llamar</Text>
+            {!editing && (
+              <PressScale
+                contentStyle={[styles.editarBtn, modoEdicion && styles.listoBtn]}
+                onPress={() => { setModoEdicion((v) => !v); setFormAbierto(false); }}
+                accessibilityLabel={modoEdicion ? 'Terminar de editar la ficha' : 'Editar ficha'}
+              >
+                <Ionicons name={modoEdicion ? 'checkmark' : 'pencil-outline'} size={18} color={modoEdicion ? '#FFFFFF' : colors.iconWarm} />
+                <Text style={[styles.editarText, modoEdicion && { color: '#FFFFFF' }]}>{modoEdicion ? 'Listo' : 'Editar ficha'}</Text>
+              </PressScale>
+            )}
+          </View>
           {loadingContactos ? (
             <SkeletonFilas filas={2} />
           ) : (
             <>
               {contactos.length === 0 && formAbierto !== 'nuevo' && (
-                <EmptyState message="No hay contactos de emergencia cargados." />
+                <EmptyState compacto titulo="Todavía no hay a quién llamar" message="Sumá al menos un teléfono para una emergencia." recortes={[{ icon: 'call', tinte: 'terracota' }]} />
               )}
 
               {contactos.map((item, i) => (
@@ -396,7 +466,7 @@ export default function EmergencyScreen({ navigation, route }) {
                           style={styles.flex}
                           contentStyle={styles.contactTapArea}
                           onPress={() => Linking.openURL(`tel:${item.telefono}`)}
-                          accessibilityLabel={`Llamar a ${item.nombre}`}
+                          accessibilityLabel={`Llamar a ${item.nombre}${item.relacion ? `, ${item.relacion}` : ''}`}
                         >
                           <View style={styles.contactPhoneIcon}>
                             <Ionicons name="call" size={22} color={colors.onAccent} />
@@ -406,22 +476,26 @@ export default function EmergencyScreen({ navigation, route }) {
                               {item.nombre}
                               {item.relacion ? <Text style={styles.contactMeta}>{`  ·  ${item.relacion}`}</Text> : null}
                             </Text>
-                            <Text style={styles.contactPhone}>{formatearTelefono(item.telefono)}</Text>
+                            <Text style={styles.contactPhone}>{telefonoSinCortes(item.telefono)}</Text>
                           </View>
                         </PressScale>
-                        <ContactAction
-                          icon="pencil-outline"
-                          label={`Editar contacto ${item.nombre}`}
-                          onPress={() => abrirEditarContacto(item)}
-                        />
-                        <ContactAction
-                          icon="trash-outline"
-                          label={`Eliminar contacto ${item.nombre}`}
-                          onPress={() => confirmEliminarContacto(item)}
-                          disabled={eliminandoId === item.id}
-                          loading={eliminandoId === item.id}
-                          danger
-                        />
+                        {modoEdicion && (
+                          <>
+                            <ContactAction
+                              icon="pencil-outline"
+                              label={`Editar contacto ${item.nombre}`}
+                              onPress={() => abrirEditarContacto(item)}
+                            />
+                            <ContactAction
+                              icon="trash-outline"
+                              label={`Quitar a ${item.nombre} de la ficha`}
+                              onPress={() => confirmEliminarContacto(item)}
+                              disabled={eliminandoId === item.id}
+                              loading={eliminandoId === item.id}
+                              danger
+                            />
+                          </>
+                        )}
                       </View>
                     )}
                   </FadeOutRow>
@@ -437,12 +511,12 @@ export default function EmergencyScreen({ navigation, route }) {
                   onCancelar={() => setFormAbierto(false)}
                   guardando={guardandoContacto}
                 />
-              ) : (
-                <PressScale contentStyle={styles.secondaryBtn} onPress={abrirNuevoContacto} accessibilityLabel="Agregar contacto de emergencia">
+              ) : (modoEdicion || contactos.length === 0) ? (
+                <PressScale contentStyle={styles.secondaryBtn} onPress={abrirNuevoContacto} accessibilityLabel="Agregar a quién llamar">
                   <Ionicons name="add" size={20} color={colors.accentStrong} />
                   <Text style={styles.secondaryBtnText}>Agregar contacto</Text>
                 </PressScale>
-              )}
+              ) : null}
             </>
           )}
         </ScrollView>
@@ -582,8 +656,6 @@ const styles = StyleSheet.create({
     ...cardBase,
     borderRadius: 16,
     borderColor: colors.borderCard,
-    borderTopWidth: 4,
-    borderTopColor: colors.accentStrong,
     // Sombra de papel (en web, de dos capas vía theme/paper.js): corta y nítida abajo.
     shadowColor: '#2A2421',
     shadowOffset: { width: 0, height: 3 },
@@ -623,11 +695,10 @@ const styles = StyleSheet.create({
     height: 48,
     marginTop: 16,
     borderRadius: 10,
-    // Acción, no un contacto más: borde punteado sobre el fondo crema y texto terracota.
+    // Acción real: borde sólido (el punteado queda sólo para las casillas vacías, CTA-04).
     borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(42, 36, 33, 0.18)',
-    backgroundColor: 'transparent',
+    borderColor: 'rgba(42, 36, 33, 0.25)',
+    backgroundColor: '#FFFDF9',
   },
   secondaryBtnText: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.accentStrong },
   contactActionActive: { backgroundColor: colors.badgeSand },
@@ -648,14 +719,12 @@ const styles = StyleSheet.create({
     fontFamily: poppinsWeight('600'),
     color: '#6E1F10',
   },
-  titulo: {
-    fontSize: 14,
-    fontFamily: poppinsWeight('700'),
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: 8,
-  },
+  titulo: { fontSize: 22, lineHeight: 30, fontFamily: SERIF_BOLD, color: colors.ink },
+  contactosCab: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12, flexWrap: 'wrap' },
+  listoBtn: { backgroundColor: '#4A6B5D' },
+  sinCargar: { fontSize: 16, lineHeight: 22, color: '#726A5D' },
+  tomaFila: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 6 },
+  tomaMed: { fontFamily: poppinsWeight('600') },
   loading: {
     marginVertical: 12,
   },

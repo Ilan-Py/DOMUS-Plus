@@ -42,6 +42,9 @@ export function FamilyProvider({ children }) {
         getList(`/api/familia/integrantes/${i.id}/contactos-emergencia`)
           .then((c) => guardarCache(`contactos:${i.id}`, c))
           .catch(() => {});
+        getList('/api/salud/tratamientos', { params: { integrante_id: i.id } })
+          .then((t) => guardarCache(`tratamientos:${i.id}`, t))
+          .catch(() => {});
       });
     } catch (err) {
       // Sin red: mostrar la última copia guardada en vez de una familia vacía.

@@ -1,6 +1,7 @@
 // Detalles de texto que hacen que la interfaz se lea como escrita por una persona: plurales correctos, fechas
 // relativas («mañana», «hace 3 días») y fechas sin ambigüedad («martes 24/11», nunca «mar 24»).
 import { inicioDeDia } from './avisos';
+import { parseApiDate } from './displayFormat';
 
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -41,6 +42,19 @@ export function fechaCorta(fecha, ahora = new Date()) {
 // «viernes 27 de noviembre»
 export function fechaLarga(fecha) {
   return `${DIAS[fecha.getDay()]} ${fecha.getDate()} de ${MESES[fecha.getMonth()]}`;
+}
+
+// Edad en años cumplidos a partir de la fecha de nacimiento de la API («1946-03-02»). null si no hay fecha.
+export function edadDe(fechaNacimiento) {
+  const nacimiento = parseApiDate(fechaNacimiento);
+  if (!nacimiento) return null;
+  const hoy = new Date();
+  let edad = hoy.getFullYear() - nacimiento.getFullYear();
+  const cumplio =
+    hoy.getMonth() > nacimiento.getMonth() ||
+    (hoy.getMonth() === nacimiento.getMonth() && hoy.getDate() >= nacimiento.getDate());
+  if (!cumplio) edad -= 1;
+  return edad >= 0 ? edad : null;
 }
 
 export function hora(fecha) {

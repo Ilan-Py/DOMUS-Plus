@@ -7,20 +7,23 @@ const TITULOS = {
   Login: 'Iniciar sesión · DOMUS+',
   Register: 'Crear cuenta · DOMUS+',
   GroupSetup: 'Tu grupo familiar · DOMUS+',
-  FamilyList: 'Mi familia · DOMUS+',
-  Familia: 'Mi familia · DOMUS+',
+  FamilyList: 'Familia · DOMUS+',
+  Familia: 'Familia · DOMUS+',
   AddMember: 'Agregar a la familia · DOMUS+',
   AddVaccine: 'Vacuna · DOMUS+',
   AddTreatment: 'Tratamiento · DOMUS+',
   Emergency: 'Ficha de emergencia · DOMUS+',
+  Emergencia: 'Emergencia · DOMUS+',
+  EmergenciaInicio: 'Emergencia · DOMUS+',
   Calendar: 'Calendario · DOMUS+',
   Calendario: 'Calendario · DOMUS+',
   AddReminder: 'Recordatorio · DOMUS+',
-  Cuenta: 'Mi cuenta · DOMUS+',
+  Cuenta: 'Cuenta · DOMUS+',
 };
 
 export function formatearTitulo(_options, route) {
   if (route?.name === 'ProfileDetail' && route.params?.nombre) return `${route.params.nombre} · DOMUS+`;
+  if (route?.name === 'Emergency' && route.params?.nombre) return `Ficha de ${route.params.nombre} · DOMUS+`;
   return TITULOS[route?.name] || TITULO_INICIAL;
 }
 

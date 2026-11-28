@@ -15,6 +15,7 @@ import AddVaccineScreen from '../screens/AddVaccineScreen';
 import AddTreatmentScreen from '../screens/AddTreatmentScreen';
 import AddReminderScreen from '../screens/AddReminderScreen';
 import EmergencyScreen from '../screens/EmergencyScreen';
+import EmergenciaInicioScreen from '../screens/EmergenciaInicioScreen';
 import SideBar, { SIDEBAR_WIDTH, SIDEBAR_BREAKPOINT } from './SideBar';
 import { colors } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
@@ -22,6 +23,7 @@ import { poppinsWeight } from '../theme/typography';
 const Tab = createBottomTabNavigator();
 const FamiliaStack = createNativeStackNavigator();
 const CalendarioStack = createNativeStackNavigator();
+const EmergenciaStack = createNativeStackNavigator();
 
 // Stack propio del tab "Familia" — data-screen del mockup: familyList, addMember, profileDetail...
 // AddVaccine/AddTreatment se empujan sobre ProfileDetail (NAV-2).
@@ -66,13 +68,24 @@ function CalendarioStackNavigator() {
   );
 }
 
+// Emergencia (D4, EME-02): «¿De quién es la ficha?» y la ficha. Es el mismo EmergencyScreen que se abre desde
+// una tarjeta de Familia, pero acá está a 2 toques desde cualquier pantalla.
+function EmergenciaStackNavigator() {
+  return (
+    <EmergenciaStack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bgBase } }}>
+      <EmergenciaStack.Screen name="EmergenciaInicio" component={EmergenciaInicioScreen} />
+      <EmergenciaStack.Screen name="Emergency" component={EmergencyScreen} />
+    </EmergenciaStack.Navigator>
+  );
+}
+
 // Los emojis (👪📅👤) traían su propio color de fuente y no respondían al
 // tint activo/inactivo — Ionicons outline sí, vía la prop `color` que
 // React Navigation ya pasa a tabBarIcon.
 // La barra inferior sólo se muestra en las pantallas raíz de cada pestaña
 // (lista de familia, calendario, cuenta). En formularios y detalles se oculta:
 // tienen su propio "Volver" y así no tapa botones ni contenido.
-const ROOT_ROUTES = ['FamilyList', 'Calendar', undefined];
+const ROOT_ROUTES = ['FamilyList', 'Calendar', 'EmergenciaInicio', undefined];
 function tabBarHidden(route) {
   return !ROOT_ROUTES.includes(getFocusedRouteNameFromRoute(route));
 }
@@ -80,6 +93,7 @@ function tabBarHidden(route) {
 const TAB_ICONS = {
   Familia: 'people-outline',
   Calendario: 'calendar-outline',
+  Emergencia: 'medical-outline',
   Cuenta: 'person-outline',
 };
 
@@ -157,6 +171,7 @@ export default function MainTabs() {
     >
       <Tab.Screen name="Familia" component={FamiliaStackNavigator} />
       <Tab.Screen name="Calendario" component={CalendarioStackNavigator} />
+      <Tab.Screen name="Emergencia" component={EmergenciaStackNavigator} />
       <Tab.Screen name="Cuenta" component={AccountScreen} />
     </Tab.Navigator>
   );

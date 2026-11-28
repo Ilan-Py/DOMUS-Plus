@@ -27,6 +27,7 @@ export const CONTENT_MAX_WIDTH = 880;
 const ICONS = {
   Familia: { off: 'people-outline', on: 'people' },
   Calendario: { off: 'calendar-outline', on: 'calendar' },
+  Emergencia: { off: 'medical-outline', on: 'medical' },
   Cuenta: { off: 'person-outline', on: 'person' },
 };
 

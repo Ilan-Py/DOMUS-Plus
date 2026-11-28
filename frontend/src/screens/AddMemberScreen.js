@@ -144,6 +144,7 @@ export default function AddMemberScreen({ navigation, route }) {
     }
 
     setSaving(true);
+    let creado = null;
     try {
       if (tipoMiembro === 'integrante') {
         // Enum de MySQL en minúsculas ('adulto'|'menor'|'mayor') — el picker
@@ -159,7 +160,7 @@ export default function AddMemberScreen({ navigation, route }) {
         if (isEditing) {
           await api.patch(`/api/familia/integrantes/${memberToEdit.id}`, payload);
         } else {
-          await api.post('/api/familia/integrantes', payload);
+          creado = await api.post('/api/familia/integrantes', payload);
         }
       } else {
         const payload = {
@@ -177,7 +178,17 @@ export default function AddMemberScreen({ navigation, route }) {
 
       await refresh();
       allowNextRemove();
-      mostrarToast(isEditing ? 'Cambios guardados' : tipoMiembro === 'mascota' ? 'Mascota guardada' : 'Integrante guardado');
+      if (creado?.id) {
+        // EME-08: una ficha vacía es justo la que falta en una emergencia. Se ofrece completarla en el momento.
+        mostrarToast(`${nombre} ya está en tu familia`, {
+          accion: {
+            etiqueta: 'Completar su ficha',
+            onPress: () => navigation.navigate('Emergency', { id: creado.id, nombre: `${nombre} ${apellido}` }),
+          },
+        });
+      } else {
+        mostrarToast(isEditing ? 'Cambios guardados' : tipoMiembro === 'mascota' ? `${nombre} ya está en tu familia` : 'Integrante guardado');
+      }
       // Beat breve de confirmación (checkmark en el botón) antes de salir en
       // vez de un goBack() instantáneo y silencioso — ver PrimaryButton.
       // ~380ms totales: alcanza para que el check haga su pop-in (spring
