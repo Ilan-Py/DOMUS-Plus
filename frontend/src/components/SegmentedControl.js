@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, TouchableOpacity, StyleSheet, Platform, Animated } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { colors, shadow } from '../theme/colors';
+import { View, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { colors } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 import useReducedMotion from '../hooks/useReducedMotion';
 
@@ -9,17 +8,7 @@ import useReducedMotion from '../hooks/useReducedMotion';
 // AddMemberScreen. No asume dos opciones ni valores específicos —
 // reutilizable para el enum `tipo` de AddReminderScreen (UI-5).
 
-// BlurView real en iOS/Android; en web backdropFilter vía CSS directo (mismo
-// patrón que Login/Register/topbars). Intensidad más baja que en los cards
-// grandes (22 vs 40) — el track es chico y una intensidad alta se ve como
-// una mancha desenfocada en vez de vidrio esmerilado. sageTranslucent sigue
-// siendo alpha 0.55 real (no aplanado a sólido en la migración 2), así que
-// el blur acá sigue teniendo efecto — a diferencia de los headers, donde se
-// sacó por estar detrás de un fondo ya opaco.
-const webTrackBlurStyle = Platform.select({
-  web: { backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' },
-  default: {},
-});
+// Track plano de papel arena (sin vidrio ni blur: docs/ux/04-design-system.md, checklist anti-vibecoded).
 
 // Spring sin rebote (bounciness 0) — llega rápido pero no overshootea. Se
 // eligió spring en vez de un Animated.timing de duración fija porque acá los
@@ -176,10 +165,7 @@ export default function SegmentedControl({ options, selectedValue, onChange, sty
     />
   );
 
-  // trackRef vive en una View plana propia, NO en la BlurView/View externa
-  // (esa cambia de tipo según plataforma y expo-blur no garantiza un ref
-  // medible con measureLayout) — así medir siempre pasa por el mismo tipo
-  // de nodo pase lo que pase con el blur.
+  // trackRef vive en una View plana propia: así medir siempre pasa por el mismo tipo de nodo.
   const inner = (
     <View ref={trackRef} style={styles.trackInner} onLayout={measureAndSync}>
       {highlight}
@@ -187,13 +173,7 @@ export default function SegmentedControl({ options, selectedValue, onChange, sty
     </View>
   );
 
-  return Platform.OS === 'web' ? (
-    <View style={[styles.segmented, webTrackBlurStyle, style]}>{inner}</View>
-  ) : (
-    <BlurView intensity={22} tint="light" style={[styles.segmented, style]}>
-      {inner}
-    </BlurView>
-  );
+  return <View style={[styles.segmented, style]}>{inner}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -202,12 +182,10 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 16,
     padding: 4,
-    // Translúcido y sumado al blur (no en vez de él) — un color translúcido
-    // solo, sin nada detrás desenfocándose, no lee como vidrio (mismo
-    // diagnóstico que Login/Register: blurear un fondo parejo no se nota).
-    backgroundColor: colors.trackSand,
+    backgroundColor: '#EDE4D8', // arena opaca
+
     borderRadius: 10,
-    overflow: 'hidden', // recorta el blur nativo al radio del track (Android)
+    overflow: 'hidden',
   },
   // View plana interna — ver comentario junto a trackRef arriba. Lleva el
   // flexDirection:'row' que antes vivía en `segmented`.
@@ -251,11 +229,13 @@ const styles = StyleSheet.create({
     top: 4,
     bottom: 4,
     left: 0,
-    backgroundColor: colors.glass,
+    backgroundColor: '#FFFDF9',
     borderRadius: 11,
-    ...shadow,
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
+    // Sombra de papel: corrida y sin difuminar.
+    shadowColor: '#2A2421',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 0,
     elevation: 1,
   },
   segItemText: {

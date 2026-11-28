@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   // En web, además, un desenfoque leve del fondo.
-  backdropWeb: { backdropFilter: 'blur(2px)' },
+  backdropWeb: {}, // sin blur: el fondo se oscurece y alcanza (checklist anti-vibecoded)
   card: {
     width: '100%',
     maxWidth: 400,
