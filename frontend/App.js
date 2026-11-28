@@ -206,9 +206,11 @@ export default function App() {
   // resuelto), navigationRef.isReady() es false y se ignora en silencio en
   // vez de tirar error.
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener(() => {
+    // DOS-11: abre el día del aviso (con su «Dada» a mano), no el Calendario genérico.
+    const sub = Notifications.addNotificationResponseReceivedListener((respuesta) => {
       if (navigationRef.isReady()) {
-        navigationRef.navigate('Calendario');
+        const dia = respuesta?.notification?.request?.content?.data?.dia;
+        navigationRef.navigate('Calendario', dia ? { screen: 'Calendar', params: { dia } } : undefined);
       }
     });
     return () => sub.remove();

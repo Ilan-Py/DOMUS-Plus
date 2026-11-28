@@ -89,10 +89,11 @@ export function formatearTelefono(telefono) {
   return t;
 }
 
+// FRM-03: sólo se pone en mayúscula la primera letra. Antes pasaba todo a minúscula y «VNC20» quedaba «vnc20»:
+// siglas y marcas se muestran como se cargaron.
 export function toSentenceCase(text) {
   if (!text) return '';
-  const lower = text.toLowerCase();
-  return lower.charAt(0).toUpperCase() + lower.slice(1);
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 // Iniciales para un avatar de texto (AccountScreen) — toma las partes del

@@ -4,7 +4,10 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { parseFechaHora } from './displayFormat';
 
-const TIPO_LABELS = { vacuna: 'Vacuna', control: 'Control', medicacion: 'Medicación' };
+const TIPO_LABELS = { vacuna: 'Vacuna', control: 'Turno o control', medicacion: 'Medicación' };
+
+// Día del aviso con la misma clave que usa el Calendario (AAAA-M-D, mes desde 0), para abrirlo al tocar la notificación (DOS-11).
+const claveDia = (f) => `${f.getFullYear()}-${f.getMonth()}-${f.getDate()}`;
 
 const STORAGE_KEY = 'notificaciones_programadas';
 
@@ -101,8 +104,8 @@ export async function programarNotificacion(recordatorio) {
   const id = await Notifications.scheduleNotificationAsync({
     content: {
       title: TIPO_LABELS[recordatorio.tipo] ?? recordatorio.tipo,
-      body: (usarAnticipo ? `En ${etiquetaAnticipo(anticipoMin)}: ` : '') + (recordatorio.descripcion || 'Tenés un recordatorio pendiente.'),
-      data: { recordatorioId: recordatorio.id },
+      body: (usarAnticipo ? `En ${etiquetaAnticipo(anticipoMin)}: ` : '') + (recordatorio.descripcion || 'Tenés algo programado.') + ' · Tocá para marcar',
+      data: { recordatorioId: recordatorio.id, dia: claveDia(fecha) },
     },
     // Pasar el Date directo (no un objeto { type, date }) — la versión de
     // expo-notifications fijada por este SDK (0.28.x) detecta un trigger de
@@ -155,8 +158,8 @@ export async function sincronizarNotificaciones(recordatorios) {
     const id = await Notifications.scheduleNotificationAsync({
       content: {
         title: TIPO_LABELS[r.tipo] ?? r.tipo,
-        body: r.descripcion || 'Tenés un recordatorio pendiente.',
-        data: { recordatorioId: r.id },
+        body: `${r.descripcion || 'Tenés algo programado.'} · Tocá para marcar`,
+        data: { recordatorioId: r.id, dia: claveDia(fecha) },
       },
       trigger: fecha,
     });
