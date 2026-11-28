@@ -265,7 +265,7 @@ export default function AccountScreen() {
       await entregarTexto('mis-datos-domus.txt', texto);
       mostrarToast('Tus datos están listos');
     } catch {
-      mostrarToast('No pudimos exportar tus datos. Probá de nuevo.');
+      mostrarToast('No pudimos descargar tus datos. Probá de nuevo.', 'error');
     }
   }
 
@@ -308,7 +308,7 @@ export default function AccountScreen() {
       await entregarTexto('fichas-de-emergencia.txt', texto);
       mostrarToast('Resumen de fichas listo');
     } catch {
-      mostrarToast('No pudimos armar el resumen. Probá de nuevo.');
+      mostrarToast('No pudimos armar el resumen. Probá de nuevo.', 'error');
     } finally {
       setArmandoResumen(false);
     }

@@ -107,7 +107,7 @@ function InvitaCard({ onCerrar }) {
       setCopiado(true);
       setTimeout(() => setCopiado(false), 1500);
     } catch (err) {
-      mostrarToast(err?.mensaje || 'No pudimos copiar el código');
+      mostrarToast(err?.mensaje || 'No pudimos copiar el código. Probá de nuevo.', 'error');
     } finally {
       setCargando(false);
     }
