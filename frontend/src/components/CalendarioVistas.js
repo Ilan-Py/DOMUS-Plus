@@ -110,7 +110,7 @@ function etiquetaDia(fecha) {
   return cap;
 }
 
-export function VistaLista({ eventos, onAbrir, renderAcciones }) {
+export function VistaLista({ eventos, onAbrir, renderAcciones, vacio }) {
   const grupos = [];
   eventos.forEach((e) => {
     const k = dayKey(e.fecha);
@@ -119,7 +119,7 @@ export function VistaLista({ eventos, onAbrir, renderAcciones }) {
     else grupos.push({ k, fecha: e.fecha, items: [e] });
   });
   if (grupos.length === 0) {
-    return <Text style={estilos.vacio}>No hay recordatorios en este período.</Text>;
+    return vacio || <Text style={estilos.vacio}>Nada programado en estas semanas.</Text>;
   }
   return (
     <View style={estilos.lista}>

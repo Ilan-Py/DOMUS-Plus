@@ -100,7 +100,8 @@ function DayCell({ fecha, info, esHoy, esSel, fuera, pasado, onPress, onAgregar,
   const eventos = info ? info.eventos : [];
   const total = eventos.length;
   const fondo = esSel ? '#FFFFFF' : hover ? '#F5EFE6' : esHoy ? '#FDF3EE' : 'transparent';
-  const tenue = fuera ? 0.45 : pasado && !esHoy ? 0.62 : 1;
+  // CAL-03: los días de otro mes y los pasados se atenúan con color (≥ 4,5:1), no con opacidad.
+  const colorNumero = fuera ? '#726A5D' : pasado && !esHoy ? '#574E49' : null;
   const resumen = total
     ? `, ${total} ${total === 1 ? 'recordatorio' : 'recordatorios'} (${[...new Set(eventos.map((e) => NOMBRE_TIPO[e.tipo]))].join(', ')})`
     : ', sin recordatorios';
@@ -122,10 +123,10 @@ function DayCell({ fecha, info, esHoy, esSel, fuera, pasado, onPress, onAgregar,
         accessibilityLabel={`${fecha.getDate()} de ${MESES[fecha.getMonth()].toLowerCase()}${esHoy ? ', hoy' : ''}${resumen}`}
         accessibilityState={{ selected: esSel }}
       >
-        <View style={{ flex: 1, gap: 6, opacity: tenue }}>
+        <View style={{ flex: 1, gap: 6 }}>
         <View style={styles.arriba}>
           <View style={[styles.num, esHoy && styles.numHoy]}>
-            <Text style={[styles.dayText, esHoy && styles.dayTextHoy]}>{fecha.getDate()}</Text>
+            <Text style={[styles.dayText, colorNumero && { color: colorNumero, fontFamily: 'PlusJakartaSans_500Medium' }, esHoy && styles.dayTextHoy]}>{fecha.getDate()}</Text>
           </View>
         </View>
         {total > 0 && verChips && (

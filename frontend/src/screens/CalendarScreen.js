@@ -1,6 +1,8 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { mostrarToast } from '../components/ToastHost';
 import { useAuth } from '../context/AuthContext';
+import AddMenu from '../components/AddMenu';
+import EmptyState from '../components/EmptyState';
 import { marcar, estadoParaMostrar, palabras, detalleDeMarca } from '../data/dosis';
 import { plural, fechaCorta, hora as horaDe } from '../utils/formato';
 import {
@@ -269,7 +271,16 @@ export default function CalendarScreen({ navigation, route }) {
     confirmEliminar(item);
   }
 
-  const nuevo = () => navigation.navigate('AddReminder');
+  // «Agregar»: el mismo menú que en Familia (CAL-06).
+  function alElegirAgregar(clave) {
+    if (clave === 'persona') navigation.navigate('Familia', { screen: 'AddMember', params: { tipoMiembro: 'integrante' } });
+    else if (clave === 'mascota') navigation.navigate('Familia', { screen: 'AddMember', params: { tipoMiembro: 'mascota' } });
+    else if (clave === 'invitar') navigation.navigate('Cuenta');
+    else navigation.navigate('AddReminder', { tipo: clave });
+  }
+  // CAL-04: en el celular los filtros van detrás de «Filtrar» para que el primer evento se vea sin bajar.
+  const [verFiltros, setVerFiltros] = useState(false);
+  const filtrosActivos = (filtro !== 'todos' ? 1 : 0) + (miembro ? 1 : 0) + (tipoFiltro ? 1 : 0);
 
   // De quién es el recordatorio: el integrante/mascota guardado; si no, el dueño de
   // la vacuna o tratamiento al que está vinculado.
@@ -588,7 +599,18 @@ export default function CalendarScreen({ navigation, route }) {
         <PressScale contentStyle={styles.ctrlBtn} onPress={masAcciones} accessibilityLabel="Más acciones: exportar o imprimir">
           <Ionicons name="ellipsis-horizontal" size={24} color={colors.ink} />
         </PressScale>
-        <PrimaryButton title="+ Agregar" variant="accent" fullWidth={false} onPress={nuevo} style={styles.agregarBtn} />
+        {!desktop && (
+          <PressScale
+            contentStyle={[styles.ctrlBtn, styles.filtrarBtn, filtrosActivos > 0 && styles.filtrarBtnOn]}
+            onPress={() => setVerFiltros((v) => !v)}
+            accessibilityLabel={filtrosActivos ? `Filtrar, ${filtrosActivos} activos` : 'Filtrar'}
+            accessibilityState={{ expanded: verFiltros }}
+          >
+            <Ionicons name="options-outline" size={20} color={colors.ink} />
+            <Text style={styles.vistaTexto}>{filtrosActivos ? `Filtrar (${filtrosActivos})` : 'Filtrar'}</Text>
+          </PressScale>
+        )}
+        <AddMenu onElegir={alElegirAgregar} style={styles.agregarBtn} />
       </View>
     </View>
   );
@@ -626,7 +648,8 @@ export default function CalendarScreen({ navigation, route }) {
               accessibilityState={{ selected: !!on }}
               accessibilityLabel={`Ver sólo los avisos de ${m.nombre}`}
             >
-              <EntityAvatar avatarId={m.avatar_id} type={m.clase === 'mascota' ? 'pet' : 'person'} name={m.nombre} apellido={m.apellido} size={34} />
+              <EntityAvatar avatarId={m.avatar_id} type={m.clase === 'mascota' ? 'pet' : 'person'} name={m.nombre} apellido={m.apellido} size={28} />
+              <Text style={[styles.pillText, styles.avatarChipTexto]}>{m.nombre}</Text>
             </PressScale>
           );
         })}
@@ -685,7 +708,7 @@ export default function CalendarScreen({ navigation, route }) {
         <MiniCalendar
           cabecera={false}
           compacta={!desktop}
-          ancha={width >= 1280}
+          ancha={width >= 1680} // CAL-02: con menos ancho los chips se truncaban a «↻08:…»; mejor marcas ✓ ✕ y cantidad
           mes={mes}
           onCambiarMes={setMes}
           marcados={marcados}
@@ -704,7 +727,12 @@ export default function CalendarScreen({ navigation, route }) {
             <SkeletonReminderRow />
           </View>
         ) : (
-          <VistaLista eventos={enLista} onAbrir={handleEditar} renderAcciones={acciones} />
+          <VistaLista
+            eventos={enLista}
+            onAbrir={handleEditar}
+            renderAcciones={acciones}
+            vacio={<EmptyState compacto ilustracion="calendario" titulo="Nada programado" message="Programá una dosis, un turno o una vacuna y aparece acá." acciones={[{ label: 'Agregar', onPress: () => navigation.navigate('AddReminder') }]} />}
+          />
         ))}
       {vista !== 'lista' && leyenda}
     </PaperCard>
@@ -783,20 +811,22 @@ export default function CalendarScreen({ navigation, route }) {
       <Text style={styles.agendaEyebrow} accessibilityRole="header">Resumen de {NOMBRE_MES(mes.getMonth()).toLowerCase()}</Text>
       <View style={styles.resumenGrilla}>
         <View style={styles.resumenDato}>
-          <Text style={styles.resumenNum}>{resumenMes.pasadas === 0 ? '—' : `${resumenMes.dadas} de ${resumenMes.pasadas}`}</Text>
+          <Text style={styles.resumenNum}>{loading ? '…' : resumenMes.pasadas === 0 ? '—' : `${resumenMes.dadas} de ${resumenMes.pasadas}`}</Text>
           <Text style={styles.resumenEtiqueta}>Dosis dadas</Text>
         </View>
         <View style={styles.resumenDato}>
-          <Text style={styles.resumenNum}>{resumenMes.turnos}</Text>
+          <Text style={styles.resumenNum}>{loading ? '…' : resumenMes.turnos}</Text>
           <Text style={styles.resumenEtiqueta}>{resumenMes.turnos === 1 ? 'Turno' : 'Turnos'}</Text>
         </View>
         <View style={styles.resumenDato}>
-          <Text style={styles.resumenNum}>{resumenMes.vacunas}</Text>
+          <Text style={styles.resumenNum}>{loading ? '…' : resumenMes.vacunas}</Text>
           <Text style={styles.resumenEtiqueta}>{resumenMes.vacunas === 1 ? 'Vacuna' : 'Vacunas'}</Text>
         </View>
       </View>
       <Text style={styles.proximoVacio}>
-        {resumenMes.total === 0
+        {loading
+          ? 'Cargando el mes…'
+          : resumenMes.total === 0
           ? 'Nada programado este mes.'
           : `Dosis dadas: de las que ya pasaron este mes, cuántas se marcaron como dadas (${plural(resumenMes.total, 'aviso')} en el mes).`}
       </Text>
@@ -815,7 +845,7 @@ export default function CalendarScreen({ navigation, route }) {
       >
         <View style={[styles.container, desktop && styles.containerIzq]}>
           {header}
-          {filtros}
+          {(desktop || verFiltros) && filtros}
           {desktop ? (
             <View style={styles.columns}>
               <View style={styles.colGrilla}>{grilla}</View>
@@ -867,15 +897,18 @@ const styles = StyleSheet.create({
   hoyBtn: { minHeight: 48, paddingHorizontal: 20, borderRadius: 24, borderWidth: 1.5, borderColor: colors.accentStrong, alignItems: 'center', justifyContent: 'center' },
   hoyBtnText: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.limeDeep },
   vistas: { flexDirection: 'row', borderRadius: 24, backgroundColor: colors.arena, padding: 3 },
-  vistaBtn: { minHeight: 42, paddingHorizontal: 16, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  vistaBtn: { minHeight: 44, paddingHorizontal: 16, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
   vistaBtnOn: { backgroundColor: '#FFFFFF' },
   vistaTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.textBody },
   vistaTextoOn: { color: colors.ink },
   filtrosBloque: { gap: 8 },
   separador: { width: 1, alignSelf: 'stretch', backgroundColor: 'rgba(42, 36, 33, 0.15)', marginHorizontal: 4 },
-  avatarChip: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
+  avatarChip: { flexDirection: 'row', gap: 8, minHeight: 44, paddingLeft: 6, paddingRight: 14, borderRadius: 22, borderWidth: 1.5, borderColor: 'rgba(42, 36, 33, 0.18)', alignItems: 'center' },
+  avatarChipTexto: { fontSize: 15 },
+  filtrarBtn: { flexDirection: 'row', gap: 6, width: 'auto', paddingHorizontal: 12 },
+  filtrarBtnOn: { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: colors.ink },
   avatarChipOn: { borderColor: colors.ink, backgroundColor: '#FFFFFF' },
-  tipoChip: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(42, 36, 33, 0.18)' },
+  tipoChip: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(42, 36, 33, 0.18)' },
   tipoChipTexto: { fontSize: 14, fontFamily: poppinsWeight('600'), color: colors.ink },
   swatch: { width: 12, height: 12, borderRadius: 3 },
   hojaMargen: { marginRight: 7, marginBottom: 8 },
