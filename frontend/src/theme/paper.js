@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { SOMBRA_PAPEL } from './papel';
 
 // Sistema visual "paper cutout" (recorte de papel), sutil y sólo como acento táctil:
 // bordes blancos limpios, sombra cálida en dos capas, micro-elevación al pasar el mouse y una
@@ -11,15 +12,21 @@ import { Platform } from 'react-native';
 // Reglas de uso (accesibilidad para adultos mayores): nada de rotaciones, temblores ni loops
 // sobre formularios, textos legibles ni la ficha de emergencia. Sólo entrada única y hover.
 
-// Ruido de papel: SVG feTurbulence al 2 % de opacidad, color tinta cálida (#2A2421).
+// Ruido de papel: SVG feTurbulence al 4 % de opacidad, color tinta cálida (#2A2421).
 const RUIDO_SVG =
   "<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'>" +
   "<filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/>" +
   "<feColorMatrix values='0 0 0 0 .165 0 0 0 0 .141 0 0 0 0 .129 0 0 0 1.2 0'/></filter>" +
-  "<rect width='100%' height='100%' filter='url(#n)' opacity='.02'/></svg>";
+  "<rect width='100%' height='100%' filter='url(#n)' opacity='.04'/></svg>";
 
 const CSS = `
-/* Grano de papel sobre el fondo crema: 2 % de opacidad, no intercepta clics. */
+:root {
+  --paper-1: ${SOMBRA_PAPEL[1]};
+  --paper-2: ${SOMBRA_PAPEL[2]};
+  --paper-3: ${SOMBRA_PAPEL[3]};
+}
+
+/* Grano de papel sobre el fondo crema: 4 % de opacidad, no intercepta clics. */
 body::after {
   content: "";
   position: fixed;
@@ -91,7 +98,23 @@ body::after {
   }
 }
 
+/* PaperCard: cartulina sin borde con sombra de papel apilado en 3 niveles. Al pasar el mouse la hoja se levanta
+   2 px y pasa al nivel siguiente (150-200 ms). */
+[data-paper~="papel"] {
+  transition: translate 170ms ease-out, box-shadow 170ms ease-out;
+}
+[data-paper~="p1"] { box-shadow: var(--paper-1) !important; }
+[data-paper~="p2"] { box-shadow: var(--paper-2) !important; }
+[data-paper~="p3"] { box-shadow: var(--paper-3) !important; }
+@media (hover: hover) {
+  [data-paper~="papel"]:hover { translate: 0 -2px; }
+  [data-paper~="p1"]:hover { box-shadow: var(--paper-2) !important; }
+  [data-paper~="p2"]:hover, [data-paper~="p3"]:hover { box-shadow: var(--paper-3) !important; }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  [data-paper~="papel"] { transition: none; }
+  [data-paper~="papel"]:hover { translate: none; }
   [data-paper~="carton"], [data-paper~="lift"] { transition: none; }
   [data-paper~="lift"]:hover { translate: none; }
   [data-paper~="carton"]:hover { translate: none; }

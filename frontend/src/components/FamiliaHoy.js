@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
-import { paper } from '../theme/paper';
+import PaperCard from './PaperCard';
 import api from '../api/client';
 import PressScale from './PressScale';
 import EntityAvatar from './EntityAvatar';
@@ -97,7 +97,7 @@ export function HoyPanel({ avisos, setAvisos, recargar, integrantes, mascotas, o
   }
 
   return (
-    <View {...paper('cartulina')} style={estilos.card}>
+    <PaperCard nivel={1} hoja="terracota" style={estilos.card} wrapperStyle={estilos.hojaMargen}>
       <View style={estilos.cab}>
         <Text style={estilos.titulo} accessibilityRole="header">Hoy en tu familia</Text>
         <PressScale contentStyle={estilos.enlace} onPress={onVerCalendario} accessibilityLabel="Ver calendario">
@@ -167,7 +167,7 @@ export function HoyPanel({ avisos, setAvisos, recargar, integrantes, mascotas, o
           );
         })
       )}
-    </View>
+    </PaperCard>
   );
 }
 
@@ -230,7 +230,7 @@ export function SemanaTira({ avisos, onElegirDia }) {
     return d;
   });
   return (
-    <View {...paper('cartulina')} style={estilos.card}>
+    <PaperCard nivel={1} style={estilos.card}>
       <Text style={estilos.titulo} accessibilityRole="header">Esta semana</Text>
       <View style={estilos.semana}>
         {dias.map((d, i) => {
@@ -253,14 +253,15 @@ export function SemanaTira({ avisos, onElegirDia }) {
           );
         })}
       </View>
-    </View>
+    </PaperCard>
   );
 }
 
 export { colorDeMiembro };
 
 const estilos = StyleSheet.create({
-  card: { backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(42, 36, 33, 0.08)', padding: 24, gap: 12 },
+  card: { padding: 24, gap: 12 },
+  hojaMargen: { marginRight: 7, marginBottom: 8 }, // lugar para la hoja de color que asoma detrás
   cab: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   titulo: { fontSize: 22, lineHeight: 30, fontFamily: SERIF_BOLD, color: colors.ink },
   enlace: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 48 },
