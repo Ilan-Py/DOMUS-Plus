@@ -68,12 +68,14 @@ barrido completo en vez de reaccionar a una captura a la vez.
 
 ## Deuda técnica ya identificada (no visual)
 
-- [ ] IDOR en `saludController` — cualquier usuario autenticado puede
-  leer/escribir historial de otra familia cambiando un id (ver
-  `API_NOTES.md`). Requiere cambio de backend.
-- [ ] No hay validación server-side que ate `tipo` a
-  `fecha_nacimiento` en integrantes — nada impide crear un "adulto" de
-  5 años.
+- [x] IDOR en `saludController` — cualquier usuario autenticado podía
+  leer/escribir historial de otra familia cambiando un id. **Resuelto
+  en el back** (fix de seguridad, rama `feature/errores-y-mejoras`):
+  devuelve 404. Casos en `docs/CASOS_DE_PRUEBA_API.md`.
+- [x] No había validación server-side que ate `tipo` a
+  `fecha_nacimiento` en integrantes. **Resuelto (MEJ-004):** el back
+  calcula el tipo con la fecha; falta quitar los botones en el front
+  (ver CLAUDE.md → "Pendientes del front").
 - [ ] Falta variant "danger"/destructivo en `PrimaryButton` — el botón
   de logout usa `secondary` como aproximación.
 - [ ] Falta confirmación antes de cerrar sesión (fuera de alcance del

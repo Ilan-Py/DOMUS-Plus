@@ -24,6 +24,10 @@
 //   El registro de actividad trae ingresos y altas del 24 al 30/11 (y el alta de Paola
 //   el 1/12) para que el panel no arranque vacío.
 //
+//   Familias de relleno (24, cuentas *@relleno.domus.test): sólo para que las estadísticas
+//   del admin tengan volumen (usuarios, integrantes, mascotas, adjuntos y 90 días de
+//   actividad). Se generan con semilla fija, así los números son siempre los mismos.
+//
 // Modo "sólo demo" (no borra nada): SEED_SOLO_DEMO=1 node prisma/seed.js agrega las
 // familias Argento y Herrera, a Paola y al admin en una base que ya tiene datos (por
 // ejemplo las cuentas del equipo). Si la demo ya está cargada, no hace nada.
@@ -84,6 +88,125 @@ function serie({ grupoId, creadoPor, tipo, descripcion, desdeDias, hora, cadaDia
     fechaHora: enDias(desdeDias + i * cadaDias, hora),
     serieId, repeticionDias: cadaDias, activo: true
   }));
+}
+
+// ------------------------------------------------------------
+// Familias de relleno para las estadísticas del admin
+// ------------------------------------------------------------
+// Generador pseudoaleatorio con semilla fija (mulberry32): mismos datos en cada seed
+function generador(semilla) {
+  return function () {
+    semilla |= 0; semilla = (semilla + 0x6D2B79F5) | 0;
+    let t = Math.imul(semilla ^ (semilla >>> 15), 1 | semilla);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const azar = generador(20261201);
+const entre = (min, max) => min + Math.floor(azar() * (max - min + 1));
+const elegir = (lista) => lista[Math.floor(azar() * lista.length)];
+const sinAcentos = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+const APELLIDOS = ['Gómez', 'Fernández', 'López', 'Martínez', 'Sosa', 'Romero', 'Benítez', 'Álvarez', 'Ruiz', 'Torres',
+  'Medina', 'Castro', 'Suárez', 'Ríos', 'Molina', 'Ortiz', 'Silva', 'Ramos', 'Vega', 'Acosta', 'Giménez', 'Ledesma', 'Peralta', 'Ferreyra'];
+const NOMBRES_ADULTO = ['Lucía', 'Martín', 'Carolina', 'Diego', 'Florencia', 'Javier', 'Natalia', 'Gonzalo', 'Valeria', 'Sebastián',
+  'Romina', 'Federico', 'Laura', 'Pablo', 'Mariana', 'Hernán', 'Cecilia', 'Matías', 'Andrea', 'Nicolás'];
+const NOMBRES_MENOR = ['Mateo', 'Sofía', 'Benjamín', 'Emma', 'Thiago', 'Olivia', 'Bautista', 'Martina', 'Felipe', 'Catalina', 'Joaquín', 'Isabella'];
+const NOMBRES_MAYOR = ['Norma', 'Héctor', 'Elsa', 'Rubén', 'Marta', 'Osvaldo', 'Graciela', 'Alberto'];
+const NOMBRES_MASCOTA = ['Luna', 'Toby', 'Lola', 'Rocky', 'Milo', 'Nina', 'Simón', 'Kira', 'Coco', 'Bruno', 'Frida', 'Pepa', 'Tom', 'Uma'];
+// Especies tal como podrían haber quedado guardadas (algunas cargadas antes de MEJ-001):
+// las estadísticas las agrupan igual («hamster» y «Hámster» cuentan como una).
+const ESPECIES = ['Perro', 'Perro', 'Perro', 'Perro', 'Gato', 'Gato', 'Gato', 'Conejo', 'conejo', 'Hámster', 'hamster',
+  'Tortuga', 'Ave', 'Pez', 'Cobayo', 'Hurón', 'huron', 'Otro'];
+const VACUNAS = ['Antigripal', 'Triple viral', 'Hepatitis B', 'Antitetánica', 'Antirrábica', 'Séxtuple'];
+
+async function sembrarFamiliasDeRelleno(hash) {
+  const actividad = [];
+  const registrar = (usuarioId, accion, fecha, entidad = null, entidadId = null) =>
+    actividad.push({ usuarioId, accion, fecha, entidad, entidadId });
+  const fechaEn = (diasAntes, minutosDelDia) =>
+    new Date(HOY.getFullYear(), HOY.getMonth(), HOY.getDate() - diasAntes, 0, minutosDelDia);
+  const nacimiento = (edadMin, edadMax) =>
+    new Date(Date.UTC(HOY.getFullYear() - entre(edadMin, edadMax), entre(0, 11), entre(1, 28)));
+  const usados = new Set();
+
+  for (const [n, apellido] of APELLIDOS.entries()) {
+    // Cuentas: la mayoría se registró entre agosto y noviembre; unas pocas la mañana del 1/12
+    const diasRegistro = n < 3 ? 0 : entre(1, 105);
+    const cuentas = [];
+    const cantidadCuentas = elegir([1, 1, 2, 2, 2, 3]);
+    for (let c = 0; c < cantidadCuentas; c++) {
+      let nombre;
+      do { nombre = elegir(NOMBRES_ADULTO); } while (usados.has(nombre + apellido));
+      usados.add(nombre + apellido);
+      const creadoEn = diasRegistro === 0 ? fechaEn(0, entre(30, 7 * 60)) : fechaEn(Math.max(1, diasRegistro - c * entre(0, 3)), entre(8 * 60, 23 * 60));
+      cuentas.push(await prisma.usuario.create({
+        data: { nombre, apellido, email: `${sinAcentos(nombre)}.${sinAcentos(apellido)}@relleno.domus.test`, passwordHash: hash, createdAt: creadoEn }
+      }));
+    }
+    const grupo = await prisma.grupoFamiliar.create({
+      data: {
+        nombre: `Familia ${apellido}`,
+        miembros: { create: cuentas.map((u, i) => ({ usuarioId: u.id, rol: i === 0 ? 'dueno' : 'miembro', joinedAt: u.createdAt })) }
+      }
+    });
+
+    // Integrantes: los adultos de las cuentas, hijos y a veces un abuelo o abuela
+    const integrantes = [];
+    for (const u of cuentas) integrantes.push(await integrante(grupo.id, { nombre: u.nombre, apellido, fechaNacimiento: nacimiento(25, 55) }));
+    for (let h = 0, hijos = elegir([0, 1, 1, 2, 2, 3]); h < hijos; h++) {
+      integrantes.push(await integrante(grupo.id, { nombre: elegir(NOMBRES_MENOR), apellido, fechaNacimiento: nacimiento(0, 17) }));
+    }
+    if (azar() < 0.5) integrantes.push(await integrante(grupo.id, { nombre: elegir(NOMBRES_MAYOR), apellido, fechaNacimiento: nacimiento(66, 90) }));
+
+    const mascotas = [];
+    for (let m = 0, cant = elegir([0, 1, 1, 1, 2, 2, 3]); m < cant; m++) {
+      mascotas.push(await prisma.mascota.create({ data: { grupoId: grupo.id, nombre: elegir(NOMBRES_MASCOTA), especie: elegir(ESPECIES) } }));
+    }
+
+    // Algunas vacunas y recordatorios, para que las altas del registro apunten a algo real
+    const vacunas = [];
+    for (const i of integrantes.slice(0, entre(1, 2))) {
+      vacunas.push(await prisma.vacuna.create({
+        data: { integranteId: i.id, nombre: elegir(VACUNAS), fechaAplicacion: diaRelativo(-entre(30, 300)) }
+      }));
+    }
+    const recordatorio = await prisma.recordatorio.create({
+      data: { grupoId: grupo.id, creadoPor: cuentas[0].id, tipo: elegir(['control', 'medicacion', 'vacuna']),
+        fechaHora: enDias(entre(1, 40), `${entre(8, 20)}:00`), descripcion: 'Recordatorio' }
+    });
+    // Adjuntos de ejemplo (imagen pública de muestra de Cloudinary): sólo cuentan para el total
+    if (azar() < 0.6) {
+      for (let a = 0, cant = entre(1, 3); a < cant; a++) {
+        await prisma.adjunto.create({
+          data: { integranteId: elegir(integrantes).id, tipoArchivo: 'imagen', subidoPor: cuentas[0].id,
+            url: 'https://res.cloudinary.com/demo/image/upload/sample.jpg', publicId: 'sample', nombreOriginal: 'estudio.jpg' }
+        });
+      }
+    }
+
+    // Actividad: el registro de cada cuenta y, desde ahí, ingresos con algunas acciones
+    const entidades = [
+      ...integrantes.map((i) => ['integrante', i.id]), ...mascotas.map((m) => ['mascota', m.id]),
+      ...vacunas.map((v) => ['vacuna', v.id]), ['recordatorio', recordatorio.id]
+    ];
+    for (const u of cuentas) {
+      registrar(u.id, 'alta', u.createdAt, 'usuario', u.id);
+      const constancia = azar() < 0.25 ? 0.01 : 0.04 + azar() * 0.22; // qué tan seguido entra (1 de cada 4 casi nunca)
+      const diasCuenta = Math.floor((HOY - u.createdAt) / 86400000);
+      for (let d = Math.min(diasCuenta, 90); d >= 1; d--) {
+        if (azar() > constancia) continue;
+        const minuto = entre(7 * 60, 23 * 60);
+        registrar(u.id, 'login', fechaEn(d, minuto));
+        for (let a = 0, acciones = elegir([0, 0, 1, 1, 2, 3]); a < acciones; a++) {
+          const [entidad, id] = elegir(entidades);
+          const accion = elegir(['alta', 'alta', 'modificacion', 'modificacion', 'modificacion', 'eliminacion']);
+          registrar(u.id, accion, fechaEn(d, minuto + 2 + a * 3), accion === 'eliminacion' ? 'recordatorio' : entidad, accion === 'eliminacion' ? null : id);
+        }
+      }
+    }
+  }
+  await prisma.registroActividad.createMany({ data: actividad });
 }
 
 async function main() {
@@ -441,6 +564,16 @@ async function main() {
   registrar(paola.id, 'alta', enDias(0, '08:30'), 'usuario', paola.id);
 
   await prisma.registroActividad.createMany({ data: actividad });
+
+  // ============================================================
+  // FAMILIAS DE RELLENO (sólo para que las estadísticas del admin tengan volumen)
+  // 24 familias con 1 a 3 cuentas, integrantes de todas las edades, mascotas y 90 días
+  // de actividad. Se generan con una semilla fija: los números salen iguales cada vez.
+  // No se usan en la demo de la app; las cuentas existen (pass Admin123) pero no hace
+  // falta entrar con ellas.
+  // ============================================================
+  // En modo "sólo demo" no se agregan (la base ya tiene sus propios datos)
+  if (!SOLO_DEMO) await sembrarFamiliasDeRelleno(hash);
 
   console.log('Datos de prueba cargados correctamente.');
 }

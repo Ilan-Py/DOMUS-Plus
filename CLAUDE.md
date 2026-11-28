@@ -23,7 +23,7 @@ Idioma del proyecto: **español rioplatense** (código, comentarios, mensajes de
 backend/
   prisma/schema.prisma        # Modelo de datos (fuente de verdad de la BD)
   prisma/migrations/          # Migraciones Prisma — nunca editar una ya aplicada
-  prisma/seed.js              # Datos de demo (familias + admin@domus.test, pass Admin123)
+  prisma/seed.js              # Datos de demo (familias + admin@domus.test + 24 familias de relleno, pass Admin123)
   src/app.js                  # Express: middlewares, montaje de rutas, 404
   src/config/                 # auth (JWT + soloAdmin), prisma (singleton), cloudinary, upload (multer), rateLimiter
   src/routes/*.routes.js      # Sólo wiring de rutas → controllers
@@ -193,12 +193,41 @@ return res.status(200).json({ codigo: 200, estado: 'ok', datos: resultado });
   migraciones ya aplicadas.
 - No commitear `.env` ni credenciales (Cloudinary, JWT, Supabase).
 
+## Pendientes del front
+
+Estado al 28/11/2026, después del rediseño papercut (revisado contra el código, no en pantalla). El rediseño ya
+resolvió ERR-009 (lista de grupos sanguíneos), ERR-010 (alergias como lista), MEJ-001 (Perro / Gato / Ave / Otro),
+MEJ-002 (desplegable de especialidades), MEJ-005 (repetición y «este y los siguientes»), ERR-014 (`elegirOpcion` en
+adjuntos) y ERR-002/003 (`GroupSetupScreen` con `confirmarDestructivo`). Lo que el back pide al front está en
+`docs/TODO_BACKEND_REDISENO.md` (lo inverso: lo que el front pide al back).
+
+**El back ya lo soporta, falta en la app:**
+- **Eliminar grupo** (`AccountScreen`): no hay botón para el dueño (`DELETE /api/familia/grupo`).
+- **Cuenta admin** (`AuthContext`): el login devuelve `usuario.rol`. Si es `admin`, la app lo trata como un usuario sin
+  grupo y le ofrece crear uno. Mostrarle un aviso o llevarlo al panel (`/admin`, servido por el back) o a pantallas
+  propias que usen `/api/admin/*`.
+
+**A verificar en pantalla** (del documento de errores; el rediseño cambió esas pantallas, pero nadie lo comprobó):
+ERR-001 (íconos de la barra inferior), ERR-004 (scroll al agregar integrante), ERR-005 (barra inferior donde no va),
+ERR-006 (Cancelar y flecha a la vez), ERR-007 (calendario en Firefox y Brave) y MEJ-003 (accesibilidad para mayores).
+
+**Decisiones abiertas (no son bugs):**
+- **Historial**: es sólo de consulta; no existe endpoint para agregar eventos (los del seed están cargados directo).
+- **Notificaciones**: son locales del celular (`utils/notifications.js`). En web no hay, y el back no manda push.
+
 ## Documentación existente (y su estado)
 
 - `README.md` — setup, endpoints, despliegue (Render + Supabase, EAS). Mayormente al día; dice
   Prisma 6 pero `package.json` usa `^5.22`.
 - `docs/API_NOTES.md` — contratos y trampas. **Parcialmente desactualizado:** menciona MySQL y
-  formato DATETIME de MySQL, y que el JWT vencido da 403 (hoy da 401). El punto del IDOR sigue vigente.
+  formato DATETIME de MySQL, que el JWT vencido da 403 (hoy da 401) y el IDOR (ya resuelto).
+- `docs/DOMUS+ API.postman_collection.json` — todos los endpoints, en un orden que corre de arriba a abajo
+  contra el seed (carpeta 0 = logins, 12 = limpieza, 13 = adjuntos a mano). Todavía sin `pm.test`.
+- `docs/CASOS_DE_PRUEBA_API.md` — qué verificar en cada pedido y los casos negativos con el código y el
+  mensaje reales, para escribir los tests de Postman/Newman. **Un cambio de validación o de mensaje se
+  refleja ahí.**
+- `docs/DOMUS+ Documento Fundacional.pdf` — **desactualizado:** dice MySQL, no tiene el actor Administrador
+  ni el registro de actividad, y el modelo de datos y la arquitectura son los originales.
 - `docs/SPRINT_STATUS.md`, `frontend/todo.md` — backlog del frontend con estado verificado por ítem.
-- `docs/QA_CHECKLIST.md` — checklist de pruebas manuales.
+- `docs/QA_CHECKLIST.md` — checklist de revisión del front (pruebas manuales).
 - `docs/scripts-viejos/` — SQL previo a Prisma. Sólo referencia histórica; no usar.

@@ -224,6 +224,9 @@ La contraseña de todos es `Admin123`.
 | Ilan, Agustina, Alan | `ilan@` / `agus@` / `alan@domus.test` | Una familia cada uno, con datos mínimos |
 | Admin DOMUS | `admin@domus.test` | Administrador del sistema (sin familia): registro de actividad y estadísticas |
 
+Además hay 24 familias de relleno (`*@relleno.domus.test`) con integrantes, mascotas y 90 días de
+actividad, sólo para que las estadísticas del administrador tengan volumen.
+
 El detalle de qué trae cargado cada familia está al principio de `backend/prisma/seed.js`.
 
 ---
@@ -368,6 +371,9 @@ días de las estadísticas y las fechas que arma con hora local.
 | GET | `/api/admin/estadisticas?dias=7` | Estadísticas globales: usuarios, grupos, integrantes por categoría, mascotas por especie, adjuntos y actividad del período (1 a 90 días) |
 | GET | `/api/admin/actividad` | Historial de actividad paginado (`pagina`, `por_pagina`, `usuario_id`, `accion`, `desde`, `hasta`) |
 | GET | `/api/admin/usuarios/:id?motivo=...` | Identifica una cuenta (nombre y email). El motivo es obligatorio y queda registrado |
+
+**Pruebas de la API:** `docs/DOMUS+ API.postman_collection.json` corre todos los endpoints de arriba a
+abajo contra el seed, y `docs/CASOS_DE_PRUEBA_API.md` lista qué verificar y los casos negativos.
 
 El panel del administrador está en **`http://localhost:3000/admin`** (ingresar con
 `admin@domus.test`). Es una página simple servida por el backend que usa estos
