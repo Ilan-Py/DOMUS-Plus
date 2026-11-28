@@ -45,7 +45,7 @@ function celdasDelMes(mes) {
 }
 
 // Fondo de la carta: tono liso (0 o 1 categoría) o cortes diagonales a 135° sin difuminar (2 o 3).
-function FondoCategorias({ categorias }) {
+export function FondoCategorias({ categorias }) {
   const t = categorias.slice(0, 3).map((c) => (TONO_CATEGORIA[c] || VACIO).bg);
   if (t.length < 2) return null;
   const poligonos =

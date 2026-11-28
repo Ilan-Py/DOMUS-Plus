@@ -6,10 +6,9 @@ import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
 import { paper } from '../theme/paper';
 import api from '../api/client';
 import PressScale from './PressScale';
-import PrimaryButton from './PrimaryButton';
 import EntityAvatar from './EntityAvatar';
 import { mostrarToast } from './ToastHost';
-import { dayKey } from './MiniCalendar';
+import { dayKey, TONO_CATEGORIA, FondoCategorias } from './MiniCalendar';
 import {
   tipoDeAviso,
   colorDeMiembro,
@@ -21,6 +20,29 @@ import {
 } from '../utils/avisos';
 
 const NOMBRE_DIA = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+
+// Botón secundario cálido: borde suave y, al pasar el mouse, fondo arena.
+function BotonSuave({ title, onPress }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <PressScale
+      style={estilos.suaveWrap}
+      contentStyle={[estilos.suave, hover && estilos.suaveHover]}
+      onPress={onPress}
+      onHoverIn={() => setHover(true)}
+      onHoverOut={() => setHover(false)}
+      accessibilityLabel={title}
+    >
+      <Text style={estilos.suaveTexto}>{title}</Text>
+    </PressScale>
+  );
+}
+
+// Categoría de color igual que en el Calendario: medicación; si no, mascota; si no, turno o control.
+function categoriaDe(a) {
+  if (a.tipo === 'medicacion') return 'medicacion';
+  return a.mascota_id && !a.integrante_id ? 'mascota' : 'turno';
+}
 
 // ---------------------------------------------------------------------------
 // Hoy: pendientes de hoy (y vencidos) con acciones directas. "Hecho" desactiva el recordatorio y "Más tarde" lo
@@ -88,10 +110,13 @@ export function HoyPanel({ avisos, setAvisos, recargar, integrantes, mascotas, o
         <Text style={estilos.ayuda}>Cargando lo de hoy…</Text>
       ) : lista.length === 0 ? (
         <View style={estilos.vacio}>
-          <Ionicons name="checkmark-circle" size={36} color={colors.salvia} />
+          {/* Sticker de papel: check salvia con borde blanco y sombra cálida suave */}
+          <View style={estilos.sticker}>
+            <Ionicons name="checkmark" size={26} color="#FFFFFF" />
+          </View>
           <Text style={estilos.vacioTitulo}>Hoy no hay nada pendiente</Text>
           <Text style={estilos.ayuda}>Podés programar un turno, una vacuna o una dosis.</Text>
-          <PrimaryButton title="Programar un recordatorio" variant="secondary" fullWidth={false} onPress={onProgramar} />
+          <BotonSuave title="Programar un recordatorio" onPress={onProgramar} />
         </View>
       ) : (
         lista.map((a, i) => {
@@ -211,23 +236,19 @@ export function SemanaTira({ avisos, onElegirDia }) {
         {dias.map((d, i) => {
           const delDia = (avisos || []).filter((a) => (i === 0 ? a.fecha <= finDeDia(d) : mismoDia(a.fecha, d)));
           const esHoy = i === 0;
+          const categorias = esHoy ? [] : [...new Set(delDia.map(categoriaDe))];
+          const tono = TONO_CATEGORIA[categorias[0]];
           return (
             <PressScale
               key={i}
               style={estilos.diaCelda}
-              contentStyle={[estilos.dia, esHoy && estilos.diaHoy]}
+              contentStyle={[estilos.dia, esHoy ? estilos.diaHoy : tono && { backgroundColor: tono.bg, borderWidth: 1, borderColor: tono.borde }]}
               onPress={() => onElegirDia(dayKey(d))}
               accessibilityLabel={`${NOMBRE_DIA[d.getDay()]} ${d.getDate()}: ${delDia.length === 0 ? 'sin pendientes' : `${delDia.length} pendiente${delDia.length === 1 ? '' : 's'}`}`}
             >
+              <FondoCategorias categorias={categorias} />
               <Text style={[estilos.diaNombre, esHoy && estilos.diaNombreHoy]}>{esHoy ? 'hoy' : NOMBRE_DIA[d.getDay()]}</Text>
               <Text style={[estilos.diaNumero, esHoy && estilos.diaNombreHoy]}>{d.getDate()}</Text>
-              <View style={estilos.puntos}>
-                {delDia.slice(0, 3).map((a) => (
-                  <View key={a.id} style={[estilos.punto, { backgroundColor: tipoDeAviso(a.tipo).fg }]} />
-                ))}
-                {delDia.length === 0 && <View style={estilos.puntoVacio} />}
-              </View>
-              <Text style={estilos.diaCuenta}>{delDia.length > 0 ? `${delDia.length}` : '—'}</Text>
             </PressScale>
           );
         })}
@@ -269,13 +290,28 @@ const estilos = StyleSheet.create({
   alertaTexto: { flex: 1, fontSize: 14, lineHeight: 20, fontFamily: poppinsWeight('600') },
   semana: { flexDirection: 'row', gap: 8 },
   diaCelda: { flex: 1, minWidth: 0 },
-  dia: { alignItems: 'center', gap: 4, minHeight: 96, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.arena },
-  diaHoy: { backgroundColor: colors.salvia },
+  dia: { alignItems: 'center', justifyContent: 'center', gap: 2, minHeight: 88, paddingVertical: 10, borderRadius: 12, backgroundColor: '#FBF8F3', borderWidth: 1, borderColor: 'rgba(42, 36, 33, 0.08)', overflow: 'hidden' },
+  diaHoy: { backgroundColor: '#C24623', borderColor: '#C24623' },
   diaNombre: { fontSize: 13, lineHeight: 18, color: colors.textBody, textTransform: 'uppercase' },
   diaNombreHoy: { color: '#FFFFFF' },
   diaNumero: { fontSize: 22, lineHeight: 28, fontFamily: SERIF_BOLD, color: colors.ink },
-  puntos: { flexDirection: 'row', gap: 3, height: 8, alignItems: 'center' },
-  punto: { width: 8, height: 8, borderRadius: 4 },
-  puntoVacio: { width: 8, height: 2, borderRadius: 1, backgroundColor: 'rgba(42, 36, 33, 0.2)' },
-  diaCuenta: { fontSize: 13, lineHeight: 18, color: colors.textBody },
+  suaveWrap: { alignSelf: 'flex-start' },
+  suave: { minHeight: 48, paddingHorizontal: 20, borderRadius: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(42, 36, 33, 0.22)', backgroundColor: 'transparent' },
+  suaveHover: { backgroundColor: '#F3EAE0' },
+  suaveTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.ink },
+  sticker: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.salvia,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#2A2421',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
 });

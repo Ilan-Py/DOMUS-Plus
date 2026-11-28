@@ -22,7 +22,7 @@ import PrimaryButton from '../components/PrimaryButton';
 import BannerRecortes from '../components/BannerRecortes';
 import { HoyPanel, SemanaTira, AlertasFamilia, calcularAlertas } from '../components/FamiliaHoy';
 import useAvisos, { useVacunas } from '../hooks/useAvisos';
-import { colorDeMiembro, duenoDeAviso, inicioDeDia } from '../utils/avisos';
+import { duenoDeAviso, inicioDeDia } from '../utils/avisos';
 import { paper } from '../theme/paper';
 import PressScale from '../components/PressScale';
 import Skeleton from '../components/Skeleton';
@@ -233,7 +233,6 @@ export default function FamilyListScreen({ navigation }) {
   const hoyFin = new Date();
   hoyFin.setHours(23, 59, 59, 999);
   const pendientesHoy = (avisos || []).filter((a) => a.fecha <= hoyFin).length;
-  const proximo = (avisos || []).find((a) => a.fecha > hoyFin);
   const alertas = calcularAlertas({ avisos, vacunas });
   const hoyInicio = inicioDeDia(new Date());
 
@@ -271,13 +270,6 @@ export default function FamilyListScreen({ navigation }) {
               {avisos === null ? '…' : pendientesHoy === 0 ? 'Nada pendiente hoy' : `${pendientesHoy} pendiente${pendientesHoy === 1 ? '' : 's'} hoy`}
             </Text>
           </View>
-          {!!proximo && (
-            <View style={styles.stat}>
-              <Text style={styles.statNum} numberOfLines={1}>
-                Próximo: {proximo.descripcion || 'recordatorio'} ({proximo.fecha.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' })})
-              </Text>
-            </View>
-          )}
         </View>
         <View style={styles.bannerAction}>
           <PrimaryButton title="+ Agregar" variant="accent" fullWidth={false} onPress={() => setMenuAgregar((v) => !v)} />
@@ -354,7 +346,6 @@ export default function FamilyListScreen({ navigation }) {
                     nombreCompleto={nombreCompleto}
                     subt={`${TIPO_LABELS[item.tipo] ?? item.tipo}${edad !== null ? ` · ${edad} años` : ''}`}
                     tipo={item.tipo}
-                    color={colorDeMiembro('integrante', item.id)}
                     detalle={detalleDeIntegrante(item)?.texto}
                     detalleTono={detalleDeIntegrante(item)?.tono}
                     disabled={busy}
@@ -398,7 +389,6 @@ export default function FamilyListScreen({ navigation }) {
                     avatarId={item.avatar_id}
                     nombre={item.nombre}
                     subt={item.raza ? `${item.especie} · ${item.raza}` : item.especie}
-                    color={colorDeMiembro('mascota', item.id)}
                     detalle={detalleDeMascota(item)?.texto}
                     detalleTono={detalleDeMascota(item)?.tono}
                     disabled={busy}
