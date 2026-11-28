@@ -1,0 +1,56 @@
+# 06 · Implementación
+
+> Fase 6 del review UI/UX. Rama `feature/ux-review` (sale de `feature/familia-hoy`). Un commit por tema; cada uno se
+> probó en Edge (Playwright) en 1440 y 390 px, y los cambios de backend también con curl. Los IDs son los de
+> [02-auditoria.md](02-auditoria.md) y [05-copy.md](05-copy.md) §7.
+
+## Commits
+
+| Commit | Qué | Hallazgos |
+|---|---|---|
+| `be7c026` | Documentos de las fases 0 a 5 | — |
+| `9ea06bf` | Tokens, componentes base, toast con «Deshacer», `/styleguide` | Fase 4 |
+| `fe01690` | Sin conexión: grupo guardado + copia local de las fichas y aviso «Sin conexión» | **EME-01 (P0)** |
+| `b3ea06b` | Backend: `estado` (pendiente/hecho/omitido), `hecho_a`, `hecho_por`; `PATCH /:id/marcar` y `/:id/reactivar` | D5, base de DOS-02/03 |
+| `3f4de1c` | Hoy y Calendario: «Dada» / «No se dio» con «Deshacer», «¿Se la dieron?» en las atrasadas, «Pasar a las …» seguro | **DOS-01, 02, 03 (P0)**, DOS-04, 06, 07 |
+| `6e39d1e` | Toasts de error con su tipo (y persistentes) | DOS-05 |
+| `bd0be92` | Emergencia como 4.º destino; ficha en modo lectura, «Toma actualmente», edad, teléfonos sin cortes; «Completar su ficha» al agregar a alguien | EME-02, 03, 04, 05, 06, 08 |
+| `1159261` | Eliminar a un integrante o mascota borra también lo que tenía programado | COP-01 |
+| `020f2e8` | Formulario: «Medicamento» + «Dosis», tipo sin preelegir, persona preelegida si hay una sola, errores que dicen qué falta | DOS-08, DOS-09 |
+| `309294f` | Familia: `PaperBanner` + `StatChip` (sin ceros) + `AddMenu`; edad en las tarjetas; «Completar ficha»; un solo acento; semana con días de 48 px | FAM-02, 04, 05, 07, 08 |
+| `ebad736` | Calendario: filtros con nombre, 44 px, «Filtrar» en el celular, `AddMenu`, marcas ✓ ⊖ ✕ en la grilla, contraste de los días, sin «0» mientras carga, vacío con `EmptyState` | CAL-01 a 07, SIS-02 |
+| `ca2488f` | Copy: roles («Creó el grupo», «Puede editar»), «personas con acceso», cerrar sesión unificado, requisitos de contraseña en texto, mensajes del backend | CTA-02, COP-04, COP-05, FRM-01 |
+| `75d964d` | Notificación → día del aviso; siglas como se cargaron | DOS-11, FRM-03 |
+| `275113c` | Filas de vacuna y tratamiento sin botón dentro de botón (previo a la revisión) | Nuevo (a11y) |
+
+## Estado de los hallazgos
+
+- **P0 (4/4) resueltos.**
+- **P1:** resueltos todos menos **FAM-01** (el dueño no queda como integrante): necesita `Integrante.usuarioId` en el
+  backend (`TODO(backend)`). Mientras tanto Cuenta ofrece «Sumarme».
+- **COP-02 descartado** (ver 05-copy.md §7): eliminar una cuenta ya reasigna lo que cargó.
+
+## Decisiones tomadas durante la implementación
+
+- **«Pasar a las …» no tiene «Deshacer».** La API sólo acepta horas futuras, así que volver a la hora original (ya
+  pasada) no se puede guardar. El toast dice la hora nueva; la dosis se puede volver a pasar o marcar.
+- **«No sé la hora»** en una dosis atrasada guarda `hecho_a` = el momento en que se marcó, y la interfaz lo muestra como
+  «Dada · marcada el sábado 28/11», sin inventar una hora.
+- **Copia local** (`utils/cacheLocal.js`): lista de familia, contactos y tratamientos de cada integrante, en el dispositivo
+  de quien tiene la sesión. Se borra al cerrar sesión. Con conexión siempre manda el servidor.
+- **Calendario en pantallas de menos de 1680 px:** la grilla muestra marcas y cantidad en vez de chips (que se truncaban a «↻08:…»).
+- **Filas de vacuna/tratamiento:** se sacó el long-press para eliminar (era un gesto oculto y causaba el botón anidado);
+  eliminar sigue en la pantalla de edición.
+
+## Pendiente (pasa a la Fase 8 si no entra antes)
+
+| Qué | Por qué no entró |
+|---|---|
+| Interruptor «Contraste alto» (D2) | La paleta existe (`tokens.colorAltoContraste`), pero las pantallas todavía leen `theme/colors.js` en estático. Hace falta que lean el color de un contexto: es un cambio transversal, no de una pantalla |
+| FAM-01 · dueño como integrante | `TODO(backend)`: `Integrante.usuarioId` |
+| CTA-07 · rol «Sólo mira» | `TODO(backend)`: rol `lector` |
+| FRM-05 · cargar una dosis pasada | `TODO(backend)`: aceptar fechas pasadas para registros de toma |
+| DOS-10 · horarios rápidos y «Hasta [fecha]» | P2, cambia la API de repetición |
+| P2 visuales (VIS-01 títulos serif en todas las pantallas, CTA-01/03/04/05/06, FAM-03, FAM-06, EME-07, SIS-03, VIS-02/03) | Pulido; se aplican al migrar cada pantalla a los tokens |
+| SIS-04 · serie «Si» de prueba (grupo 3) | Es dato local, no código: borrarla antes de la demo |
+| DOS-11 en el celular | El cambio está hecho, pero las notificaciones no existen en web: falta probarlo en el APK |
