@@ -54,3 +54,11 @@
 | P2 visuales (VIS-01 títulos serif en todas las pantallas, CTA-01/03/04/05/06, FAM-03, FAM-06, EME-07, SIS-03, VIS-02/03) | Pulido; se aplican al migrar cada pantalla a los tokens |
 | SIS-04 · serie «Si» de prueba (grupo 3) | Es dato local, no código: borrarla antes de la demo |
 | DOS-11 en el celular | El cambio está hecho, pero las notificaciones no existen en web: falta probarlo en el APK |
+
+## Ronda de ajustes (después del merge)
+
+| Commit | Qué |
+|---|---|
+| `2adb7a3` | **Hora 3 h antes («Si» a las 02:00).** No era doble conversión: las versiones anteriores a `220bce4` mandaban la hora sin zona y un servidor en UTC (Render) la guardaba corrida −3 h. El front actual manda ISO con `Z` (verificado: 10:00 elegidas → 13:00 UTC → se ven 10:00). El backend ahora interpreta las horas sin zona como hora de Argentina (`instanteDe`), así los APK viejos tampoco las corren. «Aplicada 04:55» era la hora en que se marcó, no un error. Se borró la serie de prueba «Si» (grupo 3, local) |
+| `0ceb294` | La repetición depende del tipo: medicación (todos los días, día por medio, semanal), turno (semanal a 6 meses), vacuna (mensual a anual). El backend rechaza una vacuna < 28 días o un turno < 7 |
+| `4c1c217` | **Íconos de tipo** (`IconoTipo`, MaterialCommunityIcons): pastilla, jeringa, estetoscopio; pata para mascotas. Siempre ícono + color + nombre. Turno pasó a azul pizarra (el mostaza y el verde se confundían). **Mes:** chip = barra + ícono + hora (13 px); atenuado si se marcó, tachado si no se dio, borde rojo si quedó sin marcar; la recurrencia sólo en el detalle. Días de otro mes sin tarjeta; hoy sólo con el círculo y una hoja terracota detrás; el borde queda para el día elegido. **Semana:** ícono + hora + título, ancho del contenedor (antes se veían 3 días). **Filtros:** una fila (Todos · personas y mascotas · tipos, que hacen de leyenda); la leyenda de abajo es sólo de estados. **Cabecera:** bandera de papel con el mes y una ilustración de la época (jacarandá en octubre y noviembre); ‹ Hoy › en un solo control sin borde rojo; «Agregar» es la única primaria. **Panel:** «Quedó sin marcar» sólo si hay algo (si no, «Todo al día» en la agenda); resumen «11 de 14 dosis dadas» con barrita (la explicación va como ayuda); sombras de papel y hojas de color detrás. **Agenda y Hoy:** sin el avatar repetido junto al nombre |

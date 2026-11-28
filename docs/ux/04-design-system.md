@@ -306,3 +306,12 @@ Sin QR (decisión D1). Siempre decorativa.
    sin tests): se migra lo que se toca.
 5. Deuda: sombras blur de `paper.js` y `EntityAvatar`, tokens `glass*`, warning de `BannerRecortes` (pasa
    `accessibilityElementsHidden` a un `<svg>` del DOM; ya existía antes de esta fase).
+
+## Anexo · Íconos de tipo (ronda de ajustes)
+
+- `components/IconoTipo.js`: **pastilla** (medicación), **jeringa** (vacuna), **estetoscopio** (turno o control), del set
+  MaterialCommunityIcons, mismo grosor; **pata** como insignia de mascota.
+- Regla: **ícono + color, nunca uno solo**, y siempre el nombre del tipo al lado o en el `accessibilityLabel`.
+- Colores de marca (≥ 3:1 sobre cartulina): medicación `#C2614F`, vacuna `#B9841F`, turno `#4F7390`.
+  `TIPO_AVISO` (utils/avisos.js) y `TONO_CATEGORIA` (MiniCalendar) se derivan de `tokens.tipoEvento`.
+- En listas y agenda: ícono en un círculo del color de fondo del tipo. En las celdas del mes: barra + ícono + hora.
