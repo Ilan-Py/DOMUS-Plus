@@ -1,66 +1,52 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Animated,
-  Easing,
-  Alert,
-  Platform,
-  RefreshControl,
-  useWindowDimensions,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Animated, Easing, RefreshControl, useWindowDimensions } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { poppinsWeight } from '../theme/typography';
+import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
+import { color, espacio, radio, tactil } from '../theme/tokens';
 import api, { getList } from '../api/client';
 import { useFamily } from '../context/FamilyContext';
-import SegmentedControl from '../components/SegmentedControl';
 import ErrorBanner from '../components/ErrorBanner';
 import InlineError from '../components/InlineError';
 import PressScale from '../components/PressScale';
 import PrimaryButton from '../components/PrimaryButton';
 import Skeleton from '../components/Skeleton';
-import EntityAvatar from '../components/EntityAvatar';
-import { EmptyDoodle } from '../components/FamilyDoodles';
+import PaperCard from '../components/PaperCard';
+import Ilustracion from '../components/Ilustracion';
+import PostIt from '../components/PostIt';
 import EmergencySummary from '../components/EmergencySummary';
-import { formatLongDate, parseApiDate, toSentenceCase } from '../utils/displayFormat';
-import { confirmarDestructivo } from '../utils/confirm';
+import { mostrarToast } from '../components/ToastHost';
+import { formatLongDate, parseApiDate } from '../utils/displayFormat';
+import { confirmarDestructivo, elegirOpcion } from '../utils/confirm';
+import { edadDe, plural } from '../utils/formato';
 import FadeSlideIn from '../components/FadeSlideIn';
 import FadeOutRow, { EXIT_DURATION } from '../components/FadeOutRow';
 import AttachmentsSection from '../components/AttachmentsSection';
 import ProfessionalContactsSection from '../components/ProfessionalContactsSection';
+import {
+  EscenaFicha,
+  MarcoPolaroid,
+  PestanasFichero,
+  StickerVacuna,
+  GraficoPeso,
+  LineaDeTiempo,
+  armarLineaDeTiempo,
+  estadoVacuna,
+  fechaNumerica,
+} from '../components/Libreta';
 
-// Layout: ver frontend/DESIGN.md. Desde 1024px, dos columnas (64% / 36%) en un
-// contenedor de hasta 1120px; debajo, una sola columna apilada.
+// Ficha de un integrante o una mascota como su LIBRETA SANITARIA (ronda de ajustes de la ficha):
+//  - cabecera como escena de papel, con la foto en un marco polaroid (o una ilustración, nunca un ícono gris), la
+//    ficha rápida en chips y, si hay, la nota humana como post-it (una sola);
+//  - pestañas de fichero con contadores; cada vacuna es un sticker con su sello de estado y la próxima dosis;
+//  - historial como línea de tiempo; peso con gráfico; veterinario con «Llamar» y «WhatsApp»;
+//  - «Eliminar» fuera de la vista principal (menú «⋯», con confirmación).
+// Mismo ancho de contenido que Familia y Calendario (65 / 35 desde 1024 px).
 const DESKTOP_BREAKPOINT = 1024;
-const CONTAINER_MAX_WIDTH = 1120;
+const CONTAINER_MAX_WIDTH = 1440;
 
-const TAB_OPTIONS = [
-  { label: 'Vacunas', value: 'vacunas' },
-  { label: 'Tratamientos', value: 'tratamientos' },
-  { label: 'Historial', value: 'historial' },
-];
-
-const TIPO_LABELS = { adulto: 'Adulto', menor: 'Menor', mayor: 'Mayor' };
-
-function calcularEdad(fechaNacimiento) {
-  const nacimiento = parseApiDate(fechaNacimiento);
-  if (!nacimiento) return null;
-  const hoy = new Date();
-  let edad = hoy.getFullYear() - nacimiento.getFullYear();
-  const cumplio =
-    hoy.getMonth() > nacimiento.getMonth() ||
-    (hoy.getMonth() === nacimiento.getMonth() && hoy.getDate() >= nacimiento.getDate());
-  if (!cumplio) edad -= 1;
-  return edad >= 0 ? edad : null;
-}
-
-// /api/salud/* espera integrante_id o mascota_id según el dueño — un solo
-// helper evita repetir la rama en las tres llamadas.
 function ownerQueryParams(tipo, id) {
   return tipo === 'integrante' ? { integrante_id: id } : { mascota_id: id };
 }
@@ -74,65 +60,6 @@ function SkeletonRecordRow() {
   );
 }
 
-// Botón de la cabecera (Editar / Eliminar): misma altura, forma y borde, con
-// ícono + etiqueta visible.
-function HeaderAction({ icon, label, onPress, disabled, danger, style }) {
-  const color = danger ? colors.limeDeep : colors.ink;
-  return (
-    <PressScale
-      style={style}
-      contentStyle={[styles.headerAction, style && styles.fullWidth]}
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityLabel={label}
-    >
-      <Ionicons name={icon} size={20} color={danger ? colors.limeDeep : colors.iconWarm} />
-      <Text style={[styles.headerActionText, { color }]}>{label}</Text>
-    </PressScale>
-  );
-}
-
-function Card({ children, style, plain }) {
-  return <View style={[styles.card, plain && styles.cardPlain, style]}>{children}</View>;
-}
-
-function CardTitle({ children }) {
-  return (
-    <Text style={styles.cardTitle} accessibilityRole="header">
-      {children}
-    </Text>
-  );
-}
-
-// `onEdit` es el botón visible (lápiz). La fila en sí no es un botón: antes era un Pressable sólo para el long-press y
-// dejaba el lápiz como botón dentro de otro botón (inválido para lectores de pantalla). Eliminar está en la edición.
-function VaccineRow({ item, onEdit, onLongPress, disabled }) {
-  return (
-    <View style={styles.recordCard}>
-      <View style={styles.recordHeader}>
-        <Text style={[styles.recordTitle, styles.recordTitleFlex]}>{toSentenceCase(item.nombre)}</Text>
-        <PressScale
-          contentStyle={styles.recordEditBtn}
-          onPress={onEdit}
-          disabled={disabled}
-          accessibilityLabel={`Editar vacuna ${toSentenceCase(item.nombre)}`}
-        >
-          <Ionicons name="pencil-outline" size={20} color={colors.iconWarm} />
-        </PressScale>
-      </View>
-      <Text style={styles.recordMeta}>Aplicada: {formatLongDate(item.fecha_aplicacion)}</Text>
-      {!!item.proxima_dosis && (
-        <Text style={styles.recordMeta}>Próxima dosis: {formatLongDate(item.proxima_dosis)}</Text>
-      )}
-      {!!item.notas && <Text style={styles.recordNotes}>{item.notas}</Text>}
-      <AttachmentsSection parentType="vacuna" parentId={item.id} label="Documentos de esta vacuna" compact addLabel="Adjuntar" />
-    </View>
-  );
-}
-
-// Un tratamiento sigue "activo" mientras no tenga fecha_fin, o mientras esa
-// fecha no haya pasado — el día de fin cuenta como activo. fecha_fin es una
-// columna DATE: se parsea con parseApiDate (ver utils/displayFormat.js).
 function esTratamientoActivo(fechaFin) {
   const fin = parseApiDate(fechaFin);
   if (!fin) return true;
@@ -141,61 +68,58 @@ function esTratamientoActivo(fechaFin) {
   return fin.getTime() >= hoy.getTime();
 }
 
-function TreatmentRow({ item, onEdit, onLongPress, disabled }) {
+function TreatmentRow({ item, onEdit, disabled }) {
   const activo = esTratamientoActivo(item.fecha_fin);
   return (
     <View style={styles.recordCard}>
       <View style={styles.recordHeader}>
-        <Text style={[styles.recordTitle, styles.recordTitleFlex]}>{toSentenceCase(item.descripcion)}</Text>
-        <View style={[styles.statusBadge, !activo && styles.statusBadgeInactive]}>
-          <Text style={[styles.statusBadgeText, !activo && styles.statusBadgeTextInactive]}>
-            {activo ? 'Activo' : 'Finalizado'}
-          </Text>
+        <View style={styles.recordIcono}>
+          <MaterialCommunityIcons name="pill" size={18} color="#8E3A2A" />
         </View>
-        <PressScale
-          contentStyle={styles.recordEditBtn}
-          onPress={onEdit}
-          disabled={disabled}
-          accessibilityLabel={`Editar tratamiento ${toSentenceCase(item.descripcion)}`}
-        >
+        <Text style={[styles.recordTitle, styles.recordTitleFlex]}>{item.medicacion}</Text>
+        <View style={[styles.statusBadge, !activo && styles.statusBadgeInactive]}>
+          <Text style={[styles.statusBadgeText, !activo && styles.statusBadgeTextInactive]}>{activo ? 'En curso' : 'Terminado'}</Text>
+        </View>
+        <PressScale contentStyle={styles.recordEditBtn} onPress={onEdit} disabled={disabled} accessibilityLabel={`Editar tratamiento ${item.medicacion}`}>
           <Ionicons name="pencil-outline" size={20} color={colors.iconWarm} />
         </PressScale>
       </View>
-      <Text style={styles.recordMeta}>Medicación: {item.medicacion}</Text>
+      <Text style={styles.recordMeta}>{item.descripcion}</Text>
       <Text style={styles.recordMeta}>
         Desde {formatLongDate(item.fecha_inicio)}
-        {item.fecha_fin ? ` hasta ${formatLongDate(item.fecha_fin)}` : ' · en curso'}
+        {item.fecha_fin ? ` hasta ${formatLongDate(item.fecha_fin)}` : ' · sin fecha de fin'}
       </Text>
-      <AttachmentsSection parentType="tratamiento" parentId={item.id} label="Documentos de este tratamiento" compact addLabel="Adjuntar" />
+      <AttachmentsSection parentType="tratamiento" parentId={item.id} label="Recetas y estudios" compact addLabel="Adjuntar" />
     </View>
   );
 }
 
-function HistorialRow({ item }) {
-  return (
-    <View style={styles.recordCard}>
-      <Text style={styles.recordTitle}>{item.evento}</Text>
-      <Text style={styles.recordMeta}>{formatLongDate(item.fecha)}</Text>
-      {!!item.descripcion && <Text style={styles.recordNotes}>{item.descripcion}</Text>}
-      <AttachmentsSection parentType="historial" parentId={item.id} label="Documentos de este evento" compact addLabel="Adjuntar" />
-    </View>
-  );
-}
-
-// Estado vacío: ícono en círculo suave, texto claro y (si corresponde) el botón
-// de agregar centrado debajo.
-function EmptyBlock({ doodle = 'hojas', message, actionLabel, onAction }) {
+// Estado vacío con nombre y una escena chica de papel.
+function Vacio({ ilustracion, titulo, texto, accion, onAccion }) {
   return (
     <View style={styles.empty}>
-      <EmptyDoodle variant={doodle} size={64} />
-      <Text style={styles.emptyText}>{message}</Text>
-      {!!actionLabel && (
+      <Ilustracion nombre={ilustracion} size={120} />
+      <Text style={styles.emptyTitulo}>{titulo}</Text>
+      <Text style={styles.emptyText}>{texto}</Text>
+      {!!accion && (
         <View style={styles.emptyAction}>
-          <PrimaryButton title={actionLabel} variant="accent" fullWidth={false} onPress={onAction} />
+          <PrimaryButton title={accion} variant="accent" fullWidth={false} onPress={onAccion} />
         </View>
       )}
     </View>
   );
+}
+
+// «Bruno está al día con sus vacunas» / «A Bruno le vence la Antirrábica el 28/11/2027» / «Bruno tiene 1 vacuna vencida».
+function fraseVacunas(nombre, vacunas) {
+  if (!vacunas.length) return null;
+  const vencidas = vacunas.filter((v) => estadoVacuna(v) === 'vencida');
+  if (vencidas.length) return { tono: 'alerta', texto: `${nombre} tiene ${plural(vencidas.length, 'vacuna vencida', 'vacunas vencidas')}: ${vencidas.map((v) => v.nombre).join(', ')}.` };
+  const pronto = vacunas.filter((v) => estadoVacuna(v) === 'pronto').sort((a, b) => parseApiDate(a.proxima_dosis) - parseApiDate(b.proxima_dosis))[0];
+  if (pronto) return { tono: 'aviso', texto: `A ${nombre} le toca la ${pronto.nombre} el ${fechaNumerica(pronto.proxima_dosis)}.` };
+  const conProxima = vacunas.filter((v) => v.proxima_dosis);
+  if (!conProxima.length) return { tono: 'neutro', texto: `Ninguna vacuna de ${nombre} tiene la próxima dosis cargada.` };
+  return { tono: 'ok', texto: `${nombre} está al día con sus vacunas.` };
 }
 
 export default function ProfileDetailScreen({ navigation, route }) {
@@ -204,32 +128,24 @@ export default function ProfileDetailScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const desktop = width >= DESKTOP_BREAKPOINT;
+  const esMascota = tipo === 'mascota';
 
-  // route.params queda congelado al momento de la navegación — la fuente de
-  // verdad para mostrar/editar es la lista viva de useFamily(), buscada por
-  // id; memberInicial sólo cubre el primer render.
-  const member =
-    (tipo === 'integrante' ? integrantes : mascotas).find((m) => m.id === id) || memberInicial;
+  const member = (tipo === 'integrante' ? integrantes : mascotas).find((m) => m.id === id) || memberInicial;
   const nombre = tipo === 'integrante' ? `${member?.nombre} ${member?.apellido}` : member?.nombre;
-
-  const edad = tipo === 'integrante' ? calcularEdad(member?.fecha_nacimiento) : null;
-  const subtitulo =
-    tipo === 'integrante'
-      ? `${TIPO_LABELS[member?.tipo] ?? 'Integrante'}${edad !== null ? ` · ${edad} años` : ''}`
-      : `${member?.especie || 'Mascota'} · Mascota`;
+  const corto = member?.nombre || '';
 
   const [activeTab, setActiveTab] = useState('vacunas');
   const [vacunas, setVacunas] = useState([]);
   const [tratamientos, setTratamientos] = useState([]);
   const [historial, setHistorial] = useState([]);
+  const [pesos, setPesos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [recordBusy, setRecordBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  // Clave `${tipoRegistro}-${id}` de la card en su animación de salida.
-  const [exitingKey, setExitingKey] = useState(null);
+  const [exitingKey] = useState(null);
 
   function handleEditar() {
     navigation.navigate('AddMember', { tipoMiembro: tipo, memberToEdit: member });
@@ -239,8 +155,7 @@ export default function ProfileDetailScreen({ navigation, route }) {
     setDeleting(true);
     setError('');
     try {
-      const url = tipo === 'integrante' ? `/api/familia/integrantes/${id}` : `/api/familia/mascotas/${id}`;
-      await api.delete(url);
+      await api.delete(tipo === 'integrante' ? `/api/familia/integrantes/${id}` : `/api/familia/mascotas/${id}`);
       await refresh();
       navigation.goBack();
     } catch (err) {
@@ -249,39 +164,74 @@ export default function ProfileDetailScreen({ navigation, route }) {
     }
   }
 
-  function handleEliminar() {
-    confirmarDestructivo(
-      `¿Eliminar a ${nombre}?`,
-      'Se borran sus vacunas, tratamientos, historial, documentos y lo que tenía programado. No se puede recuperar.',
-      handleEliminarConfirmado,
-      `Eliminar a ${String(nombre).split(' ')[0]}`
-    );
+  // Eliminar no está al nivel de Editar: va en «⋯» y pide confirmación.
+  function masAcciones() {
+    elegirOpcion(`Más acciones sobre ${corto}`, [{ text: `Eliminar a ${corto}`, value: 'eliminar' }], (v) => {
+      if (v !== 'eliminar') return;
+      confirmarDestructivo(
+        `¿Eliminar a ${nombre}?`,
+        'Se borran sus vacunas, tratamientos, historial, pesos, documentos y lo que tenía programado. No se puede recuperar.',
+        handleEliminarConfirmado,
+        `Eliminar a ${corto}`
+      );
+    });
   }
 
-  // Fade+shift del contenido al cambiar de pestaña.
+  // Nota humana (post-it): se guarda en `observaciones` sin tocar el resto de los datos.
+  async function guardarNota(textoNota) {
+    try {
+      const fecha = member?.fecha_nacimiento ? String(member.fecha_nacimiento).slice(0, 10) : undefined;
+      if (esMascota) {
+        await api.patch(`/api/familia/mascotas/${id}`, {
+          nombre: member.nombre,
+          especie: member.especie,
+          raza: member.raza || undefined,
+          fecha_nacimiento: fecha,
+          observaciones: textoNota || null,
+        });
+      } else {
+        await api.patch(`/api/familia/integrantes/${id}`, {
+          nombre: member.nombre,
+          apellido: member.apellido,
+          fecha_nacimiento: fecha,
+          observaciones: textoNota || null,
+        });
+      }
+      await refresh();
+      mostrarToast(textoNota ? 'Nota pegada' : 'Nota despegada');
+      return true;
+    } catch (err) {
+      mostrarToast(err?.status ? err.mensaje : 'No pudimos guardar la nota. Revisá la conexión y probá de nuevo.', 'error');
+      return false;
+    }
+  }
+
+  async function registrarPeso(valor) {
+    try {
+      await api.post('/api/salud/pesos', { ...ownerQueryParams(tipo, id), kg: valor });
+      setPesos(await getList('/api/salud/pesos', { params: ownerQueryParams(tipo, id) }));
+      mostrarToast(`Anotamos ${String(valor).replace('.', ',')} kg para ${corto}`);
+      return true;
+    } catch (err) {
+      mostrarToast(err?.status ? err.mensaje : 'No pudimos anotar el peso. Probá de nuevo.', 'error');
+      return false;
+    }
+  }
+
+  // Fade + desplazamiento corto al cambiar de pestaña.
   const contentAnim = useRef(new Animated.Value(1)).current;
   const isFirstTabRef = useRef(true);
-
   useEffect(() => {
     if (isFirstTabRef.current) {
       isFirstTabRef.current = false;
       return;
     }
     contentAnim.setValue(0);
-    Animated.timing(contentAnim, {
-      toValue: 1,
-      duration: 180,
-      easing: Easing.out(Easing.ease),
-      useNativeDriver: true,
-    }).start();
+    Animated.timing(contentAnim, { toValue: 1, duration: 180, easing: Easing.out(Easing.ease), useNativeDriver: true }).start();
   }, [activeTab, contentAnim]);
-
   const contentTranslateY = contentAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
 
-  // useFocusEffect dispara fetchAll cada vez que se vuelve a esta pantalla
-  // (p. ej. al volver de AddVaccine/AddTreatment), no sólo al montar.
   const hasLoadedOnceRef = useRef(false);
-
   const fetchAll = useCallback(async () => {
     if (!hasLoadedOnceRef.current) setLoading(true);
     setError('');
@@ -297,6 +247,8 @@ export default function ProfileDetailScreen({ navigation, route }) {
       setTratamientos(datosTratamientos);
       setHistorial(datosHistorial);
       hasLoadedOnceRef.current = true;
+      // Los pesos son aparte: si el backend todavía no los tiene, la ficha se ve igual.
+      getList('/api/salud/pesos', { params }).then(setPesos).catch(() => setPesos([]));
     } catch {
       setLoadError(true);
     } finally {
@@ -317,272 +269,241 @@ export default function ProfileDetailScreen({ navigation, route }) {
   }
 
   const ownerParams = { ownerId: id, ownerTipo: tipo, ownerNombre: nombre };
-
   function handleEditarRegistro(tipoRegistro, item) {
-    const screen = tipoRegistro === 'vacuna' ? 'AddVaccine' : 'AddTreatment';
-    navigation.navigate(screen, { ...ownerParams, editando: item });
+    navigation.navigate(tipoRegistro === 'vacuna' ? 'AddVaccine' : 'AddTreatment', { ...ownerParams, editando: item });
   }
+  const irAAgregarVacuna = () => navigation.navigate('AddVaccine', ownerParams);
+  const irAAgregarTratamiento = () => navigation.navigate('AddTreatment', ownerParams);
 
-  async function handleEliminarRegistro(tipoRegistro, item) {
-    setRecordBusy(true);
-    setError('');
-    try {
-      const url =
-        tipoRegistro === 'vacuna' ? `/api/salud/vacunas/${item.id}` : `/api/salud/tratamientos/${item.id}`;
-      await api.delete(url);
-      setExitingKey(`${tipoRegistro}-${item.id}`);
-      await new Promise((resolve) => setTimeout(resolve, EXIT_DURATION));
-      await fetchAll();
-    } catch (err) {
-      setError(err.mensaje);
-    } finally {
-      setRecordBusy(false);
-      setExitingKey(null);
-    }
+  const linea = armarLineaDeTiempo({ historial, vacunas, pesos, tratamientos });
+
+  // ---------------- ficha rápida (chips) ----------------
+  const edad = edadDe(member?.fecha_nacimiento);
+  const ultimoPeso = pesos[pesos.length - 1];
+  const chips = [];
+  if (esMascota) {
+    chips.push(member?.raza ? `${member.especie} · ${member.raza}` : member?.especie);
   }
-
-  function confirmEliminarRegistro(tipoRegistro, item, nombreRegistro) {
-    confirmarDestructivo('Eliminar', `¿Seguro que querés eliminar ${nombreRegistro}?`, () =>
-      handleEliminarRegistro(tipoRegistro, item)
-    );
+  if (edad !== null) chips.push(plural(edad, 'año'));
+  if (ultimoPeso) chips.push(`${String(ultimoPeso.kg).replace('.', ',')} kg`);
+  if (esMascota && member?.sexo) chips.push(member.sexo === 'hembra' ? 'Hembra' : 'Macho');
+  if (esMascota && member?.castrado !== null && member?.castrado !== undefined) {
+    const hembra = member?.sexo === 'hembra';
+    chips.push(member.castrado ? (hembra ? 'Castrada' : 'Castrado') : hembra ? 'Sin castrar' : 'Sin castrar');
   }
-
-  // Menú Editar/Eliminar/Cancelar sólo vía Alert nativo; en web el long-press
-  // degrada directo a "confirmar eliminar" (Editar tiene su botón visible).
-  function handleLongPressRegistro(tipoRegistro, item, nombreRegistro) {
-    if (recordBusy) return;
-    if (Platform.OS === 'web') {
-      confirmEliminarRegistro(tipoRegistro, item, nombreRegistro);
-      return;
-    }
-    Alert.alert(
-      nombreRegistro,
-      undefined,
-      [
-        { text: 'Editar', onPress: () => handleEditarRegistro(tipoRegistro, item) },
-        { text: 'Eliminar', style: 'destructive', onPress: () => confirmEliminarRegistro(tipoRegistro, item, nombreRegistro) },
-        { text: 'Cancelar', style: 'cancel' },
-      ],
-    );
-  }
-
-  // El historial no tiene pantalla de alta propia: el botón de agregar sólo
-  // existe en las pestañas que sí la tienen.
-  const addTarget =
-    activeTab === 'vacunas' ? 'AddVaccine' : activeTab === 'tratamientos' ? 'AddTreatment' : null;
-  const addLabel = activeTab === 'vacunas' ? '+ Agregar vacuna' : '+ Agregar tratamiento';
-  const irAAgregar = () => navigation.navigate(addTarget, ownerParams);
-
-  const total = activeTab === 'vacunas' ? vacunas.length : activeTab === 'tratamientos' ? tratamientos.length : historial.length;
-  const totalLabel =
-    activeTab === 'vacunas'
-      ? `${total} ${total === 1 ? 'vacuna' : 'vacunas'}`
-      : activeTab === 'tratamientos'
-        ? `${total} ${total === 1 ? 'tratamiento' : 'tratamientos'}`
-        : `${total} ${total === 1 ? 'evento' : 'eventos'}`;
+  if (esMascota && member?.microchip) chips.push(`Chip ${member.microchip}`);
+  if (!esMascota && member?.tipo_sangre) chips.push(`Sangre ${member.tipo_sangre}`);
+  const faltanDatos = esMascota && (!member?.sexo || member?.castrado === null || member?.castrado === undefined || !member?.microchip);
 
   // ---------------- bloques ----------------
+  const notaPostIt = (
+    <PostIt
+      texto={member?.observaciones}
+      nombre={corto}
+      tono={esMascota ? 'mostaza' : 'rosa'}
+      giro={desktop ? 3 : -2}
+      onGuardar={guardarNota}
+    />
+  );
+
   const header = (
-    <View style={styles.header}>
-      <View style={styles.headerTop}>
-        <PressScale contentStyle={styles.backBtn} onPress={() => navigation.goBack()} accessibilityLabel="Volver">
-          <Ionicons name="arrow-back" size={22} color={colors.ink} />
-          <Text style={styles.backText}>Volver</Text>
-        </PressScale>
-      </View>
-
-      <View style={styles.identity}>
-        <EntityAvatar
-          avatarId={member?.avatar_id}
-          type={tipo === 'mascota' ? 'pet' : 'person'}
-          name={member?.nombre}
-          apellido={member?.apellido}
-          size={56}
-          tipo={member?.tipo}
-          fotoUrl={member?.foto_url}
-        />
+    <View style={[styles.escena, !desktop && styles.escenaMobile]}>
+      <EscenaFicha mascota={esMascota} />
+      <PressScale contentStyle={styles.backBtn} onPress={() => navigation.goBack()} accessibilityLabel="Volver">
+        <Ionicons name="arrow-back" size={22} color={colors.ink} />
+        <Text style={styles.backText}>Volver</Text>
+      </PressScale>
+      <View style={[styles.identity, !desktop && styles.identityMobile]}>
+        <MarcoPolaroid fotoUrl={member?.foto_url} mascota={esMascota} nombre={nombre} tam={desktop ? 128 : 104} />
         <View style={styles.identityText}>
-          <Text style={styles.name} numberOfLines={2} accessibilityRole="header">
-            {nombre}
-          </Text>
-          <Text style={styles.subtitle}>{subtitulo}</Text>
-        </View>
-        {desktop && (
-          <View style={styles.headerActionsDesktop}>
-            <HeaderAction icon="pencil-outline" label="Editar" onPress={handleEditar} disabled={deleting} />
-            <HeaderAction icon="trash-outline" label="Eliminar" onPress={handleEliminar} disabled={deleting} danger />
+          <Text style={[styles.name, !desktop && styles.nameMobile]} accessibilityRole="header">{nombre}</Text>
+          <View style={styles.chips}>
+            {chips.filter(Boolean).map((c) => (
+              <View key={c} style={styles.chip}>
+                <Text style={styles.chipTexto}>{c}</Text>
+              </View>
+            ))}
+            {faltanDatos && (
+              <PressScale contentStyle={[styles.chip, styles.chipCompletar]} onPress={handleEditar} accessibilityLabel={`Completar la ficha de ${corto}: sexo, castración y microchip`}>
+                <Ionicons name="add" size={14} color={color.terracotaTexto} />
+                <Text style={[styles.chipTexto, { color: color.terracotaTexto }]}>Completar ficha</Text>
+              </PressScale>
+            )}
           </View>
-        )}
-      </View>
-
-      {!desktop && (
-        <View style={styles.headerActionsMobile}>
-          <HeaderAction icon="pencil-outline" label="Editar" onPress={handleEditar} disabled={deleting} style={styles.flex1} />
-          <HeaderAction icon="trash-outline" label="Eliminar" onPress={handleEliminar} disabled={deleting} danger style={styles.flex1} />
+          <View style={styles.acciones}>
+            <PressScale contentStyle={styles.headerAction} onPress={handleEditar} disabled={deleting} accessibilityLabel={`Editar los datos de ${corto}`}>
+              <Ionicons name="pencil-outline" size={18} color={colors.ink} />
+              <Text style={styles.headerActionText}>Editar</Text>
+            </PressScale>
+            <PressScale contentStyle={[styles.headerAction, styles.masBtn]} onPress={masAcciones} disabled={deleting} accessibilityLabel={`Más acciones sobre ${corto}`}>
+              <Ionicons name="ellipsis-horizontal" size={20} color={colors.ink} />
+            </PressScale>
+          </View>
         </View>
-      )}
+        {desktop && <View style={styles.postItEsquina}>{notaPostIt}</View>}
+      </View>
     </View>
   );
 
-  const emergencyCard =
-    tipo === 'integrante' ? (
-      <Card>
-        <CardTitle>Emergencia</CardTitle>
-        <EmergencySummary
-          integrante={member}
-          integranteId={id}
-          onAbrirFicha={() => navigation.navigate('Emergency', { id, nombre })}
-        />
-      </Card>
-    ) : null;
+  const frase = fraseVacunas(corto, vacunas);
+  const tabs = (
+    <PestanasFichero
+      opciones={[
+        { valor: 'vacunas', etiqueta: 'Vacunas', cantidad: vacunas.length, tono: 'mostaza' },
+        { valor: 'tratamientos', etiqueta: 'Tratamientos', cantidad: tratamientos.length, tono: 'rosa' },
+        { valor: 'historial', etiqueta: 'Historial', cantidad: linea.length, tono: 'salvia' },
+      ]}
+      activa={activeTab}
+      onCambiar={setActiveTab}
+    />
+  );
 
-  // Sin fondo ni borde propio: las tarjetas de cada registro apoyan directo sobre el fondo crema.
-  const trackingCard = (
-    <Card plain>
-      <CardTitle>Seguimiento médico</CardTitle>
-      <SegmentedControl
-        options={TAB_OPTIONS}
-        selectedValue={activeTab}
-        onChange={setActiveTab}
-        style={styles.tabs}
-      />
-
-      {!!error && <ErrorBanner message={error} onDismiss={() => setError('')} />}
-
-      {loading ? (
-        <View style={styles.list}>
-          <SkeletonRecordRow />
-          <SkeletonRecordRow />
-        </View>
-      ) : loadError ? (
-        <InlineError message="No pudimos cargar el seguimiento médico." onRetry={fetchAll} />
-      ) : (
-        <>
-          {!!addTarget && total > 0 && (
-            <View style={styles.tabHeader}>
-              <Text style={styles.tabCount}>{totalLabel}</Text>
-              <PrimaryButton title={addLabel} variant="accent" fullWidth={!desktop} onPress={irAAgregar} />
-            </View>
-          )}
-
-          <Animated.View
-            style={[styles.list, { opacity: contentAnim, transform: [{ translateY: contentTranslateY }] }]}
-          >
+  const fichero = (
+    <View>
+      {tabs}
+      <PaperCard nivel={2} hoja={esMascota ? 'salvia' : 'terracota'} rotacion={-1} style={styles.ficheroCard} wrapperStyle={styles.hojaMargen}>
+        {!!error && <ErrorBanner message={error} onDismiss={() => setError('')} />}
+        {loading ? (
+          <View style={styles.list}>
+            <SkeletonRecordRow />
+            <SkeletonRecordRow />
+          </View>
+        ) : loadError ? (
+          <InlineError message="No pudimos cargar la libreta." onRetry={fetchAll} />
+        ) : (
+          <Animated.View style={[styles.list, { opacity: contentAnim, transform: [{ translateY: contentTranslateY }] }]}>
             {activeTab === 'vacunas' &&
               (vacunas.length === 0 ? (
-                <EmptyBlock
-                  doodle="hojas"
-                  message="No hay vacunas registradas."
-                  actionLabel={addLabel}
-                  onAction={irAAgregar}
+                <Vacio
+                  ilustracion="vacuna"
+                  titulo={`Todavía no hay vacunas de ${corto}`}
+                  texto="Cargá las que ya se aplicó y te avisamos cuando toque la próxima."
+                  accion="Agregar vacuna"
+                  onAccion={irAAgregarVacuna}
                 />
               ) : (
-                vacunas.map((item, i) => {
-                  const key = `vacuna-${item.id}`;
-                  return (
-                    <FadeSlideIn key={key} index={i}>
-                      <FadeOutRow exiting={exitingKey === key}>
-                        <VaccineRow
-                          item={item}
-                          disabled={recordBusy}
-                          onEdit={() => handleEditarRegistro('vacuna', item)}
-                          onLongPress={() => handleLongPressRegistro('vacuna', item, toSentenceCase(item.nombre))}
-                        />
+                <>
+                  <View style={styles.tabHeader}>
+                    <View style={styles.tabTituloCaja}>
+                      <Text style={styles.tabTitulo}>Vacunas de {corto}</Text>
+                      {!!frase && (
+                        <Text style={[styles.frase, frase.tono === 'alerta' && styles.fraseAlerta, frase.tono === 'ok' && styles.fraseOk]}>{frase.texto}</Text>
+                      )}
+                    </View>
+                    <PrimaryButton title="Agregar vacuna" variant="accent" fullWidth={!desktop} onPress={irAAgregarVacuna} />
+                  </View>
+                  {vacunas.map((item, i) => (
+                    <FadeSlideIn key={`vacuna-${item.id}`} index={i}>
+                      <FadeOutRow exiting={exitingKey === `vacuna-${item.id}`}>
+                        <StickerVacuna vacuna={item} giro={i % 2 ? 0.6 : -0.5} onEditar={() => handleEditarRegistro('vacuna', item)}>
+                          <AttachmentsSection parentType="vacuna" parentId={item.id} label="Certificado o foto de la libreta" compact addLabel="Adjuntar" />
+                        </StickerVacuna>
                       </FadeOutRow>
                     </FadeSlideIn>
-                  );
-                })
+                  ))}
+                </>
               ))}
 
             {activeTab === 'tratamientos' &&
               (tratamientos.length === 0 ? (
-                <EmptyBlock
-                  doodle="documento"
-                  message="No hay tratamientos registrados."
-                  actionLabel={addLabel}
-                  onAction={irAAgregar}
+                <Vacio
+                  ilustracion="receta"
+                  titulo={`${corto} no tiene tratamientos cargados`}
+                  texto="Si toma algo seguido, cargalo: aparece en su ficha y podés programar las dosis."
+                  accion="Agregar tratamiento"
+                  onAccion={irAAgregarTratamiento}
                 />
               ) : (
-                tratamientos.map((item, i) => {
-                  const key = `tratamiento-${item.id}`;
-                  return (
-                    <FadeSlideIn key={key} index={i}>
-                      <FadeOutRow exiting={exitingKey === key}>
-                        <TreatmentRow
-                          item={item}
-                          disabled={recordBusy}
-                          onEdit={() => handleEditarRegistro('tratamiento', item)}
-                          onLongPress={() => handleLongPressRegistro('tratamiento', item, toSentenceCase(item.descripcion))}
-                        />
-                      </FadeOutRow>
+                <>
+                  <View style={styles.tabHeader}>
+                    <Text style={[styles.tabTitulo, styles.tabTituloCaja]}>Tratamientos de {corto}</Text>
+                    <PrimaryButton title="Agregar tratamiento" variant="accent" fullWidth={!desktop} onPress={irAAgregarTratamiento} />
+                  </View>
+                  {tratamientos.map((item, i) => (
+                    <FadeSlideIn key={`tratamiento-${item.id}`} index={i}>
+                      <TreatmentRow item={item} disabled={recordBusy} onEdit={() => handleEditarRegistro('tratamiento', item)} />
                     </FadeSlideIn>
-                  );
-                })
+                  ))}
+                </>
               ))}
 
             {activeTab === 'historial' &&
-              (historial.length === 0 ? (
-                <EmptyBlock doodle="calendario" message="No hay eventos en el historial." />
+              (linea.length === 0 ? (
+                <Vacio
+                  ilustracion="portapapeles"
+                  titulo={`Acá va a quedar la historia de ${corto}`}
+                  texto="Consultas, vacunas, tratamientos y pesos, en orden, a medida que los cargues."
+                />
               ) : (
-                historial.map((item, i) => (
-                  <FadeSlideIn key={item.id} index={i}>
-                    <HistorialRow item={item} />
-                  </FadeSlideIn>
-                ))
+                <>
+                  <Text style={styles.tabTitulo}>La historia de {corto}</Text>
+                  <LineaDeTiempo items={linea} />
+                </>
               ))}
           </Animated.View>
-        </>
-      )}
-    </Card>
+        )}
+      </PaperCard>
+    </View>
+  );
+
+  const emergencyCard = !esMascota ? (
+    <PaperCard nivel={2} style={styles.card}>
+      <Text style={styles.cardTitle}>Emergencia</Text>
+      <EmergencySummary integrante={member} integranteId={id} onAbrirFicha={() => navigation.navigate('Emergency', { id, nombre })} />
+    </PaperCard>
+  ) : null;
+
+  const pesoCard = (
+    <PaperCard nivel={2} style={styles.card}>
+      <Text style={styles.cardTitle}>Peso de {corto}</Text>
+      <GraficoPeso pesos={pesos} nombre={corto} onRegistrar={registrarPeso} />
+    </PaperCard>
   );
 
   const professionalsCard = (
-    <Card>
-      <ProfessionalContactsSection parentType={tipo} parentId={id} />
-    </Card>
+    <PaperCard nivel={2} style={styles.card}>
+      <ProfessionalContactsSection parentType={tipo} parentId={id} nombreDueno={corto} />
+    </PaperCard>
   );
 
   const documentsCard = (
-    <Card>
+    <PaperCard nivel={2} style={styles.card}>
       <AttachmentsSection
         parentType={tipo}
         parentId={id}
-        label="Documentos generales"
-        hint="Estudios y recetas que no son de una vacuna o tratamiento en particular."
+        label="Documentos"
+        hint={`Estudios, recetas o la foto de la libreta de ${corto}.`}
         addLabel="Adjuntar documento"
       />
-    </Card>
+    </PaperCard>
   );
 
   return (
     <View style={styles.root}>
       <ScrollView
-        contentContainerStyle={[
-          styles.scroll,
-          desktop ? styles.scrollDesktop : styles.scrollMobile,
-          { paddingTop: (desktop ? 24 : 12) + insets.top },
-        ]}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.navy} />
-        }
+        contentContainerStyle={[styles.scroll, desktop ? styles.scrollDesktop : styles.scrollMobile, { paddingTop: (desktop ? 24 : 12) + insets.top }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.navy} />}
       >
         <View style={styles.container}>
           {header}
+          {!desktop && <View style={styles.postItMobile}>{notaPostIt}</View>}
 
           {desktop ? (
             <View style={styles.columns}>
-              <View style={styles.colLeft}>{trackingCard}</View>
+              <View style={styles.colLeft}>{fichero}</View>
               <View style={styles.colRight}>
                 {emergencyCard}
                 {professionalsCard}
+                {pesoCard}
                 {documentsCard}
               </View>
             </View>
           ) : (
             <View style={styles.stack}>
               {emergencyCard}
-              {trackingCard}
+              {fichero}
               {professionalsCard}
+              {pesoCard}
               {documentsCard}
             </View>
           )}
@@ -594,107 +515,68 @@ export default function ProfileDetailScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bgBase },
-  flex1: { flex: 1 },
-  fullWidth: { width: '100%' },
+  flex1: { flex: 1, minWidth: 0 },
   scroll: { paddingBottom: 112 },
-  scrollDesktop: { paddingHorizontal: 32 },
+  scrollDesktop: { paddingHorizontal: 48 },
   scrollMobile: { paddingHorizontal: 20 },
-  container: { width: '100%', maxWidth: CONTAINER_MAX_WIDTH, alignSelf: 'center' },
+  container: { width: '100%', maxWidth: CONTAINER_MAX_WIDTH, alignSelf: 'center', gap: 20 },
 
-  // ---- header ----
-  header: { marginBottom: 24, gap: 12 },
-  headerTop: { flexDirection: 'row', alignItems: 'center' },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, paddingRight: 16 },
-  backText: { fontSize: 16, fontFamily: poppinsWeight('400'), color: colors.ink },
-  identity: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  identityText: { flex: 1 },
-  name: { fontSize: 24, lineHeight: 32, fontFamily: poppinsWeight('700'), color: colors.ink },
-  subtitle: { fontSize: 16, lineHeight: 22, color: colors.textBody, marginTop: 4 },
-  headerActionsDesktop: { flexDirection: 'row', gap: 12 },
-  headerActionsMobile: { flexDirection: 'row', gap: 12 },
-  headerAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    height: 48,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    backgroundColor: colors.glassStrong,
-    borderWidth: 1,
-    borderColor: colors.borderCard,
-  },
-  headerActionText: { fontSize: 16, fontFamily: poppinsWeight('600') },
+  // ---- cabecera (escena de papel) ----
+  escena: { position: 'relative', minHeight: 250, borderRadius: radio.contenedor, padding: espacio[6], paddingBottom: espacio[10] },
+  escenaMobile: { padding: espacio[4], paddingBottom: espacio[8] },
+  backBtn: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 8, minHeight: tactil.minimo, paddingRight: 16 },
+  backText: { fontSize: 16, fontFamily: poppinsWeight('500'), color: colors.ink },
+  identity: { flexDirection: 'row', alignItems: 'flex-start', gap: espacio[6], marginTop: espacio[2] },
+  identityMobile: { flexDirection: 'column', gap: espacio[4] },
+  identityText: { flex: 1, minWidth: 0, gap: espacio[3] },
+  name: { fontSize: 40, lineHeight: 48, fontFamily: SERIF_BOLD, color: colors.ink },
+  nameMobile: { fontSize: 32, lineHeight: 40 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: espacio[2] },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: espacio[3], minHeight: 32, borderRadius: radio.pastilla, backgroundColor: 'rgba(255, 253, 249, 0.92)', borderWidth: 1, borderColor: 'rgba(42, 36, 33, 0.12)' },
+  chipCompletar: { borderStyle: 'dashed', borderColor: 'rgba(170, 69, 29, 0.5)', minHeight: tactil.minimo },
+  chipTexto: { fontSize: 14, fontFamily: poppinsWeight('600'), color: colors.ink, fontVariant: ['tabular-nums'] },
+  acciones: { flexDirection: 'row', gap: espacio[2] },
+  headerAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: tactil.minimo, paddingHorizontal: espacio[4], borderRadius: radio.control, backgroundColor: color.cartulina, borderWidth: 1, borderColor: color.lineaFuerte },
+  masBtn: { width: tactil.minimo, paddingHorizontal: 0 },
+  headerActionText: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.ink },
+  postItEsquina: { marginTop: -espacio[2], marginRight: espacio[2] },
+  postItMobile: { alignItems: 'flex-end', marginTop: -espacio[8], marginRight: espacio[2] },
 
   // ---- layout ----
   columns: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
-  colLeft: { flex: 64 },
-  colRight: { flex: 36, minWidth: 300, gap: 16 },
-  stack: { gap: 16 },
+  colLeft: { flex: 65, minWidth: 0 },
+  colRight: { flex: 35, minWidth: 300, gap: 20 },
+  stack: { gap: 20 },
 
   // ---- tarjetas ----
-  card: {
-    backgroundColor: colors.glassStrong,
-    borderWidth: 1,
-    borderColor: colors.borderCard,
-    borderRadius: 16,
-    padding: 20,
-  },
-  cardPlain: { backgroundColor: 'transparent', borderWidth: 0, padding: 0 },
-  cardTitle: {
-    fontSize: 18,
-    lineHeight: 26,
-    fontFamily: poppinsWeight('700'),
-    color: colors.ink,
-    marginBottom: 12,
-  },
-  tabs: { marginHorizontal: 0, marginTop: 4, marginBottom: 16 },
-  tabHeader: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 16,
-  },
-  tabCount: { fontSize: 16, color: colors.textBody },
-  list: { gap: 12 },
+  card: { padding: espacio[5], gap: espacio[3] },
+  cardTitle: { fontSize: 20, lineHeight: 28, fontFamily: SERIF_BOLD, color: colors.ink },
+  ficheroCard: { padding: espacio[5], borderTopLeftRadius: 0 },
+  hojaMargen: { marginRight: 7, marginBottom: 8 },
+  tabHeader: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 4 },
+  tabTituloCaja: { flexGrow: 1, flexShrink: 1, flexBasis: 220, minWidth: 0 },
+  tabTitulo: { fontSize: 22, lineHeight: 30, fontFamily: SERIF_BOLD, color: colors.ink },
+  frase: { fontSize: 15, lineHeight: 22, color: colors.textBody, marginTop: 2 },
+  fraseAlerta: { color: '#A6291B', fontFamily: poppinsWeight('600') },
+  fraseOk: { color: '#3D5A4B', fontFamily: poppinsWeight('600') },
+  list: { gap: 14 },
 
   // ---- registros ----
-  recordCard: {
-    backgroundColor: colors.glassStrong,
-    borderWidth: 1,
-    borderColor: colors.borderCard,
-    borderRadius: 16,
-    padding: 16,
-    gap: 8,
-  },
+  recordCard: { backgroundColor: color.cartulina, borderWidth: 1, borderColor: 'rgba(42, 36, 33, 0.1)', borderRadius: 14, padding: 16, gap: 6 },
   recordHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  recordIcono: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8E1DB' },
   recordTitle: { fontSize: 17, lineHeight: 24, fontFamily: poppinsWeight('700'), color: colors.ink },
   recordTitleFlex: { flex: 1 },
-  recordEditBtn: { width: 48, height: 48, flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
+  recordEditBtn: { width: 44, height: 44, flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
   recordMeta: { fontVariant: ['tabular-nums'], fontSize: 15, lineHeight: 22, color: colors.textBody },
-  recordNotes: { fontSize: 15, lineHeight: 22, color: colors.textBody, marginTop: 4 },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: colors.sage,
-  },
-  statusBadgeInactive: { backgroundColor: colors.badgeSand },
-  statusBadgeText: { fontSize: 14, fontFamily: poppinsWeight('600'), color: colors.sageDeep },
-  statusBadgeTextInactive: { color: colors.badgeSandText },
+  statusBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, backgroundColor: '#E3ECE6' },
+  statusBadgeInactive: { backgroundColor: '#EFE9E2' },
+  statusBadgeText: { fontSize: 13, fontFamily: poppinsWeight('600'), color: '#3B5A4C' },
+  statusBadgeTextInactive: { color: '#6B6357' },
 
   // ---- estado vacío ----
-  empty: { alignItems: 'center', paddingVertical: 24, gap: 12 },
-  emptyCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.badgeSand,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyText: { fontSize: 17, lineHeight: 24, color: colors.textBody, textAlign: 'center' },
-  emptyAction: { marginTop: 4 },
+  empty: { alignItems: 'center', paddingVertical: 24, gap: 8 },
+  emptyTitulo: { fontSize: 20, lineHeight: 28, fontFamily: SERIF_BOLD, color: colors.ink, textAlign: 'center' },
+  emptyText: { fontSize: 16, lineHeight: 24, color: colors.textBody, textAlign: 'center', maxWidth: 420 },
+  emptyAction: { marginTop: 8 },
 });

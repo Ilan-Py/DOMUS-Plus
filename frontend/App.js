@@ -11,6 +11,7 @@ import {
   PlusJakartaSans_600SemiBold,
 } from '@expo-google-fonts/plus-jakarta-sans';
 import { Lora_700Bold } from '@expo-google-fonts/lora';
+import { Caveat_600SemiBold } from '@expo-google-fonts/caveat';
 import * as Notifications from 'expo-notifications';
 
 import './src/theme/escalaTexto';
@@ -196,6 +197,7 @@ export default function App() {
     PlusJakartaSans_500Medium,
     PlusJakartaSans_600SemiBold,
     Lora_700Bold,
+    Caveat_600SemiBold, // sólo para los post-it (notas cortas, manuscritas)
   });
 
   // Tap en una notificación (app en background o recién abierta desde ahí)

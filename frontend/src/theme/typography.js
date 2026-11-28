@@ -23,3 +23,5 @@ export function poppinsWeight(weight) {
 // Títulos de la pantalla de bienvenida: serif cálido (Lora). El resto de la app
 // va en Plus Jakarta Sans.
 export const SERIF_BOLD = 'Lora_700Bold';
+// Manuscrita: sólo en post-it (notas humanas cortas), nunca en datos.
+export const MANUSCRITA = 'Caveat_600SemiBold';

@@ -44,7 +44,7 @@ export default function EmergencySummary({ integrante, integranteId, onAbrirFich
         {/* Rosa y rojo sólo cuando el dato existe: tiene que saltar a la vista en una
             emergencia. Sin dato, un fondo neutro con "Sin cargar". */}
         <View style={[styles.blood, !sangre && styles.bloodEmpty]}>
-          <Text style={styles.bloodLabel}>Grupo sanguíneo</Text>
+          <Text style={styles.bloodLabel}>Tipo de sangre</Text>
           {sangre ? (
             <Text style={styles.bloodValue}>{sangre}</Text>
           ) : (

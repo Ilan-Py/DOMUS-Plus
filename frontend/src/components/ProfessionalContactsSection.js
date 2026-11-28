@@ -8,7 +8,7 @@ import api, { getList } from '../api/client';
 import PressScale from './PressScale';
 import ErrorBanner from './ErrorBanner';
 import InlineError from './InlineError';
-import { EmptyDoodle } from './FamilyDoodles';
+import Ilustracion from './Ilustracion';
 import FormField from './FormField';
 import OptionPicker from './OptionPicker';
 
@@ -28,7 +28,17 @@ import { confirmarDestructivo } from '../utils/confirm';
 // Scripts/05_emergencia.sql). Reusable tal cual en el perfil de una persona
 // (pediatra/médico de cabecera) o de una mascota (veterinario) — sólo cambia
 // la etiqueta visual, no la lógica.
-export default function ProfessionalContactsSection({ parentType, parentId }) {
+// WhatsApp: número argentino a formato internacional (549 + área + número, sin 0 ni 15).
+function enlaceWhatsApp(telefono) {
+  let d = String(telefono || '').replace(/\D/g, '');
+  if (d.startsWith('00')) d = d.slice(2);
+  if (d.startsWith('0')) d = d.slice(1);
+  if (!d.startsWith('54')) d = `54${d}`;
+  if (!d.startsWith('549')) d = `549${d.slice(2)}`;
+  return `https://wa.me/${d}`;
+}
+
+export default function ProfessionalContactsSection({ parentType, parentId, nombreDueno }) {
   const esMascota = parentType === 'mascota';
 
   const [profesionales, setProfesionales] = useState([]);
@@ -127,12 +137,14 @@ export default function ProfessionalContactsSection({ parentType, parentId }) {
   }
 
   function confirmEliminar(item) {
-    confirmarDestructivo('Eliminar', `¿Seguro que querés eliminar a ${item.nombre}?`, () => eliminar(item));
+    confirmarDestructivo(`¿Eliminar a ${item.nombre}?`, 'Deja de aparecer en la ficha.', () => eliminar(item), `Eliminar a ${item.nombre.split(' ')[0]}`);
   }
 
   return (
     <View>
-      <Text style={styles.titulo}>{esMascota ? 'Veterinario' : 'Profesionales de salud'}</Text>
+      <Text style={styles.titulo} accessibilityRole="header">
+        {esMascota ? `Veterinario${nombreDueno ? ` de ${nombreDueno}` : ''}` : `Profesionales${nombreDueno ? ` de ${nombreDueno}` : ' de salud'}`}
+      </Text>
 
       {loadError ? (
         <InlineError
@@ -146,10 +158,13 @@ export default function ProfessionalContactsSection({ parentType, parentId }) {
           <ErrorBanner message={error} onDismiss={() => setError('')} />
           {profesionales.length === 0 && formAbierto !== 'nuevo' && (
             <View style={styles.emptyRow}>
-              <EmptyDoodle variant="hojas" size={48} />
-              <Text style={styles.emptyText}>
-                {esMascota ? 'Todavía no hay veterinario cargado.' : 'Todavía no hay profesionales cargados.'}
-              </Text>
+              <Ilustracion nombre={esMascota ? 'veterinaria' : 'portapapeles'} size={88} />
+              <View style={styles.emptyTextos}>
+                <Text style={styles.emptyTitulo}>{esMascota ? `¿Quién cuida a ${nombreDueno || 'tu mascota'}?` : `¿Quién atiende a ${nombreDueno || 'esta persona'}?`}</Text>
+                <Text style={styles.emptyText}>
+                  {esMascota ? 'Agregá su veterinario: en una urgencia es lo primero que se busca.' : 'Agregá su médico de cabecera o sus especialistas, con el teléfono a mano.'}
+                </Text>
+              </View>
             </View>
           )}
 
@@ -195,14 +210,25 @@ export default function ProfessionalContactsSection({ parentType, parentId }) {
                       </PressScale>
                     </View>
                     {!!item.telefono && (
-                      <PressScale
-                        contentStyle={styles.callRow}
-                        onPress={() => Linking.openURL(`tel:${item.telefono}`)}
-                        accessibilityLabel={`Llamar a ${item.nombre}`}
-                      >
-                        <Ionicons name="call-outline" size={20} color={colors.sageDeep} />
+                      <View style={styles.contactoAcciones}>
+                        <PressScale
+                          contentStyle={styles.llamarBtn}
+                          onPress={() => Linking.openURL(`tel:${item.telefono}`)}
+                          accessibilityLabel={`Llamar a ${item.nombre}, ${item.telefono}`}
+                        >
+                          <Ionicons name="call" size={18} color="#FFFFFF" />
+                          <Text style={styles.llamarTexto}>Llamar</Text>
+                        </PressScale>
+                        <PressScale
+                          contentStyle={styles.whatsBtn}
+                          onPress={() => Linking.openURL(enlaceWhatsApp(item.telefono))}
+                          accessibilityLabel={`Escribirle por WhatsApp a ${item.nombre}`}
+                        >
+                          <Ionicons name="logo-whatsapp" size={18} color="#2F6B3A" />
+                          <Text style={styles.whatsTexto}>WhatsApp</Text>
+                        </PressScale>
                         <Text style={styles.callText}>{item.telefono}</Text>
-                      </PressScale>
+                      </View>
                     )}
                     {!!item.direccion && <Text style={styles.meta}>{item.direccion}</Text>}
                     {!!item.notas && <Text style={styles.notas}>{item.notas}</Text>}
@@ -274,7 +300,14 @@ const styles = StyleSheet.create({
     color: colors.ink,
     marginBottom: 12,
   },
-  emptyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  emptyRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 12, flexWrap: 'wrap' },
+  emptyTextos: { flex: 1, minWidth: 180, gap: 4 },
+  emptyTitulo: { fontSize: 18, lineHeight: 24, fontFamily: 'Lora_700Bold', color: colors.ink },
+  contactoAcciones: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  llamarBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: '#C24623' },
+  llamarTexto: { color: '#FFFFFF', fontSize: 15, fontFamily: poppinsWeight('600') },
+  whatsBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1.5, borderColor: '#2F6B3A' },
+  whatsTexto: { color: '#2F6B3A', fontSize: 15, fontFamily: poppinsWeight('600') },
   emptyText: { flex: 1, fontSize: 16, color: colors.textBody },
   loading: { alignSelf: 'flex-start', marginVertical: 8 },
   item: { paddingVertical: 8, gap: 4 },

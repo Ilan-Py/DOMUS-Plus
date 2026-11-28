@@ -91,6 +91,10 @@ export default function AddMemberScreen({ navigation, route }) {
   const [especieError, setEspecieError] = useState('');
   const [raza, setRaza] = useState(() => memberToEdit?.raza || '');
   const [avatarId, setAvatarId] = useState(() => memberToEdit?.avatar_id || null);
+  // Ficha rápida de la libreta sanitaria (opcional).
+  const [sexo, setSexo] = useState(() => (memberToEdit?.sexo === 'hembra' ? 'Hembra' : memberToEdit?.sexo === 'macho' ? 'Macho' : ''));
+  const [castrado, setCastrado] = useState(() => (memberToEdit?.castrado === true ? 'Sí' : memberToEdit?.castrado === false ? 'No' : ''));
+  const [microchip, setMicrochip] = useState(() => memberToEdit?.microchip || '');
 
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -108,6 +112,9 @@ export default function AddMemberScreen({ navigation, route }) {
     especie: memberToEdit?.especie || '',
     raza: memberToEdit?.raza || '',
     avatarId: memberToEdit?.avatar_id || null,
+    sexo: memberToEdit?.sexo || '',
+    castrado: memberToEdit?.castrado ?? null,
+    microchip: memberToEdit?.microchip || '',
   });
 
   const isDirty =
@@ -118,7 +125,10 @@ export default function AddMemberScreen({ navigation, route }) {
     observaciones !== initialRef.current.observaciones ||
     especie !== initialRef.current.especie ||
     raza !== initialRef.current.raza ||
-    avatarId !== initialRef.current.avatarId;
+    avatarId !== initialRef.current.avatarId ||
+    (sexo ? sexo.toLowerCase() : '') !== initialRef.current.sexo ||
+    (castrado === 'Sí' ? true : castrado === 'No' ? false : null) !== initialRef.current.castrado ||
+    microchip !== initialRef.current.microchip;
 
   const { allowNextRemove } = useUnsavedChangesGuard(navigation, isDirty);
 
@@ -127,11 +137,11 @@ export default function AddMemberScreen({ navigation, route }) {
     const faltaApellido = tipoMiembro === 'integrante' && !apellido.trim();
     const faltaFechaNacimiento = tipoMiembro === 'integrante' && !fechaNacimiento;
     const faltaEspecie = tipoMiembro === 'mascota' && !especie.trim();
-    setNombreError(faltaNombre ? 'Este campo es obligatorio' : '');
-    setApellidoError(faltaApellido ? 'Este campo es obligatorio' : '');
+    setNombreError(faltaNombre ? 'Escribí el nombre.' : '');
+    setApellidoError(faltaApellido ? 'Escribí el apellido.' : '');
     const errNacimiento = fechaNacimiento ? validarNacimiento(fechaNacimiento) : '';
-    setFechaNacimientoError(faltaFechaNacimiento ? 'Este campo es obligatorio' : errNacimiento);
-    setEspecieError(faltaEspecie ? 'Este campo es obligatorio' : '');
+    setFechaNacimientoError(faltaFechaNacimiento ? 'Elegí la fecha de nacimiento.' : errNacimiento);
+    setEspecieError(faltaEspecie ? 'Elegí la especie.' : '');
     setFormError('');
 
     if (faltaNombre || faltaApellido || faltaFechaNacimiento || faltaEspecie || errNacimiento) {
@@ -163,10 +173,16 @@ export default function AddMemberScreen({ navigation, route }) {
           creado = await api.post('/api/familia/integrantes', payload);
         }
       } else {
+        // fecha_nacimiento va siempre: antes no se mandaba y al editar una mascota se borraba su fecha.
         const payload = {
           nombre,
           especie,
           raza: raza || undefined,
+          fecha_nacimiento: fechaNacimiento ? formatDateOnly(fechaNacimiento) : null,
+          sexo: sexo ? sexo.toLowerCase() : null,
+          castrado: castrado === 'Sí' ? true : castrado === 'No' ? false : null,
+          microchip: microchip.trim() || null,
+          observaciones: observaciones.trim() || null,
           avatar_id: avatarId,
         };
         if (isEditing) {
@@ -287,10 +303,10 @@ export default function AddMemberScreen({ navigation, route }) {
               style={styles.field}
             />
             <FormField
-              label="Observaciones"
+              label="Nota para quien lo cuide (opcional)"
               value={observaciones}
               onChangeText={setObservaciones}
-              placeholder="Condiciones, cuidados, notas…"
+              placeholder="Usa audífono, le gusta caminar a la mañana…"
               multiline
               style={styles.field}
             />
@@ -313,10 +329,40 @@ export default function AddMemberScreen({ navigation, route }) {
               style={styles.field}
             />
             <FormField
-              label="Raza"
+              label="Raza (opcional)"
               value={raza}
               onChangeText={setRaza}
-              placeholder="Opcional"
+              placeholder="Border Collie"
+              style={styles.field}
+            />
+            <DatePickerField
+              label="Fecha de nacimiento (opcional)"
+              value={fechaNacimiento}
+              onChange={(date) => {
+                setFechaNacimiento(date);
+                if (fechaNacimientoError) setFechaNacimientoError('');
+              }}
+              mode="date"
+              minimumDate={rangoNacimiento().min}
+              maximumDate={rangoNacimiento().max}
+              error={fechaNacimientoError}
+              style={styles.field}
+            />
+            <OptionPicker label="Sexo (opcional)" options={['Macho', 'Hembra']} value={sexo} onChange={setSexo} style={styles.field} />
+            <OptionPicker label="¿Está castrado/a? (opcional)" options={['Sí', 'No']} value={castrado} onChange={setCastrado} style={styles.field} />
+            <FormField
+              label="Microchip (opcional)"
+              value={microchip}
+              onChangeText={setMicrochip}
+              placeholder="Número del chip"
+              style={styles.field}
+            />
+            <FormField
+              label="Nota para quien la cuide (opcional)"
+              value={observaciones}
+              onChangeText={setObservaciones}
+              placeholder="Le tiene miedo a la tormenta, come 300 g de balanceado…"
+              multiline
               style={styles.field}
             />
           </>

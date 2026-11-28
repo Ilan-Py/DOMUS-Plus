@@ -206,6 +206,43 @@ Object.assign(DIBUJOS, {
   ),
 });
 
+// ---- Escenas chicas para estados vacíos de la ficha.
+Object.assign(DIBUJOS, {
+  // Casita de la veterinaria: sin veterinario cargado.
+  veterinaria: (
+    <>
+      <Capa>
+        <Rect x={22} y={54} width={76} height={50} rx={4} fill={color.cartulina} {...CANTO} />
+      </Capa>
+      <Capa>
+        <Path d="M14 58 L60 22 L106 58 Z" fill={color.salvia} {...CANTO} />
+      </Capa>
+      <Rect x={50} y={76} width={20} height={28} rx={3} fill={hoja.colores.mostaza} />
+      <Capa>
+        <Path d="M54 38 h12 v8 h8 v12 h-8 v8 h-12 v-8 h-8 v-12 h8 Z" fill="#FFFFFF" {...CANTO} stroke={color.terracota} strokeWidth={2} />
+      </Capa>
+      <Circle cx={34} cy={74} r={6} fill={color.rosa} />
+      <Circle cx={86} cy={74} r={6} fill={color.rosa} />
+    </>
+  ),
+  // Portapapeles: sin tratamientos ni historial.
+  portapapeles: (
+    <>
+      <Capa>
+        <Rect x={28} y={20} width={64} height={86} rx={8} fill={hoja.colores.mostaza} {...CANTO} />
+      </Capa>
+      <Rect x={36} y={30} width={48} height={68} rx={4} fill={color.cartulina} />
+      <Capa>
+        <Rect x={46} y={14} width={28} height={14} rx={4} fill={color.salvia} {...CANTO} />
+      </Capa>
+      <Rect x={44} y={44} width={32} height={5} rx={2.5} fill="#E4D6C6" />
+      <Rect x={44} y={56} width={26} height={5} rx={2.5} fill="#E4D6C6" />
+      <Rect x={44} y={68} width={30} height={5} rx={2.5} fill="#E4D6C6" />
+      <Path d="M44 84 L50 90 L62 78" fill="none" stroke={color.terracota} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
+    </>
+  ),
+});
+
 // Ilustración de la época para un mes (0 = enero).
 export function ilustracionDelMes(mes) {
   if (mes === 9 || mes === 10) return 'jacaranda';

@@ -372,7 +372,7 @@ export default function WelcomeScreen({ navigation }) {
               <TituloSeccion sub="Lo importante a la vista, aunque estés apurado.">Así se ve la ficha de emergencia</TituloSeccion>
               {[
                 ['1', 'Toda la familia ve la misma ficha'],
-                ['2', 'Grupo sanguíneo y alergias, a la vista'],
+                ['2', 'Tipo de sangre y alergias, a la vista'],
                 ['3', 'Teléfonos de contacto: un toque y llama'],
               ].map(([n, t]) => (
                 <View key={n} style={styles.leyenda}>
