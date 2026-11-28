@@ -11,7 +11,7 @@ import PressScale from './PressScale';
 // anterior y siguiente se ven atenuados y se pueden elegir; los pasados también van más tenues.
 //   marcados: Map<dayKey, { eventos: [{ id, tipo, hora, titulo, hecho, vencido, serie }] }>
 // Cada evento se dibuja como un punto del color de su tipo; en días pasados el punto cuenta la adherencia
-// (✓ hecho · ✕ sin marcar). Con pantalla ancha (`ancha`) se muestran chips con hora y título.
+// (✓ hecho · ⊖ no se dio · ✕ sin marcar). Con pantalla ancha (`ancha`) se muestran chips con hora y título.
 // Nombres de mes desde Intl (es-AR) en vez de una lista fija.
 const fmtMes = new Intl.DateTimeFormat('es-AR', { month: 'long' });
 const MESES = Array.from({ length: 12 }, (_, i) => {
@@ -82,6 +82,7 @@ export function FondoCategorias({ categorias }) {
 function Marca({ ev }) {
   const t = TONO_CATEGORIA[ev.tipo] || TONO_CATEGORIA.control;
   if (ev.hecho) return <Ionicons name="checkmark-circle" size={14} color={colors.salvia} />;
+  if (ev.omitido) return <Ionicons name="remove-circle" size={14} color="#6B6357" />;
   if (ev.vencido) return <Ionicons name="close-circle" size={14} color="#B5391C" />;
   return <View style={[styles.punto, { backgroundColor: t.fg }]} />;
 }
@@ -135,6 +136,8 @@ function DayCell({ fecha, info, esHoy, esSel, fuera, pasado, onPress, onAgregar,
                 <View key={e.id} style={[styles.chip, { backgroundColor: t.bg }]}>
                   {e.hecho ? (
                     <Ionicons name="checkmark" size={12} color={colors.salvia} />
+                  ) : e.omitido ? (
+                    <Ionicons name="remove" size={12} color="#6B6357" />
                   ) : e.vencido ? (
                     <Ionicons name="close" size={12} color="#B5391C" />
                   ) : null}

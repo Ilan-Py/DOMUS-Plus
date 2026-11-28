@@ -1,23 +1,43 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { getList } from '../api/client';
 import { parseApiDate } from '../utils/displayFormat';
 import { prepararAvisos } from '../utils/avisos';
 
-// Recordatorios pendientes del grupo, recargados cada vez que la pantalla toma el foco.
-// `avisos` es null mientras carga. `setAvisos` permite actualizar en el acto (interfaz optimista).
+// Recordatorios del grupo, recargados cada vez que la pantalla toma el foco.
+//  - `avisos`: sólo los pendientes (lo que usan los contadores, la semana y las tarjetas). null mientras carga.
+//  - `todos`: también los ya marcados, para «Hoy» (lo marcado hoy queda a la vista y se puede deshacer).
+//  - `actualizar(id, cambios)`: cambio en el acto (interfaz optimista); `actualizar(id, null)` lo deja como estaba.
+//  - `error`: true si la última carga falló (la pantalla no debe decir «nada pendiente» en ese caso).
 export default function useAvisos() {
-  const [avisos, setAvisos] = useState(null);
+  const [todos, setTodos] = useState(null);
   const [error, setError] = useState(false);
+  const previos = useRef({});
 
   const recargar = useCallback(async () => {
     try {
-      setAvisos(prepararAvisos(await getList('/api/recordatorios')));
+      setTodos(prepararAvisos(await getList('/api/recordatorios'), { todos: true }));
+      previos.current = {};
       setError(false);
     } catch {
       setError(true);
-      setAvisos((previos) => previos || []);
+      setTodos((antes) => antes || []);
     }
+  }, []);
+
+  const actualizar = useCallback((id, cambios) => {
+    setTodos((lista) =>
+      (lista || []).map((r) => {
+        if (r.id !== id) return r;
+        if (cambios === null) {
+          const antes = previos.current[id];
+          delete previos.current[id];
+          return antes || r;
+        }
+        if (!previos.current[id]) previos.current[id] = r;
+        return { ...r, ...cambios };
+      })
+    );
   }, []);
 
   useFocusEffect(
@@ -26,7 +46,8 @@ export default function useAvisos() {
     }, [recargar])
   );
 
-  return { avisos, setAvisos, error, recargar };
+  const avisos = useMemo(() => (todos ? todos.filter((r) => r.activo) : null), [todos]);
+  return { avisos, todos, error, recargar, actualizar };
 }
 
 // Vacunas de todos los integrantes y mascotas (una consulta por cada uno), con su dueño. Sirve para las alertas

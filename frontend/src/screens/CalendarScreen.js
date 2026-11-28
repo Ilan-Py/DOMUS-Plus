@@ -1,5 +1,8 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { mostrarToast } from '../components/ToastHost';
+import { useAuth } from '../context/AuthContext';
+import { marcar, estadoParaMostrar, palabras, detalleDeMarca } from '../data/dosis';
+import { plural, fechaCorta, hora as horaDe } from '../utils/formato';
 import {
   View,
   Text,
@@ -83,6 +86,7 @@ export default function CalendarScreen({ navigation, route }) {
   const { width } = useWindowDimensions();
   const desktop = width >= DESKTOP_BREAKPOINT;
   const { integrantes, mascotas } = useFamily();
+  const { usuario } = useAuth();
 
   const [recordatorios, setRecordatorios] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -200,9 +204,36 @@ export default function CalendarScreen({ navigation, route }) {
     return true;
   }
 
-  async function handleDesactivar(id) {
-    const ok = await salirOptimista(id, () => api.patch(`/api/recordatorios/${id}/desactivar`));
-    if (ok) mostrarToast('Marcado como hecho');
+  // Marca en el acto (interfaz optimista) y vuelve atrás si el servidor falla. `cambios === null` = como estaba.
+  const antesDeMarcar = useRef({});
+  const actualizarMarca = useCallback((id, cambios) => {
+    setRecordatorios((lista) =>
+      lista.map((r) => {
+        if (r.id !== id) return r;
+        if (cambios === null) {
+          const antes = antesDeMarcar.current[id];
+          delete antesDeMarcar.current[id];
+          return antes || r;
+        }
+        if (!antesDeMarcar.current[id]) antesDeMarcar.current[id] = r;
+        return { ...r, ...cambios };
+      })
+    );
+  }, []);
+
+  async function marcarEvento(e, estado, hechoA) {
+    if (dismissingId) return;
+    setDismissingId(e.item.id);
+    setActionError('');
+    const ok = await marcar({ ...e.item, fecha: e.fecha }, estado, {
+      persona: e.dueno,
+      hechoA,
+      alCambiar: actualizarMarca,
+      recargar: fetchRecordatorios,
+      usuario,
+    });
+    if (ok) cancelarNotificacion(e.item.id).catch(() => {});
+    setDismissingId(null);
   }
 
   function handleEditar(item) {
@@ -230,17 +261,6 @@ export default function CalendarScreen({ navigation, route }) {
       'Eliminar recordatorio',
       `¿Seguro que querés eliminar este recordatorio${item.descripcion ? ` ("${item.descripcion}")` : ''}?`,
       () => handleEliminar(item.id)
-    );
-  }
-
-  // Marcar como hecho = desactivar (deja de figurar como pendiente; la API no
-  // permite volver a activarlo).
-  function confirmHecho(item) {
-    confirmarDestructivo(
-      'Marcar como hecho',
-      'Va a dejar de figurar como pendiente. Esto no se puede deshacer desde la app.',
-      () => handleDesactivar(item.id),
-      'marcar como hecho'
     );
   }
 
@@ -306,8 +326,16 @@ export default function CalendarScreen({ navigation, route }) {
     return porQuien
       .map((r) => {
         const fecha = parseFechaHora(r.fecha_hora);
-        const hecho = !r.activo;
-        return { item: r, fecha, hecho, vencido: !hecho && fecha < ahora, dueno: duenoInfo(r) };
+        const estado = estadoParaMostrar({ ...r, fecha }, ahora);
+        return {
+          item: r,
+          fecha,
+          estado,
+          hecho: estado === 'dada',
+          omitido: estado === 'no_se_dio',
+          vencido: estado === 'sin_marcar',
+          dueno: duenoInfo(r),
+        };
       })
       .sort((a, b) => a.fecha - b.fecha);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -325,6 +353,7 @@ export default function CalendarScreen({ navigation, route }) {
         hora: formatHora(e.fecha),
         titulo: e.item.descripcion || (TIPO_AVISO[e.item.tipo] || TIPO_AVISO.control).label,
         hecho: e.hecho,
+        omitido: e.omitido,
         vencido: e.vencido,
         serie: !!e.item.serie_id,
       });
@@ -339,11 +368,11 @@ export default function CalendarScreen({ navigation, route }) {
   // Resumen del mes que se está viendo.
   const resumenMes = useMemo(() => {
     const delMes = evs.filter((e) => e.fecha.getMonth() === mes.getMonth() && e.fecha.getFullYear() === mes.getFullYear());
-    const hechos = delMes.filter((e) => e.hecho).length;
-    const omitidos = delMes.filter((e) => e.vencido).length;
+    const dosisPasadas = delMes.filter((e) => e.item.tipo === 'medicacion' && (e.hecho || e.omitido || e.vencido));
     return {
       total: delMes.length,
-      adherencia: hechos + omitidos > 0 ? Math.round((100 * hechos) / (hechos + omitidos)) : null,
+      dadas: dosisPasadas.filter((e) => e.hecho).length,
+      pasadas: dosisPasadas.length,
       turnos: delMes.filter((e) => e.item.tipo === 'control').length,
       vacunas: delMes.filter((e) => e.item.tipo === 'vacuna').length,
     };
@@ -394,10 +423,10 @@ export default function CalendarScreen({ navigation, route }) {
         fecha_hora: new Date(e.fecha.getTime() + 86400000).toISOString(),
         descripcion: e.item.descripcion || undefined,
       });
-      mostrarToast('Lo pasamos para mañana');
+      mostrarToast(`La pasamos a mañana a las ${horaDe(e.fecha)}`);
       await fetchRecordatorios();
     } catch (err) {
-      setActionError(err.mensaje || 'No pudimos posponerlo. Probá de nuevo.');
+      mostrarToast(err?.status ? err.mensaje : 'No pudimos cambiar la fecha. Revisá la conexión y probá de nuevo.', 'error');
     }
   }
 
@@ -422,8 +451,8 @@ export default function CalendarScreen({ navigation, route }) {
       });
     lineas.push('END:VCALENDAR');
     entregarTexto('domus-calendario.ics', lineas.join('\r\n'))
-      .then(() => mostrarToast('Calendario exportado'))
-      .catch(() => mostrarToast('No pudimos exportar el calendario.'));
+      .then(() => mostrarToast('Listo, descargamos el calendario (.ics)'))
+      .catch(() => mostrarToast('No pudimos armar el archivo del calendario. Probá de nuevo.', 'error'));
   }
   function masAcciones() {
     const opciones = [{ text: 'Exportar calendario (.ics)', value: 'ics' }];
@@ -434,37 +463,85 @@ export default function CalendarScreen({ navigation, route }) {
     });
   }
 
-  // Acciones de cada evento: "Hecho" para hoy y días pasados; para los futuros sólo Posponer y Editar.
+  // Acciones de cada evento (docs/ux/05-copy.md §4.1):
+  //  - marcado: su estado («Dada 08:12 · Mónica») y «Deshacer»;
+  //  - de un día anterior: «Dada a las 08:00» (a horario) o «No se dio»;
+  //  - de hoy: «Dada» (ahora) y, si ya pasó la hora, «No se dio»;
+  //  - futuro: Pasar a mañana y Editar.
   function acciones(e) {
-    if (e.hecho) return <Text style={styles.hechoTag}>Hecho</Text>;
+    const p = palabras(e.item.tipo);
+    const nombre = e.item.descripcion || p.hecho;
     const ocupado = dismissingId === e.item.id;
+    if (e.hecho || e.omitido) {
+      return (
+        <View style={styles.marcaFila}>
+          <Text style={[styles.hechoTag, e.omitido && styles.omitidoTag]}>{detalleDeMarca(e.item)}</Text>
+          <PressScale
+            contentStyle={styles.btnTexto}
+            onPress={() => marcarDeshacer(e)}
+            disabled={!!dismissingId}
+            accessibilityLabel={`Deshacer la marca: ${nombre}`}
+          >
+            <Text style={styles.btnTextoTexto}>Deshacer</Text>
+          </PressScale>
+        </View>
+      );
+    }
     const futuro = inicioDeDia(e.fecha) > hoy0;
     if (futuro) {
       return (
         <>
-          <PressScale contentStyle={styles.btnSec} onPress={() => posponer(e)} accessibilityLabel={`Posponer un día: ${e.item.descripcion || 'recordatorio'}`}>
-            <Text style={styles.btnSecTexto}>Posponer</Text>
+          <PressScale contentStyle={styles.btnSec} onPress={() => posponer(e)} accessibilityLabel={`Pasar a mañana: ${nombre}`}>
+            <Text style={styles.btnSecTexto}>Pasar a mañana</Text>
           </PressScale>
-          <PressScale contentStyle={styles.btnSec} onPress={() => handleEditar(e.item)} accessibilityLabel={`Editar: ${e.item.descripcion || 'recordatorio'}`}>
+          <PressScale contentStyle={styles.btnSec} onPress={() => handleEditar(e.item)} accessibilityLabel={`Editar: ${nombre}`}>
             <Text style={styles.btnSecTexto}>Editar</Text>
           </PressScale>
         </>
       );
     }
-    const t = tipoDeAviso(e.item.tipo);
+    const deOtroDia = inicioDeDia(e.fecha) < hoy0;
+    const textoHecho = deOtroDia ? `${p.hecho} a las ${horaDe(e.fecha)}` : p.hecho;
     return (
-      <Pulse trigger={ocupado} radio={12}>
-        <PressScale
-          contentStyle={[styles.btnHecho, { backgroundColor: t.fg }]}
-          onPress={() => confirmHecho(e.item)}
-          disabled={ocupado}
-          accessibilityLabel={`Marcar como hecho: ${e.item.descripcion || 'recordatorio'}`}
-        >
-          {ocupado ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="checkmark" size={20} color="#FFFFFF" />}
-          <Text style={styles.btnHechoTexto}>Hecho</Text>
-        </PressScale>
-      </Pulse>
+      <>
+        <Pulse trigger={ocupado} radio={12}>
+          <PressScale
+            contentStyle={styles.btnHecho}
+            onPress={() => marcarEvento(e, 'hecho', deOtroDia ? e.fecha : undefined)}
+            disabled={!!dismissingId}
+            accessibilityLabel={`${deOtroDia ? `${p.hecho} a horario, a las ${horaDe(e.fecha)}` : p.accion}: ${nombre}`}
+          >
+            {ocupado ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="checkmark" size={20} color="#FFFFFF" />}
+            <Text style={styles.btnHechoTexto}>{textoHecho}</Text>
+          </PressScale>
+        </Pulse>
+        {e.vencido && (
+          <PressScale
+            contentStyle={styles.btnSec}
+            onPress={() => marcarEvento(e, 'omitido')}
+            disabled={!!dismissingId}
+            accessibilityLabel={`${p.omitido}: ${nombre}`}
+          >
+            <Text style={styles.btnSecTexto}>{p.omitido}</Text>
+          </PressScale>
+        )}
+      </>
     );
+  }
+
+  async function marcarDeshacer(e) {
+    if (dismissingId) return;
+    setDismissingId(e.item.id);
+    actualizarMarca(e.item.id, { estado: 'pendiente', activo: true, hecho_a: null, marcado_por: null });
+    try {
+      await api.patch(`/api/recordatorios/${e.item.id}/reactivar`);
+      mostrarToast('Listo, quedó sin marcar');
+    } catch (err) {
+      actualizarMarca(e.item.id, null);
+      mostrarToast(err?.status ? err.mensaje : 'No pudimos deshacer la marca. Revisá la conexión y probá de nuevo.', 'error');
+    }
+    setDismissingId(null);
+    fetchRecordatorios();
   }
 
   const fila = (e, i, conDia) => (
@@ -585,7 +662,11 @@ export default function CalendarScreen({ navigation, route }) {
       ))}
       <View style={styles.leyendaItem}>
         <Ionicons name="checkmark-circle" size={14} color={colors.salvia} />
-        <Text style={styles.leyendaText}>Hecho</Text>
+        <Text style={styles.leyendaText}>Dada / hecho</Text>
+      </View>
+      <View style={styles.leyendaItem}>
+        <Ionicons name="remove-circle" size={14} color="#6B6357" />
+        <Text style={styles.leyendaText}>No se dio</Text>
       </View>
       <View style={styles.leyendaItem}>
         <Ionicons name="close-circle" size={14} color="#B5391C" />
@@ -648,7 +729,7 @@ export default function CalendarScreen({ navigation, route }) {
       )}
       {!loading && !loadError && (
         <Text style={styles.agendaSub}>
-          {delDia.length === 0 ? 'Sin pendientes' : `${delDia.length} recordatorio${delDia.length === 1 ? '' : 's'}`}
+          {delDia.length === 0 ? 'Nada programado' : plural(delDia.length, 'aviso')}
         </Text>
       )}
 
@@ -660,16 +741,16 @@ export default function CalendarScreen({ navigation, route }) {
           <SkeletonReminderRow />
         </View>
       ) : loadError ? (
-        <InlineError message="No pudimos cargar los recordatorios." onRetry={fetchRecordatorios} />
+        <InlineError message="No pudimos cargar el calendario." onRetry={fetchRecordatorios} />
       ) : delDia.length === 0 ? (
         <View style={styles.diaLibre}>
           <PaperCutout icon="sun" tinte="ocre" size={96} rotate={-3} />
-          <Text style={styles.diaLibreTitulo}>Día libre</Text>
+          <Text style={styles.diaLibreTitulo}>Nada programado este día</Text>
           <Text style={styles.diaLibreText}>
-            {esPasado ? 'No hubo recordatorios este día.' : 'No tenés nada pendiente para este día.'}
+            {esPasado ? 'Ese día no hubo dosis ni turnos.' : 'Podés programar una dosis, un turno o una vacuna.'}
           </Text>
           {!esPasado && (
-            <PrimaryButton title="+ Agregar para este día" variant="accent" onPress={() => agregarEn(diaElegido)} />
+            <PrimaryButton title={esHoyElegido ? 'Agregar para hoy' : `Agregar el ${fechaCorta(fechaElegida)}`} variant="accent" onPress={() => agregarEn(diaElegido)} />
           )}
         </View>
       ) : (
@@ -680,15 +761,15 @@ export default function CalendarScreen({ navigation, route }) {
 
   const pendientes = (
     <PaperCard nivel={1} hoja={sinMarcar.length ? 'terracota' : undefined} style={styles.cartulina} wrapperStyle={sinMarcar.length ? styles.hojaMargen : undefined}>
-      <Text style={styles.agendaEyebrow} accessibilityRole="header">Pendientes sin marcar</Text>
+      <Text style={styles.agendaEyebrow} accessibilityRole="header">Quedó sin marcar</Text>
       {loading ? (
         <SkeletonReminderRow />
       ) : sinMarcar.length === 0 ? (
-        <Text style={styles.proximoVacio}>Todo al día: no hay avisos vencidos sin marcar.</Text>
+        <Text style={styles.proximoVacio}>Todo marcado. No quedó nada sin marcar.</Text>
       ) : (
         <View style={styles.lista}>
           <Text style={styles.agendaSub}>
-            {sinMarcar.length} aviso{sinMarcar.length === 1 ? '' : 's'} ya pasaron y nadie los marcó como hechos.
+            {sinMarcar.length === 1 ? '1 aviso ya pasó y nadie lo marcó.' : `${sinMarcar.length} avisos ya pasaron y nadie los marcó.`}
           </Text>
           {sinMarcar.slice(0, 4).map((e, i) => fila(e, i, true))}
           {sinMarcar.length > 4 && <Text style={styles.proximoVacio}>y {sinMarcar.length - 4} más…</Text>}
@@ -702,22 +783,22 @@ export default function CalendarScreen({ navigation, route }) {
       <Text style={styles.agendaEyebrow} accessibilityRole="header">Resumen de {NOMBRE_MES(mes.getMonth()).toLowerCase()}</Text>
       <View style={styles.resumenGrilla}>
         <View style={styles.resumenDato}>
-          <Text style={styles.resumenNum}>{resumenMes.adherencia === null ? '—' : `${resumenMes.adherencia}%`}</Text>
-          <Text style={styles.resumenEtiqueta}>Adherencia</Text>
+          <Text style={styles.resumenNum}>{resumenMes.pasadas === 0 ? '—' : `${resumenMes.dadas} de ${resumenMes.pasadas}`}</Text>
+          <Text style={styles.resumenEtiqueta}>Dosis dadas</Text>
         </View>
         <View style={styles.resumenDato}>
           <Text style={styles.resumenNum}>{resumenMes.turnos}</Text>
-          <Text style={styles.resumenEtiqueta}>Turnos</Text>
+          <Text style={styles.resumenEtiqueta}>{resumenMes.turnos === 1 ? 'Turno' : 'Turnos'}</Text>
         </View>
         <View style={styles.resumenDato}>
           <Text style={styles.resumenNum}>{resumenMes.vacunas}</Text>
-          <Text style={styles.resumenEtiqueta}>Vacunas</Text>
+          <Text style={styles.resumenEtiqueta}>{resumenMes.vacunas === 1 ? 'Vacuna' : 'Vacunas'}</Text>
         </View>
       </View>
       <Text style={styles.proximoVacio}>
         {resumenMes.total === 0
-          ? 'No hay avisos este mes.'
-          : `Adherencia: avisos hechos sobre los que ya pasaron (${resumenMes.total} en el mes).`}
+          ? 'Nada programado este mes.'
+          : `Dosis dadas: de las que ya pasaron este mes, cuántas se marcaron como dadas (${plural(resumenMes.total, 'aviso')} en el mes).`}
       </Text>
     </PaperCard>
   );
@@ -798,8 +879,12 @@ const styles = StyleSheet.create({
   tipoChipTexto: { fontSize: 14, fontFamily: poppinsWeight('600'), color: colors.ink },
   swatch: { width: 12, height: 12, borderRadius: 3 },
   hojaMargen: { marginRight: 7, marginBottom: 8 },
-  hechoTag: { fontSize: 14, fontFamily: poppinsWeight('600'), color: colors.salvia, paddingVertical: 8 },
-  btnHecho: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 48, paddingHorizontal: 16, borderRadius: 24 },
+  hechoTag: { fontSize: 14, fontFamily: poppinsWeight('600'), color: '#3B5A4C', paddingVertical: 8 },
+  omitidoTag: { color: '#6B6357' },
+  marcaFila: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 },
+  btnTexto: { minHeight: 44, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
+  btnTextoTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: '#AA451D', textDecorationLine: 'underline' },
+  btnHecho: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 48, paddingHorizontal: 16, borderRadius: 24, backgroundColor: colors.salvia },
   btnHechoTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: '#FFFFFF' },
   btnSec: { minHeight: 48, paddingHorizontal: 16, borderRadius: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(42, 36, 33, 0.22)' },
   btnSecTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.ink },

@@ -16,10 +16,11 @@ export function colorDeMiembro(clase, id) {
   return PALETA[(Number(id) + base) % PALETA.length];
 }
 
-// Pendientes, con la fecha ya convertida a Date local y ordenados por fecha.
-export function prepararAvisos(datos) {
+// Pendientes, con la fecha ya convertida a Date local y ordenados por fecha. Con { todos: true } incluye también
+// los ya marcados (dados / no se dio), que «Hoy» necesita para mostrarlos y poder deshacer.
+export function prepararAvisos(datos, { todos = false } = {}) {
   return datos
-    .filter((r) => r.activo)
+    .filter((r) => todos || r.activo)
     .map((r) => ({ ...r, fecha: parseFechaHora(r.fecha_hora) }))
     .filter((r) => r.fecha && !Number.isNaN(r.fecha.getTime()))
     .sort((a, b) => a.fecha - b.fecha);

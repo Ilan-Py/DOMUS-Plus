@@ -6,14 +6,19 @@ import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
 import PaperCard from './PaperCard';
 import api from '../api/client';
 import PressScale from './PressScale';
-import EntityAvatar from './EntityAvatar';
 import { mostrarToast } from './ToastHost';
+import EventItem from './EventItem';
+import Ilustracion from './Ilustracion';
+import InlineError from './InlineError';
+import ErrorBanner from './ErrorBanner';
+import { useAuth } from '../context/AuthContext';
+import { color, texto, espacio, radio, tactil } from '../theme/tokens';
+import { hora, fechaLarga } from '../utils/formato';
+import { marcar, pasar, horaParaPasar, separarHoy, estadoParaMostrar, palabras, detalleDeMarca } from '../data/dosis';
 import { dayKey, TONO_CATEGORIA, FondoCategorias } from './MiniCalendar';
 import {
-  tipoDeAviso,
   colorDeMiembro,
   duenoDeAviso,
-  cuando,
   inicioDeDia,
   finDeDia,
   mismoDia,
@@ -44,147 +49,250 @@ function categoriaDe(a) {
 }
 
 // ---------------------------------------------------------------------------
-// Hoy: pendientes de hoy (y vencidos) con acciones directas. "Hecho" desactiva el recordatorio y "Más tarde" lo
-// corre una hora; los dos actualizan la lista en el acto y vuelven atrás si el servidor falla.
+// Hoy (docs/ux/03-definicion.md §2 y §3, docs/ux/05-copy.md §4.1):
+//  - «Quedó sin marcar»: pendientes de días anteriores. No se pasan de hora: se pregunta si se dio (DOS-03).
+//  - «Hoy»: lo de hoy, con «Dada» y «Pasar a las …» (sin cruzar la medianoche ni pisar la próxima dosis, DOS-01).
+//  - Lo marcado hoy queda a la vista con su estado y «Deshacer» (DOS-02). El toast también ofrece «Deshacer».
 // ---------------------------------------------------------------------------
-export function HoyPanel({ avisos, setAvisos, recargar, integrantes, mascotas, onVerCalendario, onProgramar }) {
-  const [ocupado, setOcupado] = useState(null);
-  const limite = finDeDia(new Date());
-  const lista = (avisos || []).filter((a) => a.fecha <= limite);
-  const ahora = new Date();
+function Boton({ titulo, onPress, variante = 'secundario', icono, disabled, etiqueta }) {
+  const principal = variante === 'principal';
+  const soloTexto = variante === 'texto';
+  return (
+    <PressScale
+      contentStyle={[estilos.boton, principal && estilos.botonPrincipal, soloTexto && estilos.botonTexto, disabled && estilos.botonApagado]}
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityLabel={etiqueta || titulo}
+    >
+      {!!icono && <Ionicons name={icono} size={18} color={principal ? color.sobreColor : color.tinta} />}
+      <Text style={[estilos.botonEtiqueta, principal && { color: color.sobreColor }, soloTexto && estilos.botonEtiquetaTexto]}>{titulo}</Text>
+    </PressScale>
+  );
+}
 
-  function dueno(a) {
+export function HoyPanel({ todos, error, actualizar, recargar, integrantes, mascotas, onVerCalendario, onProgramar }) {
+  const { usuario } = useAuth();
+  const [ocupado, setOcupado] = useState(null);
+  // Fila de un día anterior en la que se tocó «Sí, se la dieron»: se pregunta a qué hora.
+  const [preguntaHora, setPreguntaHora] = useState(null);
+  const ahora = new Date();
+  const { hoy, atrasados, marcadosHoy } = separarHoy(todos, ahora);
+
+  function persona(a) {
     const d = duenoDeAviso(a);
     if (!d) return null;
     const m = (d.clase === 'integrante' ? integrantes : mascotas).find((x) => x.id === d.id);
-    return m ? { ...d, nombre: m.nombre, apellido: m.apellido, avatarId: m.avatar_id } : null;
+    return m ? { clase: d.clase, nombre: m.nombre, apellido: m.apellido, avatarId: m.avatar_id, fotoUrl: m.foto_url } : null;
   }
 
-  async function marcarHecho(a) {
+  async function hacer(id, fn) {
     if (ocupado) return;
-    setOcupado(a.id);
-    const previos = avisos;
-    setAvisos(avisos.filter((x) => x.id !== a.id));
+    setOcupado(id);
     try {
-      await api.patch(`/api/recordatorios/${a.id}/desactivar`);
-      mostrarToast('Listo, lo marcaste como hecho');
-    } catch (err) {
-      setAvisos(previos);
-      mostrarToast(err.mensaje || 'No pudimos marcarlo. Probá de nuevo.');
+      await fn();
     } finally {
       setOcupado(null);
     }
   }
 
-  async function masTarde(a) {
-    if (ocupado) return;
-    setOcupado(a.id);
+  const opciones = (a) => ({ persona: persona(a), alCambiar: actualizar, recargar, usuario });
+
+  async function deshacer(a) {
+    actualizar(a.id, { estado: 'pendiente', activo: true, hecho_a: null, marcado_por: null });
     try {
-      const nueva = new Date(Math.max(Date.now(), a.fecha.getTime()) + 60 * 60 * 1000);
-      await api.patch(`/api/recordatorios/${a.id}`, {
-        tipo: a.tipo,
-        fecha_hora: nueva.toISOString(),
-        descripcion: a.descripcion || undefined,
-      });
-      mostrarToast('Lo pasamos para dentro de una hora');
-      await recargar();
+      await api.patch(`/api/recordatorios/${a.id}/reactivar`);
+      mostrarToast('Listo, quedó sin marcar');
     } catch (err) {
-      mostrarToast(err.mensaje || 'No pudimos posponerlo. Probá de nuevo.');
-    } finally {
-      setOcupado(null);
+      actualizar(a.id, null);
+      mostrarToast(err?.status ? err.mensaje : 'No pudimos deshacer la marca. Revisá la conexión y probá de nuevo.', 'error');
     }
+    recargar();
   }
+
+  function fila(a, seccion) {
+    const p = palabras(a.tipo);
+    const estado = estadoParaMostrar(a, ahora);
+    const pers = persona(a);
+    const nombre = a.descripcion || p.hecho;
+    const deQuien = pers ? `, ${pers.nombre}` : '';
+    let acciones = null;
+
+    if (seccion === 'marcado') {
+      acciones = (
+        <Boton
+          variante="texto"
+          titulo="Deshacer"
+          etiqueta={`Deshacer la marca: ${nombre}${deQuien}`}
+          disabled={!!ocupado}
+          onPress={() => hacer(a.id, () => deshacer(a))}
+        />
+      );
+    } else if (seccion === 'atrasado' && preguntaHora === a.id) {
+      acciones = (
+        <View style={estilos.pregunta}>
+          <Text style={[texto.meta, { color: color.texto }]}>¿A qué hora, más o menos?</Text>
+          <View style={estilos.botones}>
+            <Boton
+              variante="principal"
+              titulo={`A horario (${hora(a.fecha)})`}
+              etiqueta={`${p.hecho} a horario, a las ${hora(a.fecha)}: ${nombre}${deQuien}`}
+              disabled={!!ocupado}
+              onPress={() => hacer(a.id, async () => { setPreguntaHora(null); await marcar(a, 'hecho', { ...opciones(a), hechoA: a.fecha }); })}
+            />
+            <Boton
+              titulo="No sé la hora"
+              etiqueta={`${p.hecho}, no sé a qué hora: ${nombre}${deQuien}`}
+              disabled={!!ocupado}
+              onPress={() => hacer(a.id, async () => { setPreguntaHora(null); await marcar(a, 'hecho', opciones(a)); })}
+            />
+            <Boton variante="texto" titulo="Cancelar" onPress={() => setPreguntaHora(null)} />
+          </View>
+        </View>
+      );
+    } else if (seccion === 'atrasado') {
+      acciones = (
+        <>
+          <Boton
+            variante="principal"
+            icono="checkmark"
+            titulo={p.si}
+            etiqueta={`${p.si}: ${nombre}${deQuien}`}
+            disabled={!!ocupado}
+            onPress={() => setPreguntaHora(a.id)}
+          />
+          <Boton
+            titulo={p.omitido}
+            etiqueta={`${p.omitido}: ${nombre}${deQuien}`}
+            disabled={!!ocupado}
+            onPress={() => hacer(a.id, () => marcar(a, 'omitido', opciones(a)))}
+          />
+        </>
+      );
+    } else {
+      const nueva = horaParaPasar(a, todos, ahora);
+      acciones = (
+        <>
+          <Boton
+            variante="principal"
+            icono="checkmark"
+            titulo={p.hecho}
+            etiqueta={`${p.accion}: ${nombre}${deQuien}`}
+            disabled={!!ocupado}
+            onPress={() => hacer(a.id, () => marcar(a, 'hecho', opciones(a)))}
+          />
+          {nueva ? (
+            <Boton
+              titulo={`Pasar a las ${hora(nueva)}`}
+              etiqueta={`Pasar a las ${hora(nueva)}: ${nombre}${deQuien}`}
+              disabled={!!ocupado}
+              onPress={() => hacer(a.id, () => pasar(a, nueva, { recargar }))}
+            />
+          ) : estado === 'sin_marcar' ? (
+            <Boton
+              titulo={p.omitido}
+              etiqueta={`${p.omitido}: ${nombre}${deQuien}`}
+              disabled={!!ocupado}
+              onPress={() => hacer(a.id, () => marcar(a, 'omitido', opciones(a)))}
+            />
+          ) : null}
+        </>
+      );
+    }
+
+    let detalle;
+    if (seccion === 'marcado') detalle = detalleDeMarca(a);
+    else if (estado === 'sin_marcar' && seccion === 'hoy') detalle = `Sin marcar · era a las ${hora(a.fecha)}`;
+
+    return (
+      <EventItem
+        tipo={a.tipo}
+        titulo={a.descripcion}
+        fecha={a.fecha}
+        persona={pers}
+        recurrente={!!a.serie_id}
+        estado={estado}
+        detalleEstado={detalle}
+      >
+        {acciones}
+      </EventItem>
+    );
+  }
+
+  const nadaPendiente = hoy.length === 0 && atrasados.length === 0;
 
   return (
     <PaperCard nivel={1} hoja="terracota" style={estilos.card} wrapperStyle={estilos.hojaMargen}>
       <View style={estilos.cab}>
-        <Text style={estilos.titulo} accessibilityRole="header">Hoy en tu familia</Text>
+        <View style={estilos.flex}>
+          <Text style={estilos.titulo} accessibilityRole="header">Hoy</Text>
+          <Text style={[texto.meta, { color: color.texto }]}>{fechaLarga(ahora)}</Text>
+        </View>
         <PressScale contentStyle={estilos.enlace} onPress={onVerCalendario} accessibilityLabel="Ver calendario">
           <Text style={estilos.enlaceTexto}>Ver calendario</Text>
           <Ionicons name="chevron-forward" size={16} color={colors.limeDeep} />
         </PressScale>
       </View>
 
-      {avisos === null ? (
-        <Text style={estilos.ayuda}>Cargando lo de hoy…</Text>
-      ) : lista.length === 0 ? (
-        <View style={estilos.vacio}>
-          {/* Sticker de papel: check salvia con borde blanco y sombra cálida suave */}
-          <View style={estilos.sticker}>
-            <Ionicons name="checkmark" size={26} color="#FFFFFF" />
-          </View>
-          <Text style={estilos.vacioTitulo}>Hoy no hay nada pendiente</Text>
-          <Text style={estilos.ayuda}>Podés programar un turno, una vacuna o una dosis.</Text>
-          <BotonSuave title="Programar un recordatorio" onPress={onProgramar} />
-        </View>
+      {todos === null ? (
+        <Text style={estilos.ayuda} accessibilityLabel="Cargando lo de hoy">Cargando lo de hoy…</Text>
+      ) : error && todos.length === 0 ? (
+        <InlineError message="No pudimos cargar lo de hoy." onRetry={recargar} />
       ) : (
-        lista.map((a, i) => {
-          const t = tipoDeAviso(a.tipo);
-          const d = dueno(a);
-          const vencido = a.fecha < ahora;
-          return (
-            <View key={a.id} style={[estilos.fila, i > 0 && estilos.filaBorde]}>
-              <View style={[estilos.icono, { backgroundColor: t.bg }]}>
-                <Ionicons name={t.icon} size={22} color={t.fg} />
-              </View>
-              <View style={estilos.filaTexto}>
-                <Text style={estilos.filaTitulo} numberOfLines={2}>
-                  {a.descripcion || t.label}
+        <>
+          {atrasados.length > 0 && (
+            <View>
+              <Text style={[texto.sobretitulo, estilos.sobretitulo]} accessibilityRole="header">QUEDÓ SIN MARCAR</Text>
+              {atrasados.map((a, i) => (
+                <View key={a.id} style={i > 0 && estilos.filaBorde}>{fila(a, 'atrasado')}</View>
+              ))}
+            </View>
+          )}
+
+          {hoy.length > 0 && (
+            <View>
+              {atrasados.length > 0 && <Text style={[texto.sobretitulo, estilos.sobretitulo]} accessibilityRole="header">HOY</Text>}
+              {hoy.map((a, i) => (
+                <View key={a.id} style={i > 0 && estilos.filaBorde}>{fila(a, 'hoy')}</View>
+              ))}
+            </View>
+          )}
+
+          {nadaPendiente && (
+            <View style={estilos.vacio}>
+              <Ilustracion nombre="aldia" size={72} />
+              <View style={estilos.flex}>
+                <Text style={estilos.vacioTitulo}>{marcadosHoy.length ? 'Todo marcado por hoy' : 'Nada pendiente para hoy'}</Text>
+                <Text style={estilos.ayuda}>
+                  {marcadosHoy.length ? 'Lo que se marcó queda abajo, por si hay que corregir algo.' : 'Cuando programes una dosis o un turno, aparece acá.'}
                 </Text>
-                <View style={estilos.meta}>
-                  <Text style={[estilos.hora, vencido && estilos.horaVencida]}>
-                    {vencido ? `Venció ${cuando(a.fecha)}` : cuando(a.fecha)}
-                  </Text>
-                  {d && (
-                    <View style={estilos.quien}>
-                      <EntityAvatar avatarId={d.avatarId} type={d.clase === 'mascota' ? 'pet' : 'person'} name={d.nombre} apellido={d.apellido} size={20} />
-                      <Text style={estilos.quienTexto}>{d.nombre}</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-              <View style={estilos.acciones}>
-                <PressScale
-                  contentStyle={estilos.btnHecho}
-                  onPress={() => marcarHecho(a)}
-                  disabled={!!ocupado}
-                  accessibilityLabel={`Marcar como hecho: ${a.descripcion || t.label}`}
-                >
-                  <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-                  <Text style={estilos.btnHechoTexto}>Hecho</Text>
-                </PressScale>
-                <PressScale
-                  contentStyle={estilos.btnTarde}
-                  onPress={() => masTarde(a)}
-                  disabled={!!ocupado}
-                  accessibilityLabel={`Posponer una hora: ${a.descripcion || t.label}`}
-                >
-                  <Text style={estilos.btnTardeTexto}>Más tarde</Text>
-                </PressScale>
+                {!marcadosHoy.length && <BotonSuave title="Agregar" onPress={onProgramar} />}
               </View>
             </View>
-          );
-        })
+          )}
+
+          {marcadosHoy.length > 0 && (
+            <View style={estilos.marcados}>
+              <Text style={[texto.sobretitulo, estilos.sobretitulo]} accessibilityRole="header">YA MARCADO HOY</Text>
+              {marcadosHoy.map((a, i) => (
+                <View key={a.id} style={i > 0 && estilos.filaBorde}>{fila(a, 'marcado')}</View>
+              ))}
+            </View>
+          )}
+
+          {error && <ErrorBanner variant="aviso" message="No pudimos actualizar lo de hoy. Puede que falte algo." onRetry={recargar} />}
+        </>
       )}
     </PaperCard>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Alertas proactivas: sólo con datos que existen (recordatorios vencidos, vacunas próximas o vencidas).
+// Alertas proactivas: vacunas próximas o vencidas. Lo que quedó sin marcar ya está en «Hoy» (con sus acciones):
+// repetirlo acá era un segundo aviso rojo sin nada que hacer.
 // ---------------------------------------------------------------------------
-export function calcularAlertas({ avisos, vacunas }) {
+export function calcularAlertas({ vacunas }) {
   const ahora = new Date();
   const alertas = [];
-  const vencidos = (avisos || []).filter((a) => a.fecha < ahora);
-  if (vencidos.length) {
-    alertas.push({
-      id: 'vencidos',
-      tono: 'danger',
-      icon: 'alert-circle',
-      texto: `${vencidos.length} recordatorio${vencidos.length === 1 ? '' : 's'} vencido${vencidos.length === 1 ? '' : 's'} sin marcar`,
-    });
-  }
   const en30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   vacunas
     .filter((v) => v.proxima)
@@ -260,29 +368,26 @@ export { colorDeMiembro };
 
 const estilos = StyleSheet.create({
   card: { padding: 24, gap: 12 },
+  flex: { flex: 1, minWidth: 0 },
+  marcados: { marginTop: espacio[2], paddingTop: espacio[2], borderTopWidth: 1, borderTopColor: color.linea },
+  sobretitulo: { color: color.texto, marginTop: espacio[2] },
+  pregunta: { gap: espacio[2] },
+  botones: { flexDirection: 'row', flexWrap: 'wrap', gap: espacio[2] },
+  boton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: tactil.comodo, paddingHorizontal: espacio[4], borderRadius: radio.pastilla, borderWidth: 1.5, borderColor: color.lineaFuerte, backgroundColor: color.cartulina },
+  botonPrincipal: { backgroundColor: color.salvia, borderColor: color.salvia },
+  botonTexto: { borderWidth: 0, backgroundColor: 'transparent', paddingHorizontal: espacio[3] },
+  botonApagado: { opacity: 0.55 },
+  botonEtiqueta: { fontSize: 15, fontFamily: poppinsWeight('600'), color: color.tinta },
+  botonEtiquetaTexto: { color: color.terracotaTexto, textDecorationLine: 'underline' },
   hojaMargen: { marginRight: 7, marginBottom: 8 }, // lugar para la hoja de color que asoma detrás
   cab: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   titulo: { fontSize: 22, lineHeight: 30, fontFamily: SERIF_BOLD, color: colors.ink },
   enlace: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 48 },
   enlaceTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.limeDeep },
   ayuda: { fontSize: 14, lineHeight: 20, color: colors.textBody },
-  vacio: { alignItems: 'flex-start', gap: 8, paddingVertical: 8 },
+  vacio: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 8 },
   vacioTitulo: { fontSize: 17, lineHeight: 24, fontFamily: poppinsWeight('600'), color: colors.ink },
-  fila: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12, flexWrap: 'wrap' },
   filaBorde: { borderTopWidth: 1, borderTopColor: 'rgba(42, 36, 33, 0.08)' },
-  icono: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  filaTexto: { flex: 1, minWidth: 180, gap: 4 },
-  filaTitulo: { fontSize: 16, lineHeight: 22, fontFamily: poppinsWeight('600'), color: colors.ink },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
-  hora: { fontSize: 14, lineHeight: 20, color: colors.textBody },
-  horaVencida: { color: '#9A3416', fontFamily: poppinsWeight('600') },
-  quien: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  quienTexto: { fontSize: 14, color: colors.textBody },
-  acciones: { flexDirection: 'row', gap: 8 },
-  btnHecho: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 48, paddingHorizontal: 16, borderRadius: 24, backgroundColor: colors.salvia },
-  btnHechoTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: '#FFFFFF' },
-  btnTarde: { minHeight: 48, paddingHorizontal: 16, borderRadius: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: 'rgba(42, 36, 33, 0.25)' },
-  btnTardeTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.ink },
   alertas: { gap: 8 },
   alerta: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, borderWidth: 1 },
   alertaDanger: { backgroundColor: '#FAECE7', borderColor: 'rgba(194, 70, 35, 0.35)' },
@@ -299,19 +404,4 @@ const estilos = StyleSheet.create({
   suave: { minHeight: 48, paddingHorizontal: 20, borderRadius: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(42, 36, 33, 0.22)', backgroundColor: 'transparent' },
   suaveHover: { backgroundColor: '#F3EAE0' },
   suaveTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.ink },
-  sticker: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.salvia,
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-    shadowColor: '#2A2421',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
 });

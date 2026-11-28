@@ -18,6 +18,7 @@ import { useAuth } from '../context/AuthContext';
 import { useFamily } from '../context/FamilyContext';
 import ErrorBanner from '../components/ErrorBanner';
 import { textoGuardadoEn } from '../utils/cacheLocal';
+import { plural } from '../utils/formato';
 import EmptyState from '../components/EmptyState';
 import PrimaryButton from '../components/PrimaryButton';
 import BannerRecortes from '../components/BannerRecortes';
@@ -156,7 +157,7 @@ export default function FamilyListScreen({ navigation }) {
   // fade-out (FadeOutRow) antes de que refresh() la saque del array.
   const [exitingKey, setExitingKey] = useState(null);
   const [menuAgregar, setMenuAgregar] = useState(false);
-  const { avisos, setAvisos, recargar } = useAvisos();
+  const { avisos, todos, error: errorAvisos, actualizar, recargar } = useAvisos();
   const vacunas = useVacunas(integrantes, mascotas);
 
   async function onRefresh() {
@@ -236,9 +237,9 @@ export default function FamilyListScreen({ navigation }) {
 
   const hoyFin = new Date();
   hoyFin.setHours(23, 59, 59, 999);
-  const pendientesHoy = (avisos || []).filter((a) => a.fecha <= hoyFin).length;
   const alertas = calcularAlertas({ avisos, vacunas });
   const hoyInicio = inicioDeDia(new Date());
+  const esDeHoy = (a) => a.fecha >= hoyInicio && a.fecha <= hoyFin;
 
   // Estado de salud de cada mascota con los datos que ya existen: vacunas vencidas o al día.
   function detalleDeMascota(m) {
@@ -247,15 +248,21 @@ export default function FamilyListScreen({ navigation }) {
     if (propias.length) return { texto: 'Vacunas al día', tono: 'ok' };
     return null;
   }
+  // DOS-06: «hoy» cuenta sólo lo de hoy; lo de días anteriores sin marcar se dice aparte.
   function detalleDeIntegrante(i) {
-    const n = (avisos || []).filter((a) => duenoDeAviso(a)?.clase === 'integrante' && duenoDeAviso(a).id === i.id && a.fecha <= hoyFin).length;
-    return n > 0 ? { texto: `${n} pendiente${n === 1 ? '' : 's'} hoy`, tono: 'alerta' } : null;
+    const suyos = (avisos || []).filter((a) => duenoDeAviso(a)?.clase === 'integrante' && duenoDeAviso(a).id === i.id);
+    const atrasados = suyos.filter((a) => a.fecha < hoyInicio).length;
+    if (atrasados > 0) return { texto: `${plural(atrasados, 'aviso')} sin marcar`, tono: 'alerta' };
+    const hoy = suyos.filter(esDeHoy);
+    const dosis = hoy.filter((a) => a.tipo === 'medicacion').length;
+    if (dosis > 0) return { texto: `${plural(dosis, 'dosis', 'dosis')} hoy`, tono: 'alerta' };
+    return hoy.length > 0 ? { texto: `${plural(hoy.length, 'aviso')} hoy`, tono: 'alerta' } : null;
   }
 
   // Datos para las tarjetas y las estadísticas, sólo con lo que ya existe en el backend.
   const en7 = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-  const dosisHoy = (avisos || []).filter((a) => a.tipo === 'medicacion' && a.fecha <= hoyFin).length;
-  const turnosSemana = (avisos || []).filter((a) => a.tipo === 'control' && a.fecha <= en7).length;
+  const dosisHoy = (avisos || []).filter((a) => a.tipo === 'medicacion' && esDeHoy(a)).length;
+  const turnosSemana = (avisos || []).filter((a) => a.tipo === 'control' && a.fecha >= hoyInicio && a.fecha <= en7).length;
   const progresoFicha = (i) => Math.round((100 * [i.tipo_sangre, i.alergias, i.notas_emergencia].filter(Boolean).length) / 3);
   const fichasIncompletas = integrantes.filter((i) => progresoFicha(i) < 100).length;
   function chipsDe(i) {
@@ -341,7 +348,9 @@ export default function FamilyListScreen({ navigation }) {
   const hoyCard = (
     <HoyPanel
       avisos={avisos}
-      setAvisos={setAvisos}
+      todos={todos}
+      error={errorAvisos}
+      actualizar={actualizar}
       recargar={recargar}
       integrantes={integrantes}
       mascotas={mascotas}
