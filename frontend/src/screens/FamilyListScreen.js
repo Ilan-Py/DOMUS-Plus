@@ -196,9 +196,10 @@ export default function FamilyListScreen({ navigation }) {
 
   function confirmEliminar(tipo, item, nombreCompleto) {
     confirmarDestructivo(
-      'Eliminar',
-      `¿Seguro que querés eliminar a ${nombreCompleto}? Se perderá su historial de salud asociado.`,
-      () => handleEliminar(tipo, item)
+      `¿Eliminar a ${nombreCompleto}?`,
+      'Se borran sus vacunas, tratamientos, historial, documentos y lo que tenía programado. No se puede recuperar.',
+      () => handleEliminar(tipo, item),
+      `Eliminar a ${String(nombreCompleto).split(' ')[0]}`
     );
   }
 

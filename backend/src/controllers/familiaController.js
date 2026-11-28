@@ -602,9 +602,12 @@ async function eliminarIntegrante(req, res) {
             return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Debe crear un grupo familiar primero.' });
         }
 
-        const resultado = await prisma.integrante.deleteMany({
-            where: { id: integranteId, grupoId }
-        });
+        // COP-01 (docs/ux/05-copy.md §7): lo programado para esta persona/mascota se borra con ella. Antes quedaba en el
+        // calendario sin dueño (el recordatorio tiene onDelete: SetNull para no perder los vinculados a vacunas).
+        const [, resultado] = await prisma.$transaction([
+            prisma.recordatorio.deleteMany({ where: { integranteId: integranteId, grupoId } }),
+            prisma.integrante.deleteMany({ where: { id: integranteId, grupoId } })
+        ]);
         if (resultado.count === 0) {
             return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Integrante no encontrado.' });
         }
@@ -789,9 +792,12 @@ async function eliminarMascota(req, res) {
             return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Debe crear un grupo familiar primero.' });
         }
 
-        const resultado = await prisma.mascota.deleteMany({
-            where: { id: mascotaId, grupoId }
-        });
+        // COP-01 (docs/ux/05-copy.md §7): lo programado para esta persona/mascota se borra con ella. Antes quedaba en el
+        // calendario sin dueño (el recordatorio tiene onDelete: SetNull para no perder los vinculados a vacunas).
+        const [, resultado] = await prisma.$transaction([
+            prisma.recordatorio.deleteMany({ where: { mascotaId: mascotaId, grupoId } }),
+            prisma.mascota.deleteMany({ where: { id: mascotaId, grupoId } })
+        ]);
         if (resultado.count === 0) {
             return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Mascota no encontrada.' });
         }

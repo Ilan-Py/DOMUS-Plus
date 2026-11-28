@@ -251,9 +251,10 @@ export default function ProfileDetailScreen({ navigation, route }) {
 
   function handleEliminar() {
     confirmarDestructivo(
-      'Eliminar',
-      `¿Seguro que querés eliminar a ${nombre}? Se perderá su historial de salud asociado.`,
-      handleEliminarConfirmado
+      `¿Eliminar a ${nombre}?`,
+      'Se borran sus vacunas, tratamientos, historial, documentos y lo que tenía programado. No se puede recuperar.',
+      handleEliminarConfirmado,
+      `Eliminar a ${String(nombre).split(' ')[0]}`
     );
   }
 
