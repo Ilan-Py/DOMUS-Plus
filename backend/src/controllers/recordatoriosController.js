@@ -62,23 +62,23 @@ async function crearRecordatorio(req, res) {
     }
     const seRepite = repetir_cada_dias !== undefined && repetir_cada_dias !== null && repetir_cada_dias !== '';
     if (!seRepite && repetir_veces !== undefined && repetir_veces !== null && repetir_veces !== '') {
-        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'Para repetir el recordatorio, indicá cada cuántos días (repetir_cada_dias).' });
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'Indicá cada cuántos días se repite.' });
     }
 
     if (!tipo || !fecha_hora) {
-        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'tipo y fecha_hora son obligatorios.' });
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'Elegí el tipo, la fecha y la hora.' });
     }
     if (!TIPOS_VALIDOS.includes(tipo)) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: `tipo debe ser uno de: ${TIPOS_VALIDOS.join(', ')}.` });
     }
     if (new Date(fecha_hora) <= new Date()) {
-        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'La fecha del recordatorio debe ser futura.' });
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'Elegí una hora que todavía no pasó. Para anotar una dosis que ya se dio, marcala en Hoy.' });
     }
 
     try {
         const grupoId = await resolverGrupoId(usuarioId);
         if (!grupoId) {
-            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Debe pertenecer a un grupo familiar primero.' });
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Primero creá tu familia o sumate a una con un código.' });
         }
 
         // La vacuna/tratamiento vinculado tiene que ser de este grupo — sin esto
@@ -176,19 +176,19 @@ async function editarRecordatorio(req, res) {
     }
 
     if (!tipo || !fecha_hora) {
-        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'tipo y fecha_hora son obligatorios.' });
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'Elegí el tipo, la fecha y la hora.' });
     }
     if (!TIPOS_VALIDOS.includes(tipo)) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: `tipo debe ser uno de: ${TIPOS_VALIDOS.join(', ')}.` });
     }
     if (new Date(fecha_hora) <= new Date()) {
-        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'La fecha del recordatorio debe ser futura.' });
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: 'Elegí una hora que todavía no pasó. Para anotar una dosis que ya se dio, marcala en Hoy.' });
     }
 
     try {
         const grupoId = await resolverGrupoId(usuarioId);
         if (!grupoId) {
-            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Recordatorio no encontrado.' });
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'No encontramos ese aviso. Puede que alguien lo haya eliminado.' });
         }
 
         const data = { tipo, fechaHora: new Date(fecha_hora), descripcion: descripcion || null };
@@ -207,7 +207,7 @@ async function editarRecordatorio(req, res) {
             data
         });
         if (resultado.count === 0) {
-            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Recordatorio no encontrado.' });
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'No encontramos ese aviso. Puede que alguien lo haya eliminado.' });
         }
 
         return res.status(200).json({ codigo: 200, estado: 'ok', datos: { id, tipo, fecha_hora, descripcion: descripcion || null } });
@@ -231,7 +231,7 @@ async function eliminarRecordatorio(req, res) {
     try {
         const grupoId = await resolverGrupoId(usuarioId);
         if (!grupoId) {
-            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Recordatorio no encontrado.' });
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'No encontramos ese aviso. Puede que alguien lo haya eliminado.' });
         }
 
         const recordatorio = await prisma.recordatorio.findFirst({
@@ -239,7 +239,7 @@ async function eliminarRecordatorio(req, res) {
             select: { serieId: true, fechaHora: true }
         });
         if (!recordatorio) {
-            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Recordatorio no encontrado.' });
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'No encontramos ese aviso. Puede que alguien lo haya eliminado.' });
         }
 
         // Sin serie (o "sólo este") se borra únicamente ese recordatorio.
@@ -262,7 +262,7 @@ async function desactivarRecordatorio(req, res) {
     try {
         const grupoId = await resolverGrupoId(usuarioId);
         if (!grupoId) {
-            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Recordatorio no encontrado.' });
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'No encontramos ese aviso. Puede que alguien lo haya eliminado.' });
         }
 
         // Compatibilidad con la app anterior: «desactivar» = marcar como hecho ahora.
@@ -271,7 +271,7 @@ async function desactivarRecordatorio(req, res) {
             data: { activo: false, estado: 'hecho', hechoA: new Date(), hechoPor: usuarioId }
         });
         if (resultado.count === 0) {
-            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Recordatorio no encontrado.' });
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'No encontramos ese aviso. Puede que alguien lo haya eliminado.' });
         }
 
         return res.status(200).json({ codigo: 200, estado: 'ok', datos: 'Recordatorio desactivado.' });
@@ -308,11 +308,11 @@ async function marcarRecordatorio(req, res) {
     try {
         const grupoId = await resolverGrupoId(usuarioId);
         if (!grupoId) {
-            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Recordatorio no encontrado.' });
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'No encontramos ese aviso. Puede que alguien lo haya eliminado.' });
         }
         const recordatorio = await prisma.recordatorio.findFirst({ where: { id, grupoId }, select: { fechaHora: true } });
         if (!recordatorio) {
-            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Recordatorio no encontrado.' });
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'No encontramos ese aviso. Puede que alguien lo haya eliminado.' });
         }
         if (hechoA.getTime() < recordatorio.fechaHora.getTime() - DIA_MS) {
             return res.status(400).json({ codigo: 400, estado: 'error', datos: 'La hora no puede ser más de un día antes de lo programado.' });
@@ -337,14 +337,14 @@ async function reactivarRecordatorio(req, res) {
     try {
         const grupoId = await resolverGrupoId(usuarioId);
         if (!grupoId) {
-            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Recordatorio no encontrado.' });
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'No encontramos ese aviso. Puede que alguien lo haya eliminado.' });
         }
         const resultado = await prisma.recordatorio.updateMany({
             where: { id, grupoId },
             data: { activo: true, estado: 'pendiente', hechoA: null, hechoPor: null }
         });
         if (resultado.count === 0) {
-            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'Recordatorio no encontrado.' });
+            return res.status(404).json({ codigo: 404, estado: 'error', datos: 'No encontramos ese aviso. Puede que alguien lo haya eliminado.' });
         }
         return res.status(200).json({ codigo: 200, estado: 'ok', datos: { id, estado: 'pendiente' } });
     } catch (err) {

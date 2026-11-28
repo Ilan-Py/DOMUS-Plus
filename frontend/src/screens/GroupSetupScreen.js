@@ -6,6 +6,7 @@ import { poppinsWeight } from '../theme/typography';
 import { useAuth } from '../context/AuthContext';
 import FormField from '../components/FormField';
 import PrimaryButton from '../components/PrimaryButton';
+import { CERRAR_SESION } from '../utils/textos';
 import ErrorBanner from '../components/ErrorBanner';
 import SegmentedControl from '../components/SegmentedControl';
 import Logo from '../components/Logo';
@@ -76,10 +77,10 @@ export default function GroupSetupScreen() {
 
   function confirmarSalida() {
     confirmarDestructivo(
-      'Cerrar sesión',
-      'Vas a volver al inicio. Tu cuenta sigue guardada y podés entrar de nuevo cuando quieras.',
+      CERRAR_SESION.titulo,
+      CERRAR_SESION.mensaje,
       logout,
-      'Cerrar sesión',
+      CERRAR_SESION.boton,
       'logout'
     );
   }

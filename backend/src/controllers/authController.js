@@ -46,7 +46,7 @@ async function registrar(req, res) {
         return res.status(400).json({
             codigo: 400,
             estado: 'error',
-            datos: 'La contraseña debe tener mínimo 8 caracteres, al menos una mayúscula y un número.'
+            datos: 'La contraseña necesita 8 caracteres o más, una mayúscula y un número.'
         });
     }
 
@@ -104,7 +104,7 @@ async function login(req, res) {
         return res.status(400).json({
             codigo: 400,
             estado: 'error',
-            datos: 'Email y contraseña son obligatorios.'
+            datos: 'Escribí tu correo y tu contraseña.'
         });
     }
 
@@ -112,7 +112,7 @@ async function login(req, res) {
          const usuario = await prisma.usuario.findUnique({ where: { email: email.trim().toLowerCase() } });
 
         if (!usuario) {
-            return res.status(401).json({ codigo: 401, estado: 'error', datos: 'Ese correo o contraseña no coinciden. Fijate si tenés las mayúsculas activadas.' });
+            return res.status(401).json({ codigo: 401, estado: 'error', datos: 'El correo o la contraseña no coinciden. Fijate si están activadas las mayúsculas.' });
         }
 
         const match = await bcrypt.compare(password, usuario.passwordHash);
@@ -121,7 +121,7 @@ async function login(req, res) {
             return res.status(401).json({
                 codigo: 401,
                 estado: 'error',
-                datos: 'Ese correo o contraseña no coinciden. Fijate si tenés las mayúsculas activadas.'
+                datos: 'El correo o la contraseña no coinciden. Fijate si están activadas las mayúsculas.'
             });
         }
 
@@ -190,7 +190,7 @@ async function eliminarCuenta(req, res) {
                     return res.status(409).json({
                         codigo: 409,
                         estado: 'error',
-                        datos: 'Sos el dueño del grupo y todavía hay otros miembros. Quitalos o eliminá el grupo antes de eliminar tu cuenta.'
+                        datos: 'Antes de eliminar tu cuenta, quitá a las demás personas del grupo.'
                     });
                 }
                 // Solo en su grupo: el grupo se va con él (onDelete: Cascade limpia lo que cuelga).
@@ -250,7 +250,7 @@ async function actualizarPerfil(req, res) {
             return res.status(409).json({
                 codigo: 409,
                 estado: 'error',
-                datos: 'El email ya está registrado.'
+                datos: 'Ese correo ya lo usa otra cuenta.'
             });
         }
 
@@ -312,7 +312,7 @@ async function cambiarPassword(req, res) {
             return res.status(400).json({
                 codigo: 400,
                 estado: 'error',
-                datos: 'La contraseña debe tener mínimo 8 caracteres, al menos una mayúscula y un número.'
+                datos: 'La contraseña necesita 8 caracteres o más, una mayúscula y un número.'
             });
         }
 
@@ -320,7 +320,7 @@ async function cambiarPassword(req, res) {
             return res.status(400).json({
                 codigo: 400,
                 estado: 'error',
-                datos: 'La nueva contraseña debe ser diferente a la actual.'
+                datos: 'Elegí una contraseña distinta de la actual.'
             });
         }
 

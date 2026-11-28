@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { CERRAR_SESION, nombreDeRol } from '../utils/textos';
 import { mostrarToast } from '../components/ToastHost';
 import { View, Text, StyleSheet, Share, ActivityIndicator, ScrollView, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -65,7 +66,7 @@ function TextButton({ label, onPress, accessibilityLabel }) {
 // El backend guarda el rol como 'dueno' (sin ñ, Prisma no admite ñ en enums) y
 // algunas versiones lo devuelven como 'dueño'. Se aceptan las dos.
 const esRolDueno = (rol) => rol === 'dueño' || rol === 'dueno';
-const rolLabel = (rol) => (esRolDueno(rol) ? 'Dueño' : 'Miembro');
+const rolLabel = (rol) => nombreDeRol(esRolDueno(rol) ? 'dueno' : 'miembro');
 
 // Fila navegable con chip de ícono + chevron — el mismo affordance que ya
 // usan las cards de FamilyListScreen (avatar + texto + chevron), acá en
@@ -196,10 +197,10 @@ export default function AccountScreen() {
 
   function confirmLogout() {
     confirmarDestructivo(
-      'Cerrar sesión',
-      '¿Seguro que querés cerrar sesión?',
+      CERRAR_SESION.titulo,
+      CERRAR_SESION.mensaje,
       handleLogout,
-      'Cerrar sesión',
+      CERRAR_SESION.boton,
       'logout'
     );
   }
@@ -227,7 +228,7 @@ export default function AccountScreen() {
         params: { id: miFicha.id, nombre: `${miFicha.nombre} ${miFicha.apellido}` },
       });
     } else {
-      mostrarToast('Todavía no estás cargado en Familia. Sumate como integrante para tener tu ficha.');
+      mostrarToast('Todavía no tenés ficha. Sumate a Familia como integrante y la armamos.');
       navigation.navigate('Familia');
     }
   }
@@ -251,8 +252,8 @@ export default function AccountScreen() {
     ? [
         { etiqueta: 'tipo de sangre', ok: !!miFicha.tipo_sangre },
         { etiqueta: 'alergias', ok: !!miFicha.alergias },
-        { etiqueta: 'notas médicas', ok: !!miFicha.notas_emergencia },
-        { etiqueta: 'un contacto de emergencia', ok: nContactos > 0 },
+        { etiqueta: 'qué tener en cuenta', ok: !!miFicha.notas_emergencia },
+        { etiqueta: 'a quién llamar', ok: nContactos > 0 },
       ]
     : [];
   const porcentajeFicha = pasosFicha.length ? Math.round((100 * pasosFicha.filter((p) => p.ok).length) / pasosFicha.length) : 0;
@@ -263,7 +264,7 @@ export default function AccountScreen() {
       const resumen = await armarResumenFichas({ grupoNombre: grupo?.nombre, integrantes });
       const texto = `Mis datos en DOMUS+\n${usuario?.nombre} ${usuario?.apellido} · ${usuario?.email}\nGrupo: ${grupo?.nombre || 'sin grupo'}\n\n${resumen}`;
       await entregarTexto('mis-datos-domus.txt', texto);
-      mostrarToast('Tus datos están listos');
+      mostrarToast('Listo, descargamos tus datos');
     } catch {
       mostrarToast('No pudimos descargar tus datos. Probá de nuevo.', 'error');
     }
@@ -293,10 +294,10 @@ export default function AccountScreen() {
       return;
     }
     confirmarDestructivo(
-      'Eliminar cuenta',
-      'Tu cuenta se borra para siempre. Si sos la única persona del grupo, también se borran sus integrantes, mascotas, fichas y recordatorios.',
+      '¿Eliminar tu cuenta?',
+      'Se borra para siempre. Si sos la única persona con acceso, también se borra toda la familia: integrantes, mascotas, fichas y calendario.',
       eliminarMiCuenta,
-      'Eliminar cuenta'
+      'Eliminar mi cuenta'
     );
   }
 
@@ -459,9 +460,10 @@ export default function AccountScreen() {
 
   function confirmEliminarMiembro(miembro) {
     confirmarDestructivo(
-      'Eliminar miembro',
-      `¿Seguro que querés eliminar a ${miembro.nombre} ${miembro.apellido} del grupo familiar?`,
-      () => handleEliminarMiembro(miembro)
+      `¿Quitar a ${miembro.nombre} ${miembro.apellido} del grupo?`,
+      'Deja de ver la familia. Lo que cargó se queda.',
+      () => handleEliminarMiembro(miembro),
+      `Quitar a ${miembro.nombre}`
     );
   }
 
@@ -480,10 +482,10 @@ export default function AccountScreen() {
 
   function confirmSalirGrupo() {
     confirmarDestructivo(
-      'Salir del grupo',
-      '¿Seguro que querés salir de este grupo familiar? Vas a dejar de ver sus integrantes, mascotas y recordatorios.',
+      `¿Salir de ${grupo?.nombre || 'este grupo'}?`,
+      'Dejás de ver sus fichas y su calendario. Para volver, te tienen que invitar de nuevo.',
       handleSalirGrupo,
-      'Salir'
+      'Salir del grupo'
     );
   }
 
@@ -607,7 +609,7 @@ export default function AccountScreen() {
             <Text style={styles.groupName} numberOfLines={2}>{grupo?.nombre}</Text>
             {!loadingMiembros && !miembrosError && (
               <Text style={styles.groupSummary}>
-                {miembros.length} {miembros.length === 1 ? 'integrante' : 'integrantes'}
+                {miembros.length === 1 ? '1 persona con acceso' : `${miembros.length} personas con acceso`}
               </Text>
             )}
             {esDueno && (
@@ -627,14 +629,14 @@ export default function AccountScreen() {
             contentStyle={styles.inviteBox}
             onPress={generandoCodigo ? null : handleGenerarInvitacion}
             disabled={generandoCodigo}
-            accessibilityLabel={codigoInvitacion ? 'Generar otro código de invitación' : 'Invitar miembro'}
+            accessibilityLabel={codigoInvitacion ? 'Generar otro código de invitación' : 'Invitar a alguien'}
           >
             <Ionicons name="mail-open-outline" size={30} color={colors.salvia} />
             <View style={styles.rowTextWrap}>
               <Text style={styles.inviteTitle}>
-                {generandoCodigo ? 'Generando código…' : codigoInvitacion ? 'Generar otro código' : 'Invitar miembro'}
+                {generandoCodigo ? 'Generando código…' : codigoInvitacion ? 'Generar otro código' : 'Invitar a alguien'}
               </Text>
-              <Text style={styles.inviteHint}>Generá un código para que se una a tu grupo</Text>
+              <Text style={styles.inviteHint}>Generá un código y pasáselo. Con eso crea su cuenta y se suma.</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.salvia} />
           </PressScale>
@@ -653,7 +655,7 @@ export default function AccountScreen() {
               </View>
             </Pulse>
           ) : null}
-          {!!codigoInvitacion && <Text style={styles.codigoNota}>Sigue activo hasta que generes otro código.</Text>}
+          {!!codigoInvitacion && <Text style={styles.codigoNota}>Sirve hasta que generes uno nuevo.</Text>}
         </View>
       )}
 
@@ -669,7 +671,7 @@ export default function AccountScreen() {
       ) : (
         <>
           <Text style={styles.membersLabel} accessibilityRole="header">
-            Miembros ({miembros.length})
+            Con acceso ({miembros.length})
           </Text>
           {miembros.map((m, i) => (
             <View key={m.usuario_id} style={[styles.miembroRow, i < miembros.length - 1 && styles.rowDivider]}>
@@ -701,7 +703,7 @@ export default function AccountScreen() {
             {esDueno && miembros.length <= 1 && (
               <SlotVacio texto="Invitá a tu familia con un código" icono="mail-open-outline" onPress={generandoCodigo ? null : handleGenerarInvitacion} />
             )}
-            <SlotVacio texto="Agregar perfil sin cuenta" icono="person-add-outline" onPress={() => navigation.navigate('Familia', { screen: 'AddMember', params: { tipoMiembro: 'integrante' } })} />
+            <SlotVacio texto="Agregar persona sin cuenta" icono="person-add-outline" onPress={() => navigation.navigate('Familia', { screen: 'AddMember', params: { tipoMiembro: 'integrante' } })} />
           </View>
         </>
       )}
@@ -713,7 +715,7 @@ export default function AccountScreen() {
       )}
       {esDueno && (
         <View style={styles.footer}>
-          <Text style={styles.sosDueno}>Sos el dueño del grupo</Text>
+          <Text style={styles.sosDueno}>Creaste este grupo</Text>
         </View>
       )}
     </View>
@@ -755,11 +757,11 @@ export default function AccountScreen() {
           onPress={() => setAnticipoMin(anticipoMin > 0 ? 0 : 30)}
           accessibilityRole="switch"
           accessibilityState={{ checked: anticipoMin > 0 }}
-          accessibilityLabel="Recordatorios anticipados: recibir aviso antes de cada dosis o turno"
+          accessibilityLabel="Avisarme antes: un aviso antes de cada dosis o turno, sólo en el celular"
         >
           <View style={styles.rowTextWrap}>
-            <Text style={styles.prefTitulo}>Recordatorios anticipados</Text>
-            <Text style={styles.prefAyuda}>Recibir aviso antes de cada dosis o turno (en el celular).</Text>
+            <Text style={styles.prefTitulo}>Avisarme antes</Text>
+            <Text style={styles.prefAyuda}>Un aviso antes de cada dosis o turno. Sólo en el celular.</Text>
           </View>
           <View style={[styles.pista, anticipoMin > 0 && styles.pistaOn]}>
             <View style={[styles.perilla, anticipoMin > 0 && styles.perillaOn]} />
@@ -798,7 +800,7 @@ export default function AccountScreen() {
           <Text style={styles.privTitulo} accessibilityRole="header">Privacidad y datos</Text>
         </View>
         <Text style={styles.privTexto}>
-          Solo los miembros de {grupo?.nombre || 'tu grupo familiar'} pueden ver esta información.
+          Sólo las personas con acceso a {grupo?.nombre || 'tu familia'} pueden ver esta información.
         </Text>
         <PressScale
           contentStyle={styles.privBtn}
@@ -845,7 +847,7 @@ export default function AccountScreen() {
             <Text style={styles.prefAyuda}>
               Todavía no tenés tu ficha. Sumate como integrante de la familia para cargar tu tipo de sangre, alergias y contactos.
             </Text>
-            <PrimaryButton title="Sumarme en Familia" variant="accent" onPress={verMiFicha} />
+            <PrimaryButton title="Sumarme" variant="accent" onPress={verMiFicha} />
           </>
         )}
       </View>
@@ -854,8 +856,8 @@ export default function AccountScreen() {
 
   const zonaPeligroCard = (
     <View {...paper('papel', 'p1')} style={styles.card}>
-      <Text style={styles.cardLabel} accessibilityRole="header">Zona de peligro</Text>
-      <SettingRow icon="download-outline" label="Exportar mis datos" value="Un archivo de texto con tu perfil y las fichas del grupo." onPress={exportarMisDatos} />
+      <Text style={styles.cardLabel} accessibilityRole="header">Tu cuenta</Text>
+      <SettingRow icon="download-outline" label="Descargar mis datos" value="Un archivo de texto con tu perfil y las fichas del grupo." onPress={exportarMisDatos} />
       {!esDueno && !!miMembresia && (
         <SettingRow
           icon="exit-outline"
@@ -900,7 +902,7 @@ export default function AccountScreen() {
       invitar: {
         title: 'Cómo invitar a tu familia',
         message:
-          '1. Si sos el dueño del grupo, tocá «Copiar código» en el menú o «Invitar miembro» en esta pantalla.\n\n2. Pasale el código a quien quieras sumar.\n\n3. Esa persona crea su cuenta y elige «Unirme con un código de invitación».',
+          '1. Si creaste el grupo, tocá «Copiar código» en el menú o «Invitar a alguien» en esta pantalla.\n\n2. Pasale el código a quien quieras sumar.\n\n3. Esa persona crea su cuenta y elige «Unirme con un código de invitación».',
       },
       ficha: {
         title: 'Cómo usar la ficha de emergencia',
@@ -965,8 +967,8 @@ export default function AccountScreen() {
         <View style={[styles.container, desktop && styles.containerIzq]}>
           {/* Encabezado sin divisor: el título vive dentro del mismo contenedor que las tarjetas. */}
           <View style={styles.header}>
-            <Text style={styles.title} accessibilityRole="header">Mi cuenta</Text>
-            <Text style={styles.subtitle}>Administrá tus datos personales y tu grupo familiar.</Text>
+            <Text style={styles.title} accessibilityRole="header">Cuenta</Text>
+            <Text style={styles.subtitle}>Tus datos, tu familia y cómo se ve la app.</Text>
           </View>
 
           {columnas >= 2 ? (

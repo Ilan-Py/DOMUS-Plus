@@ -10,6 +10,7 @@ import { LogoConNombre } from '../components/Logo';
 import { useAuth } from '../context/AuthContext';
 import api, { getList } from '../api/client';
 import * as Clipboard from 'expo-clipboard';
+import { CERRAR_SESION, nombreDeRol } from '../utils/textos';
 import { mostrarToast } from '../components/ToastHost';
 import CrossfadeIcon from '../components/CrossfadeIcon';
 import Pulse from '../components/Pulse';
@@ -120,8 +121,8 @@ function InvitaCard({ onCerrar }) {
       <PressScale contentStyle={styles.invitaCerrar} onPress={onCerrar} accessibilityLabel="Ocultar el aviso de invitar a la familia">
         <Ionicons name="close" size={18} color={colors.textBody} />
       </PressScale>
-      <Text style={styles.invitaTitle}>Sumá a tu familia</Text>
-      <Text style={styles.invitaText}>Pasales el código para que se unan al grupo.</Text>
+      <Text style={styles.invitaTitle}>Invitá a alguien</Text>
+      <Text style={styles.invitaText}>Con el código, se suma a tu familia y ve lo mismo que vos.</Text>
       <Pulse trigger={copiado} radio={10}>
         <PressScale
           contentStyle={styles.invitaBtn}
@@ -164,7 +165,7 @@ export default function SideBar({ state, navigation }) {
     getList('/api/familia/grupo/miembros')
       .then((miembros) => {
         const yo = miembros.find((m) => m.usuario_id === usuario?.id);
-        if (activo && yo) setRol(yo.rol === 'dueño' || yo.rol === 'dueno' ? 'Dueño' : 'Miembro');
+        if (activo && yo) setRol(nombreDeRol(yo.rol));
       })
       .catch(() => {});
     return () => {
@@ -216,7 +217,7 @@ export default function SideBar({ state, navigation }) {
       </View>
 
       {/* En Mi cuenta ya está "Invitar miembro": no se repite el bloque acá. */}
-      {rol === 'Dueño' && !enCuenta && !ocultaInvita && <InvitaCard onCerrar={ocultarInvita} />}
+      {rol === nombreDeRol('dueno') && !enCuenta && !ocultaInvita && <InvitaCard onCerrar={ocultarInvita} />}
 
       {/* Anclada al pie: quién tiene la sesión abierta. Lleva a Cuenta. */}
       <View style={styles.userWrap}>
@@ -229,16 +230,16 @@ export default function SideBar({ state, navigation }) {
                 setMenuUsuario(false);
                 navigation.navigate('Cuenta');
               }}
-              accessibilityLabel="Ir a Mi cuenta"
+              accessibilityLabel="Ir a Cuenta"
             >
               <Ionicons name="person-outline" size={20} color={colors.iconWarm} />
-              <Text style={styles.menuTexto}>Mi cuenta</Text>
+              <Text style={styles.menuTexto}>Cuenta</Text>
             </PressScale>
             <PressScale
               contentStyle={styles.menuFila}
               onPress={() => {
                 setMenuUsuario(false);
-                confirmarDestructivo('Cerrar sesión', '¿Seguro que querés cerrar sesión?', logout, 'Cerrar sesión', 'logout');
+                confirmarDestructivo(CERRAR_SESION.titulo, CERRAR_SESION.mensaje, logout, CERRAR_SESION.boton, 'logout');
               }}
               accessibilityLabel="Cerrar sesión"
             >

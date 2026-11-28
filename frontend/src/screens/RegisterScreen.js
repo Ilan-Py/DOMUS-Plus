@@ -14,7 +14,13 @@ import { LEGAL } from '../utils/legal';
 
 // Misma regla que authController.js: mínimo 8 caracteres, 1 mayúscula, 1 número
 const PASSWORD_RULE = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
-const PASSWORD_RULE_MSG = 'Falta cumplir los requisitos de la contraseña: mirá los que siguen en gris debajo.';
+// FRM-01: el error nombra lo que falta (antes decía «mirá los que siguen en gris», sólo color).
+function faltanDeLaContrasena({ okLargo, okMayus, okNum }) {
+  const faltan = [!okLargo && '8 caracteres o más', !okMayus && 'una mayúscula', !okNum && 'un número'].filter(Boolean);
+  if (!faltan.length) return '';
+  const lista = faltan.length === 1 ? faltan[0] : `${faltan.slice(0, -1).join(', ')} y ${faltan[faltan.length - 1]}`;
+  return `A la contraseña le falta: ${lista}.`;
+}
 
 function ModalLegal({ tipo, onClose }) {
   const t = tipo ? LEGAL[tipo] : null;
@@ -53,7 +59,11 @@ function RequisitoPill({ ok, text }) {
   }, [ok, pop, reduceMotion]);
 
   return (
-    <Animated.View style={[styles.pill, ok && styles.pillOk, { transform: [{ scale: pop }] }]}>
+    <Animated.View
+      style={[styles.pill, ok && styles.pillOk, { transform: [{ scale: pop }] }]}
+      accessible
+      accessibilityLabel={`${text}: ${ok ? 'cumple' : 'falta'}`}
+    >
       <Ionicons name={ok ? 'checkmark-circle' : 'ellipse-outline'} size={16} color={ok ? '#2F6B3A' : '#574E49'} />
       <Text style={[styles.pillText, ok && styles.pillTextOk]}>{text}</Text>
     </Animated.View>
@@ -82,7 +92,7 @@ export default function RegisterScreen({ navigation }) {
     setFormError('');
 
     if (!PASSWORD_RULE.test(password)) {
-      setPasswordError(PASSWORD_RULE_MSG);
+      setPasswordError(faltanDeLaContrasena({ okLargo, okMayus, okNum }));
       focusFirst([[true, 'password']]);
       return;
     }
