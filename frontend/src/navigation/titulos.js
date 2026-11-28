@@ -6,6 +6,7 @@ const TITULOS = {
   Welcome: TITULO_INICIAL,
   Login: 'Iniciar sesión · DOMUS+',
   Register: 'Crear cuenta · DOMUS+',
+  UnirseCodigo: 'Sumarme con un código · DOMUS+',
   GroupSetup: 'Tu grupo familiar · DOMUS+',
   FamilyList: 'Familia · DOMUS+',
   Familia: 'Familia · DOMUS+',

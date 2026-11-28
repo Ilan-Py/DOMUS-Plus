@@ -243,6 +243,85 @@ Object.assign(DIBUJOS, {
   ),
 });
 
+// ---- Escenas de la landing y el onboarding.
+function Persona({ x, y, s = 1, ropa, piel = '#E9C6A8' }) {
+  return (
+    <G transform={`translate(${x} ${y}) scale(${s})`}>
+      <Capa>
+        <Path d="M-12 30 C-12 14 12 14 12 30 Z" fill={ropa} {...CANTO} />
+      </Capa>
+      <Capa>
+        <Circle cx={0} cy={6} r={8} fill={piel} {...CANTO} />
+      </Capa>
+    </G>
+  );
+}
+Object.assign(DIBUJOS, {
+  // Familia y su perro (paso 2: sumás personas y mascotas).
+  familiaperro: (
+    <>
+      <Rect x={8} y={96} width={104} height={8} rx={4} fill="#E4D6C6" />
+      <Persona x={34} y={58} s={1.25} ropa={color.terracota} />
+      <Persona x={62} y={52} s={1.4} ropa={color.salvia} />
+      <Persona x={86} y={70} s={0.95} ropa={hoja.colores.mostaza} />
+      <G transform="translate(14 78)">
+        <Capa>
+          <Ellipse cx={10} cy={10} rx={11} ry={8} fill="#C9A27E" {...CANTO} />
+        </Capa>
+        <Capa>
+          <Circle cx={20} cy={2} r={6} fill="#C9A27E" {...CANTO} />
+        </Capa>
+        <Circle cx={22} cy={1} r={1.4} fill={color.tinta} />
+      </G>
+      <Path d="M60 22 C57 18 51 19 52 24 C53 27 57 29 60 32 C63 29 67 27 68 24 C69 19 63 18 60 22 Z" fill={color.rosa} {...CANTO} />
+    </>
+  ),
+  // Campanita con avisos (paso 3: todos ven lo mismo y llegan los avisos).
+  campana: (
+    <>
+      <Capa>
+        <Path d="M60 22 C40 22 34 40 34 58 L34 74 L26 84 L94 84 L86 74 L86 58 C86 40 80 22 60 22 Z" fill={hoja.colores.mostaza} {...CANTO} />
+      </Capa>
+      <Capa>
+        <Circle cx={60} cy={92} r={8} fill={color.terracota} {...CANTO} />
+      </Capa>
+      <Rect x={56} y={14} width={8} height={10} rx={4} fill={color.tinta} />
+      <Capa>
+        <Rect x={82} y={26} width={30} height={20} rx={6} fill={color.cartulina} {...CANTO} />
+      </Capa>
+      <Path d="M88 36 L94 41 L105 31" fill="none" stroke={color.salvia} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M20 40 Q14 52 20 64 M12 34 Q4 52 12 70" fill="none" stroke={color.rosa} strokeWidth={3} strokeLinecap="round" />
+    </>
+  ),
+  // Padres a la distancia: dos casitas unidas por un hilo con corazón.
+  distancia: (
+    <>
+      <Path d="M30 78 C46 56 74 56 90 78" fill="none" stroke={color.rosa} strokeWidth={3} strokeDasharray="5 6" strokeLinecap="round" />
+      <G transform="translate(6 62)">
+        <Capa>
+          <Rect x={4} y={20} width={30} height={24} rx={3} fill={color.cartulina} {...CANTO} />
+        </Capa>
+        <Capa>
+          <Path d="M0 22 L19 4 L38 22 Z" fill={color.terracota} {...CANTO} />
+        </Capa>
+        <Rect x={15} y={30} width={8} height={14} rx={4} fill={color.salvia} />
+      </G>
+      <G transform="translate(76 62)">
+        <Capa>
+          <Rect x={4} y={20} width={30} height={24} rx={3} fill={color.cartulina} {...CANTO} />
+        </Capa>
+        <Capa>
+          <Path d="M0 22 L19 4 L38 22 Z" fill={color.salvia} {...CANTO} />
+        </Capa>
+        <Rect x={15} y={30} width={8} height={14} rx={4} fill={hoja.colores.mostaza} />
+      </G>
+      <Capa>
+        <Path d="M60 42 C55 34 44 36 46 46 C47 52 55 56 60 62 C65 56 73 52 74 46 C76 36 65 34 60 42 Z" fill={color.terracota} {...CANTO} />
+      </Capa>
+    </>
+  ),
+});
+
 // Ilustración de la época para un mes (0 = enero).
 export function ilustracionDelMes(mes) {
   if (mes === 9 || mes === 10) return 'jacaranda';

@@ -1,76 +1,36 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  useWindowDimensions,
-} from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 import { colors } from '../theme/colors';
 import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
-import Logo, { LogoConNombre } from './Logo';
+import { LogoConNombre } from './Logo';
 import PressScale from './PressScale';
-import { paper } from '../theme/paper';
+import EscenaHogar from './EscenaHogar';
 
-// Estructura compartida por Iniciar sesión y Crear cuenta (pantalla dividida):
-//  - escritorio (≥900): panel cálido inset a la izquierda (volver + logo / titular, puntos
-//    y una mini-tarjeta del producto / pie con marca de agua) y la mitad derecha en blanco
-//    con el formulario directo, sin caja, y el cambio de pantalla arriba a la derecha.
-//  - móvil: barra mínima (volver / cambio) y el formulario sobre blanco.
-const BANDA = '#F3EAE0';
+// Estructura de Iniciar sesión, Crear cuenta y Unirme con un código (ronda de las pantallas de entrada):
+//  - escritorio (≥ 900): 55 / 45. A la izquierda, una escena de papel que ocupa todo el alto (distinta por pantalla:
+//    luz prendida, puerta abriéndose, felpudo de bienvenida; de noche, luna y ventanas encendidas), con el borde
+//    derecho recortado a tijera que pisa apenas el lado del formulario. Abajo, tres sellitos de papel de confianza.
+//  - móvil: la escena es un banner arriba (≈ 30 % del alto) con el borde inferior recortado; el formulario abajo.
+// El formulario mide hasta 420 px, con campos de 52 px y texto de 16 px o más.
 const DESKTOP_BREAKPOINT = 900;
 const FORM_MAX_WIDTH = 420;
+const FONDO_FORM = '#FFFDF9';
 
-const PUNTOS = [
-  { icon: 'lock-closed-outline', text: 'Solo tu grupo familiar ve los datos' },
-  { icon: 'ban-outline', text: 'Sin publicidad ni venta de información' },
-  { icon: 'text-outline', text: 'Letra grande y clara, pensada para todos' },
+const SELLITOS = [
+  { icono: 'lock-closed', texto: 'Sólo lo ve tu familia' },
+  { icono: 'ban', texto: 'Sin publicidad' },
+  { icono: 'text', texto: 'Letra grande, si la necesitás' },
 ];
 
-// Registro: una sola tarjeta más grande con un adelanto de lo que hay adentro (en vez de los
-// puntos de privacidad, que ya vio quien llegó hasta acá). Datos de ejemplo, no reales.
-const AVISOS = [
-  { cuando: 'Hoy 18:00', que: 'Enalapril — Marta', icon: 'medkit-outline', bg: '#FBE3D9', fg: '#C24623' },
-  { cuando: 'Mañana 10:00', que: 'Vacuna de Toby', icon: 'paw', bg: '#D6E2D6', fg: '#3E6340' },
-];
-
-function ResumenFamilia() {
-  return (
-    <View {...paper('cutout', 'pop', 'd1')} style={styles.resumen} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <View style={styles.resumenHead}>
-        <View style={styles.resumenAvatar}>
-          <Ionicons name="people" size={24} color="#3E6340" />
-        </View>
-        <View>
-          <Text style={styles.resumenTitle}>Familia García</Text>
-          <Text style={styles.resumenSub}>4 integrantes · 1 mascota</Text>
-        </View>
-      </View>
-      <View style={styles.avisos}>
-        {AVISOS.map((a) => (
-          <View key={a.que} style={styles.aviso}>
-            <View style={[styles.avisoIcon, { backgroundColor: a.bg }]}>
-              <Ionicons name={a.icon} size={20} color={a.fg} />
-            </View>
-            <View style={styles.avisoTexto}>
-              <Text style={styles.avisoCuando}>{a.cuando}</Text>
-              <Text style={styles.avisoQue}>{a.que}</Text>
-            </View>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
+const CARTA = { titulo: 'Familia García · 4 integrantes', texto: 'Próximo aviso: vacuna de Toby' };
 
 function CambioDePantalla({ texto, etiqueta, onPress }) {
   return (
     <View style={styles.cambio}>
-      <Text style={styles.cambioText}>{texto}</Text>
+      {!!texto && <Text style={styles.cambioText}>{texto}</Text>}
       <PressScale contentStyle={styles.cambioBtn} onPress={onPress} accessibilityLabel={etiqueta}>
         <Text style={styles.cambioLink}>{etiqueta}</Text>
       </PressScale>
@@ -78,201 +38,163 @@ function CambioDePantalla({ texto, etiqueta, onPress }) {
   );
 }
 
-function Volver({ onPress }) {
+function Volver({ onPress, claro }) {
   return (
-    <PressScale contentStyle={styles.backBtn} onPress={onPress} accessibilityLabel="Volver">
+    <PressScale contentStyle={[styles.backBtn, claro && styles.backBtnClaro]} onPress={onPress} accessibilityLabel="Volver">
       <Ionicons name="arrow-back" size={22} color={colors.ink} />
       <Text style={styles.backText}>Volver</Text>
     </PressScale>
   );
 }
 
-export default function AuthLayout({
-  onBack,
-  switchTexto,
-  switchEtiqueta,
-  onSwitch,
-  panelTitulo,
-  panelVariante = 'login',
-  children,
-}) {
+// Canto vertical cortado a tijera (del color del formulario) que se come el borde derecho de la escena.
+function CantoVertical() {
+  const puntos = [];
+  for (let i = 0; i <= 40; i += 1) {
+    const r = Math.sin(i * 12.9898 + 7 * 78.233) * 43758.5453;
+    puntos.push(`${(2 + (r - Math.floor(r)) * 8).toFixed(1)} ${(i * 2.5).toFixed(1)}`);
+  }
+  return (
+    <View pointerEvents="none" style={styles.canto}>
+      <Svg width="100%" height="100%" viewBox="0 0 10 100" preserveAspectRatio="none">
+        <Path d={`M 10 0 L ${puntos.join(' L ')} L 10 100 Z`} fill="#00000014" transform="translate(-1.2 0)" />
+        <Path d={`M 10 0 L ${puntos.join(' L ')} L 10 100 Z`} fill={FONDO_FORM} />
+      </Svg>
+    </View>
+  );
+}
+
+function CantoInferior() {
+  const puntos = [];
+  for (let i = 0; i <= 30; i += 1) {
+    const r = Math.sin(i * 12.9898 + 3 * 78.233) * 43758.5453;
+    puntos.push(`${((i / 30) * 100).toFixed(1)} ${(2 + (r - Math.floor(r)) * 7).toFixed(1)}`);
+  }
+  return (
+    <View pointerEvents="none" style={styles.cantoInferior}>
+      <Svg width="100%" height="100%" viewBox="0 0 100 10" preserveAspectRatio="none">
+        <Path d={`M 0 10 L ${puntos.join(' L ')} L 100 10 Z`} fill={FONDO_FORM} />
+      </Svg>
+    </View>
+  );
+}
+
+export default function AuthLayout({ onBack, switchTexto, switchEtiqueta, onSwitch, panelTitulo, escena = 'login', children }) {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= DESKTOP_BREAKPOINT;
+  const { width, height } = useWindowDimensions();
+  const escritorio = width >= DESKTOP_BREAKPOINT;
 
   const formulario = (
-    <ScrollView
-      style={styles.formScroll}
-      contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={styles.column}>
-        {!isDesktop && (
-          <View style={styles.logoMovil}>
-            <LogoConNombre variante="terracota" size={34} fontSize={22} />
-          </View>
-        )}
-        {children}
-      </View>
+    <ScrollView style={styles.formScroll} contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 32 }]} keyboardShouldPersistTaps="handled">
+      <View style={styles.column}>{children}</View>
     </ScrollView>
   );
 
+  if (!escritorio) {
+    return (
+      <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}>
+          <View style={[styles.banner, { height: Math.max(220, Math.round(height * 0.3)) + insets.top }]}>
+            <EscenaHogar variante={escena} />
+            <CantoInferior />
+            <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
+              <Volver onPress={onBack} claro />
+              <View style={styles.pastilla}>
+                <CambioDePantalla texto="" etiqueta={switchEtiqueta} onPress={onSwitch} />
+              </View>
+            </View>
+          </View>
+          <View style={[styles.column, styles.columnMovil]}>{children}</View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {isDesktop ? (
-        <View style={styles.split}>
-          {/* Panel cálido, inset con 16px de margen */}
-          <View style={styles.panel}>
-            <View style={styles.marcaAgua} pointerEvents="none">
-              <Logo variante="terracota" size={360} />
+      <View style={styles.split}>
+        <View style={styles.panel}>
+          <EscenaHogar variante={escena} carta={escena === 'login' ? CARTA : undefined} />
+          <View style={styles.panelTop}>
+            <Volver onPress={onBack} claro />
+            <View style={styles.pastilla}>
+              <LogoConNombre variante="terracota" size={32} fontSize={20} />
             </View>
-
-            <View style={styles.panelTop}>
-              <Volver onPress={onBack} />
-              <LogoConNombre variante="terracota" size={36} fontSize={22} />
-            </View>
-
-            <View style={styles.panelCentro}>
-              <Text style={styles.panelTitle} accessibilityRole="header">{panelTitulo}</Text>
-              {panelVariante === 'registro' ? (
-                <ResumenFamilia />
-              ) : (
-                <>
-                  <View style={styles.puntos}>
-                    {PUNTOS.map((p) => (
-                      <View key={p.text} style={styles.punto}>
-                        <View style={styles.puntoIcon}>
-                          <Ionicons name={p.icon} size={22} color={colors.accentStrong} />
-                        </View>
-                        <Text style={styles.puntoText}>{p.text}</Text>
-                      </View>
-                    ))}
-                  </View>
-
-                  {/* El producto, apenas inclinado */}
-                  <View {...paper('cutout', 'pop', 'd1')} style={styles.miniCard} accessibilityElementsHidden importantForAccessibility="no">
-                    <View style={styles.miniIcon}>
-                      <Ionicons name="paw" size={20} color="#3E6340" />
-                    </View>
-                    <View>
-                      <Text style={styles.miniTitle}>Familia García · 4 integrantes</Text>
-                      <Text style={styles.miniSub}>Próximo aviso: Vacuna de Toby</Text>
-                    </View>
-                  </View>
-                </>
-              )}
-            </View>
-
-            <Text style={styles.panelPie}>Proyecto de Prácticas Profesionalizantes II · IES Santa Fe</Text>
           </View>
-
-          {/* Mitad derecha en blanco, formulario directo */}
-          <View style={styles.derecha}>
-            <View style={styles.derechaTop}>
-              <CambioDePantalla texto={switchTexto} etiqueta={switchEtiqueta} onPress={onSwitch} />
+          {!!panelTitulo && (
+            <View style={styles.panelTituloCaja}>
+              <Text style={styles.panelTitulo} accessibilityRole="header">{panelTitulo}</Text>
             </View>
-            {formulario}
+          )}
+          <View style={styles.sellitos}>
+            {SELLITOS.map((s, i) => (
+              <View key={s.texto} style={[styles.sellito, { transform: [{ rotate: `${[-3, 2, -2][i]}deg` }] }]}>
+                <Ionicons name={s.icono} size={18} color={colors.accentStrong} />
+                <Text style={styles.sellitoTexto}>{s.texto}</Text>
+              </View>
+            ))}
           </View>
+          <CantoVertical />
         </View>
-      ) : (
-        <View style={styles.movil}>
-          <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
-            <Volver onPress={onBack} />
-            <CambioDePantalla texto="" etiqueta={switchEtiqueta} onPress={onSwitch} />
+
+        <View style={styles.derecha}>
+          <View style={styles.derechaTop}>
+            <CambioDePantalla texto={switchTexto} etiqueta={switchEtiqueta} onPress={onSwitch} />
           </View>
           {formulario}
         </View>
-      )}
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
+const SOMBRA = Platform.select({
+  web: { boxShadow: '3px 4px 0 rgba(42,36,33,0.16)' },
+  default: { shadowColor: '#2A2421', shadowOffset: { width: 3, height: 4 }, shadowOpacity: 0.16, shadowRadius: 0, elevation: 3 },
+});
+
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FFFFFF' },
+  root: { flex: 1, backgroundColor: FONDO_FORM },
   split: { flex: 1, flexDirection: 'row' },
-  movil: { flex: 1 },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, minHeight: 64 },
 
-  // ---- panel izquierdo
-  panel: {
-    flex: 1,
-    margin: 16,
-    borderRadius: 24,
-    backgroundColor: BANDA,
-    overflow: 'hidden',
-    paddingHorizontal: 32,
-    paddingTop: 16,
-    paddingBottom: 24,
-    justifyContent: 'space-between',
-  },
-  marcaAgua: { position: 'absolute', right: -90, bottom: -80, opacity: 0.04 },
-  panelTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  panelCentro: { width: '100%', maxWidth: 480, alignSelf: 'center', gap: 28 },
-  // Un escalón por debajo del título del formulario: el panel acompaña, no compite.
-  panelTitle: { fontSize: 32, lineHeight: 42, fontFamily: SERIF_BOLD, color: colors.ink },
-  puntos: { gap: 8 },
-  punto: { flexDirection: 'row', alignItems: 'center', gap: 16, minHeight: 52 },
-  puntoIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  puntoText: { flex: 1, fontSize: 18, lineHeight: 26, color: colors.ink },
-  miniCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  // ---- escena (escritorio)
+  panel: { flex: 55, position: 'relative', overflow: 'hidden', marginRight: -14, zIndex: 1 },
+  panelTop: { position: 'absolute', top: 20, left: 24, right: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  pastilla: { backgroundColor: 'rgba(255,253,249,0.92)', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 4, ...SOMBRA },
+  panelTituloCaja: { position: 'absolute', top: 96, left: 32, right: 64, maxWidth: 560 },
+  panelTitulo: {
     alignSelf: 'flex-start',
-    marginTop: 8,
-    padding: 16,
-    paddingRight: 20,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    // Tarjeta física apoyada: borde blanco, sombra cálida (en web, de dos capas vía theme/paper.js),
-    // sin giro — tiene texto que hay que poder leer.
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-    shadowColor: '#2A2421',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
-    shadowRadius: 24,
-    elevation: 2,
+    fontSize: 38,
+    lineHeight: 46,
+    fontFamily: SERIF_BOLD,
+    color: colors.ink,
+    backgroundColor: 'rgba(255,253,249,0.9)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+    transform: [{ rotate: '-1deg' }],
+    ...SOMBRA,
   },
-  resumen: {
-    padding: 20,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-    shadowColor: '#2A2421',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.07,
-    shadowRadius: 28,
-    elevation: 3,
-    gap: 16,
-  },
-  resumenHead: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  resumenAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#D6E2D6', alignItems: 'center', justifyContent: 'center' },
-  resumenTitle: { fontSize: 18, lineHeight: 26, fontFamily: poppinsWeight('700'), color: colors.ink },
-  resumenSub: { fontSize: 15, lineHeight: 22, color: '#3F3631' },
-  avisos: { gap: 12 },
-  aviso: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 10, backgroundColor: '#FAF5EF' },
-  avisoIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  avisoTexto: { flex: 1 },
-  avisoCuando: { fontSize: 14, lineHeight: 20, color: '#574E49', fontFamily: poppinsWeight('600') },
-  avisoQue: { fontSize: 16, lineHeight: 22, color: colors.ink },
-  miniIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#D6E2D6', alignItems: 'center', justifyContent: 'center' },
-  miniTitle: { fontSize: 15, lineHeight: 22, fontFamily: poppinsWeight('700'), color: colors.ink },
-  miniSub: { fontSize: 14, lineHeight: 20, color: '#3F3631' },
-  panelPie: { fontSize: 14, lineHeight: 20, color: '#574E49' },
+  sellitos: { position: 'absolute', left: 24, right: 48, bottom: 24, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  sellito: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, minHeight: 44, borderRadius: 22, backgroundColor: '#FFFDF9', ...SOMBRA },
+  sellitoTexto: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
+  canto: { position: 'absolute', top: 0, bottom: 0, right: 0, width: 22 },
 
-  // ---- mitad derecha
-  // El cambio de pantalla flota arriba (absoluto) para que el formulario quede centrado
-  // de verdad en la columna, a la misma altura que el contenido del panel.
-  derecha: { flex: 1, backgroundColor: '#FFFFFF' },
+  // ---- móvil
+  banner: { position: 'relative', overflow: 'hidden' },
+  cantoInferior: { position: 'absolute', left: 0, right: 0, bottom: -1, height: 16 },
+  topBar: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 },
+  columnMovil: { paddingHorizontal: 24, paddingTop: 20 },
+
+  // ---- formulario
+  derecha: { flex: 45, backgroundColor: FONDO_FORM },
   derechaTop: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1, alignItems: 'flex-end', paddingHorizontal: 32, paddingTop: 16 },
   formScroll: { flex: 1 },
-  scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 24 },
+  scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 40, paddingVertical: 72 },
   column: { width: '100%', maxWidth: FORM_MAX_WIDTH, alignSelf: 'center' },
-  logoMovil: { marginBottom: 20 },
 
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, paddingRight: 16 },
+  backBtnClaro: { backgroundColor: 'rgba(255,253,249,0.92)', borderRadius: 14, paddingLeft: 12, ...SOMBRA },
   backText: { fontSize: 17, fontFamily: poppinsWeight('600'), color: colors.ink },
   cambio: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   cambioText: { fontSize: 16, color: colors.textBody },

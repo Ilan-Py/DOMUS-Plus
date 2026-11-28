@@ -9,6 +9,7 @@ import useFirstErrorFocus from '../hooks/useFirstErrorFocus';
 import FormField from '../components/FormField';
 import PrimaryButton from '../components/PrimaryButton';
 import ErrorBanner from '../components/ErrorBanner';
+import CheckboxField from '../components/CheckboxField';
 import AuthLayout from '../components/AuthLayout';
 import { LEGAL } from '../utils/legal';
 
@@ -85,6 +86,11 @@ export default function RegisterScreen({ navigation }) {
   const okLargo = password.length >= 8;
   const okMayus = /[A-Z]/.test(password);
   const okNum = /\d/.test(password);
+  const [acepta, setAcepta] = useState(false);
+  const [aceptaError, setAceptaError] = useState('');
+  // Medidor de fuerza: los 3 requisitos + largo extra y símbolos.
+  const puntaje = [okLargo, okMayus, okNum, password.length >= 12, /[^A-Za-z0-9]/.test(password)].filter(Boolean).length;
+  const fuerza = !password ? null : puntaje <= 2 ? { texto: 'Débil', color: '#A6291B', ancho: '33%' } : puntaje <= 3 ? { texto: 'Aceptable', color: '#8A5A0E', ancho: '66%' } : { texto: 'Fuerte', color: '#3D5A4B', ancho: '100%' };
 
   async function handleRegister() {
     setEmailError('');
@@ -94,6 +100,11 @@ export default function RegisterScreen({ navigation }) {
     if (!PASSWORD_RULE.test(password)) {
       setPasswordError(faltanDeLaContrasena({ okLargo, okMayus, okNum }));
       focusFirst([[true, 'password']]);
+      return;
+    }
+    // Con datos de salud, aceptar Términos y Privacidad es obligatorio y explícito.
+    if (!acepta) {
+      setAceptaError('Para crear la cuenta tenés que aceptar los Términos y la Política de privacidad.');
       return;
     }
 
@@ -125,11 +136,11 @@ export default function RegisterScreen({ navigation }) {
       switchTexto="¿Ya tenés cuenta?"
       switchEtiqueta="Iniciá sesión"
       onSwitch={() => navigation.navigate('Login')}
-      panelTitulo="Toda la salud de tu familia, en un solo lugar."
-      panelVariante="registro"
+      panelTitulo="Bienvenida a la familia."
+      escena="registro"
     >
       <Text style={styles.title} accessibilityRole="header">Creá tu cuenta</Text>
-      <Text style={styles.sub}>Para cuidar a tu familia y a tus mascotas.</Text>
+      <Text style={styles.sub}>Tres datos y listo. A tu familia la armás en el paso siguiente.</Text>
       {!!codigoPendiente && (
         <Text style={styles.codigoNota}>Cuando termines, te unís al grupo con el código {codigoPendiente}.</Text>
       )}
@@ -193,18 +204,31 @@ export default function RegisterScreen({ navigation }) {
         <RequisitoPill ok={okMayus} text="Una mayúscula" />
         <RequisitoPill ok={okNum} text="Un número" />
       </View>
+      {!!fuerza && (
+        <View style={styles.fuerza} accessibilityLabel={`Contraseña ${fuerza.texto.toLowerCase()}`}>
+          <View style={styles.fuerzaPista}>
+            <View style={[styles.fuerzaRelleno, { width: fuerza.ancho, backgroundColor: fuerza.color }]} />
+          </View>
+          <Text style={[styles.fuerzaTexto, { color: fuerza.color }]}>{fuerza.texto}</Text>
+        </View>
+      )}
+
+      <View style={styles.acepta}>
+        <CheckboxField label="" checked={acepta} onChange={(v) => { setAcepta(v); setAceptaError(''); }} accessibilityLabel="Acepto los Términos de uso y la Política de privacidad" />
+        <Text style={styles.aceptaTexto}>
+          Acepto los{' '}
+          <Text style={styles.legalLink} onPress={() => setLegal('terminos')} accessibilityRole="link">Términos de uso</Text>
+          {' '}y la{' '}
+          <Text style={styles.legalLink} onPress={() => setLegal('privacidad')} accessibilityRole="link">Política de privacidad</Text>
+        </Text>
+      </View>
+      {!!aceptaError && <Text style={styles.aceptaError} accessibilityRole="alert">{aceptaError}</Text>}
 
       <ErrorBanner message={formError} />
 
       <View style={styles.submit}>
-        <PrimaryButton title="Crear cuenta" variant="accent" onPress={handleRegister} loading={saving} />
+        <PrimaryButton title="Crear cuenta" textoCargando="Creando tu cuenta…" variant="accent" onPress={handleRegister} loading={saving} />
       </View>
-      <Text style={styles.legalText}>
-        Al crear tu cuenta aceptás los{' '}
-        <Text style={styles.legalLink} onPress={() => setLegal('terminos')} accessibilityRole="link">Términos de uso</Text>
-        {' '}y la{' '}
-        <Text style={styles.legalLink} onPress={() => setLegal('privacidad')} accessibilityRole="link">Política de privacidad</Text>.
-      </Text>
       <ModalLegal tipo={legal} onClose={() => setLegal(null)} />
     </AuthLayout>
   );
@@ -222,6 +246,13 @@ const styles = StyleSheet.create({
   pillText: { fontSize: 14, lineHeight: 20, color: '#574E49', fontFamily: poppinsWeight('600') },
   pillTextOk: { color: '#2F6B3A' },
   submit: { marginTop: 24 },
+  fuerza: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12 },
+  fuerzaPista: { flex: 1, height: 8, borderRadius: 4, backgroundColor: '#EFE7DC', overflow: 'hidden' },
+  fuerzaRelleno: { height: 8, borderRadius: 4 },
+  fuerzaTexto: { fontSize: 15, fontFamily: poppinsWeight('700'), minWidth: 80 },
+  acepta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 20 },
+  aceptaTexto: { flex: 1, fontSize: 16, lineHeight: 24, color: '#3F3631' },
+  aceptaError: { fontSize: 15, lineHeight: 22, color: '#A6291B', fontFamily: poppinsWeight('600'), marginTop: 6 },
   legalText: { fontSize: 15, lineHeight: 30, color: '#574E49', marginTop: 16 },
   legalLink: { color: colors.accentStrong, textDecorationLine: 'underline', fontFamily: poppinsWeight('600') },
   modalFondo: { flex: 1, backgroundColor: 'rgba(42,36,33,0.45)', alignItems: 'center', justifyContent: 'center', padding: 24 },

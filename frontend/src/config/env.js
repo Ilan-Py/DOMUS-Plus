@@ -56,3 +56,7 @@ if (!__DEV__ && !API_URL?.startsWith('https://')) {
     `API_URL de producción debe ser HTTPS (JWT viaja en cada request). Valor actual: ${API_URL}`
   );
 }
+
+// Cuenta de demo para «Ver una familia de ejemplo» en la landing: { email, password } en app.json → expo.extra.demo.
+// Sin configurar, el botón no aparece. OJO: queda visible en el bundle público; usar sólo una cuenta de demo descartable.
+export const DEMO = extra.demo && extra.demo.email && extra.demo.password ? extra.demo : null;

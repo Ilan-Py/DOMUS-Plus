@@ -9,7 +9,8 @@ import useReducedMotion from '../hooks/useReducedMotion';
 // Casilla con etiqueta: caja y texto son un solo blanco táctil (mín. 48 px), pensado para
 // que sea fácil de acertar. Para tildar y destildar alcanza con tocar cualquier parte de la fila.
 // Al tildar, el check aparece con un "pop" corto (sin movimiento si el sistema pide reducirlo).
-export default function CheckboxField({ label, checked, onChange, style }) {
+// `accessibilityLabel`: para cuando el texto visible va aparte (p. ej. con enlaces adentro).
+export default function CheckboxField({ label, checked, onChange, style, accessibilityLabel }) {
   const reduceMotion = useReducedMotion();
   const pop = useRef(new Animated.Value(checked ? 1 : 0)).current;
 
@@ -24,7 +25,7 @@ export default function CheckboxField({ label, checked, onChange, style }) {
       contentStyle={styles.row}
       onPress={() => onChange(!checked)}
       accessibilityRole="checkbox"
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel || label}
       accessibilityState={{ checked: !!checked }}
     >
       <View style={[styles.box, checked && styles.boxChecked]}>
@@ -32,7 +33,7 @@ export default function CheckboxField({ label, checked, onChange, style }) {
           <Ionicons name="checkmark" size={20} color={colors.onAccent} />
         </Animated.View>
       </View>
-      <Text style={styles.label}>{label}</Text>
+      {!!label && <Text style={styles.label}>{label}</Text>}
     </PressScale>
   );
 }

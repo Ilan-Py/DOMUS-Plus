@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Text, ActivityIndicator, StyleSheet, Animated } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radii, shadow, buttonColors } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
@@ -75,6 +75,7 @@ export default function PrimaryButton({
   variant = 'primary',
   fullWidth = true,
   style,
+  textoCargando, // «Entrando…»: se muestra junto al spinner mientras `loading`
 }) {
   const variantStyle = VARIANTS[variant] || VARIANTS.primary;
   // pressed (móvil) / hover (web): oscurece el relleno ~10%; la escala 0.98 la da PressScale.
@@ -110,7 +111,10 @@ export default function PrimaryButton({
       {success ? (
         <SuccessCheck color={variantStyle.text.color} />
       ) : loading ? (
-        <ActivityIndicator color={variantStyle.text.color} />
+        <View style={styles.cargando}>
+          <ActivityIndicator color={variantStyle.text.color} />
+          {!!textoCargando && <Text style={[styles.btnText, variantStyle.text]}>{textoCargando}</Text>}
+        </View>
       ) : (
         <Text style={[styles.btnText, variantStyle.text]}>{title}</Text>
       )}
@@ -119,6 +123,7 @@ export default function PrimaryButton({
 }
 
 const styles = StyleSheet.create({
+  cargando: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   btn: {
     width: '100%',
     minHeight: 52,

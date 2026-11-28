@@ -35,6 +35,7 @@ export default function FormField({
   blurOnSubmit,
   inputRef,
   style,
+  accesorio, // { texto, onPress }: enlace a la derecha del label (p. ej. «¿Olvidaste tu contraseña?»)
 }) {
   const [focused, setFocused] = useState(false);
   // Contraseñas: botón visible Mostrar/Ocultar para revisar lo escrito.
@@ -43,7 +44,16 @@ export default function FormField({
 
   return (
     <View style={[styles.field, style]}>
-      <Text style={styles.label}>{label}</Text>
+      {accesorio ? (
+        <View style={styles.labelFila}>
+          <Text style={[styles.label, { marginBottom: 0 }]}>{label}</Text>
+          <Pressable onPress={accesorio.onPress} accessibilityRole="link" accessibilityLabel={accesorio.texto} style={styles.accesorio}>
+            <Text style={styles.accesorioTexto}>{accesorio.texto}</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <Text style={styles.label}>{label}</Text>
+      )}
       <View>
         <TextInput
           ref={inputRef}
@@ -98,6 +108,9 @@ const styles = StyleSheet.create({
   field: {
     paddingBottom: 20,
   },
+  labelFila: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4, flexWrap: 'wrap' },
+  accesorio: { minHeight: 44, justifyContent: 'center' },
+  accesorioTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.accentStrong, textDecorationLine: 'underline' },
   label: {
     fontSize: 16,
     fontFamily: poppinsWeight('600'),

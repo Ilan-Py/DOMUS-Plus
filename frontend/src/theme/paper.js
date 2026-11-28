@@ -138,6 +138,16 @@ body::after {
   .paper-cutout:hover,
   [data-paper~="cutout"]:hover { translate: none; }
 }
+
+/* Autocompletado del navegador: sin el fondo amarillo que rompe la paleta (queda la cartulina). */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 100px #FFFDF9 inset !important;
+  box-shadow: 0 0 0 100px #FFFDF9 inset !important;
+  -webkit-text-fill-color: #2A2421 !important;
+  caret-color: #2A2421;
+}
 `;
 
 export function injectPaperCss() {
