@@ -281,7 +281,8 @@ export default function FamilyListScreen({ navigation }) {
     <PaperBanner
       titulo={grupo?.nombre}
       bajada={resumen}
-      ilustracion={<Ilustracion nombre="familia" size={desktop ? 112 : 80} />}
+      // Con la familia vacía la ilustración ya está en el estado vacío: no se repite arriba.
+      ilustracion={!loading && integrantes.length + mascotas.length === 0 ? null : <Ilustracion nombre="familia" size={desktop ? 112 : 80} />}
     >
       <View style={styles.stats}>
         <StatChip valor={cargandoAvisos ? null : dosisHoy} singular="dosis" plural="dosis" sufijo="hoy" tono="alerta" ocultarSiCero />
@@ -476,13 +477,13 @@ export default function FamilyListScreen({ navigation }) {
           {errores}
           {alertasBloque}
 
-          {columnas >= 2 ? (
+          {columnas >= 2 && !vacio ? (
             <View style={styles.stack}>
               {/* Hoy, lo accionable, es lo más ancho; las personas y mascotas quedan a la derecha. */}
               <View style={styles.columns}>
                 <View style={styles.colHoy}>
-                  {hoyCard}
-                  {semanaCard}
+                  {!vacio && hoyCard}
+                  {!vacio && semanaCard}
                 </View>
                 <View style={styles.colMiembros}>
                   {loading ? cargando : vacio ? <View style={styles.bandeja}>{primerIngreso}</View> : (
@@ -496,14 +497,14 @@ export default function FamilyListScreen({ navigation }) {
             </View>
           ) : (
             <View style={styles.stack}>
-              {hoyCard}
+              {!vacio && hoyCard}
               {loading ? cargando : vacio ? <View style={styles.bandeja}>{primerIngreso}</View> : (
                 <>
                   {listaDeIntegrantes}
                   {listaDeMascotas}
                 </>
               )}
-              {semanaCard}
+              {!vacio && semanaCard}
             </View>
           )}
         </View>
