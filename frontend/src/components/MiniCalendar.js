@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import Svg, { Polygon } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,42 +6,43 @@ import { colors } from '../theme/colors';
 import { poppinsWeight, SERIF_BOLD } from '../theme/typography';
 import PressScale from './PressScale';
 
-// Calendario mensual (semana de lunes a domingo, como en Argentina) hecho de cartas de día: cada día con
-// recordatorios se pinta entero con el tono pastel de su categoría (o con cortes diagonales nítidos si tiene
-// 2 o 3 categorías). Elegir un día muestra su agenda. No depende de ninguna librería. Con `cabecera={false}`
-// se dibuja sólo la grilla (el encabezado con mes, "Hoy" y flechas lo pone la pantalla).
-//   marcados: Map<dayKey, { categorias: string[], total: number, titulo: string }>
+// Calendario mensual (semana de lunes a domingo, como en Argentina). Superficie limpia y plana: celdas sin
+// relleno y con línea fina; el fondo sólo aparece al pasar el mouse, en hoy y en el día elegido. Los días del mes
+// anterior y siguiente se ven atenuados y se pueden elegir; los pasados también van más tenues.
+//   marcados: Map<dayKey, { eventos: [{ id, tipo, hora, titulo, hecho, vencido, serie }] }>
+// Cada evento se dibuja como un punto del color de su tipo; en días pasados el punto cuenta la adherencia
+// (✓ hecho · ✕ sin marcar). Con pantalla ancha (`ancha`) se muestran chips con hora y título.
 // Nombres de mes desde Intl (es-AR) en vez de una lista fija.
 const fmtMes = new Intl.DateTimeFormat('es-AR', { month: 'long' });
 const MESES = Array.from({ length: 12 }, (_, i) => {
   const n = fmtMes.format(new Date(2024, i, 1));
   return n.charAt(0).toUpperCase() + n.slice(1);
 });
-// Para lectores de pantalla: el color solo no alcanza para saber de qué es el aviso.
-const NOMBRE_CATEGORIA = { medicacion: 'medicación', mascota: 'mascota', turno: 'turno o control' };
 const DIAS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
-// Tono pastel y borde sutil por categoría: medicación (terracota), mascota (salvia), turno o control (ocre).
+// Tono pastel y borde sutil por tipo de aviso (medicación, vacuna, turno o control). `mascota` y `turno` se
+// conservan para el resumen semanal de Familia.
 export const TONO_CATEGORIA = {
-  medicacion: { bg: '#FAECE7', borde: 'rgba(194, 70, 35, 0.35)' },
-  mascota: { bg: '#E8F0EC', borde: 'rgba(74, 107, 93, 0.35)' },
-  turno: { bg: '#FDF3E1', borde: 'rgba(200, 141, 50, 0.35)' },
+  medicacion: { bg: '#FAECE7', borde: 'rgba(194, 70, 35, 0.35)', fg: '#C24623', texto: '#9A3416' },
+  vacuna: { bg: '#E8F0EC', borde: 'rgba(74, 107, 93, 0.35)', fg: '#4A6B5D', texto: '#3B5A4C' },
+  control: { bg: '#FDF3E1', borde: 'rgba(200, 141, 50, 0.35)', fg: '#C88D32', texto: '#7A5112' },
+  mascota: { bg: '#E8F0EC', borde: 'rgba(74, 107, 93, 0.35)', fg: '#4A6B5D', texto: '#3B5A4C' },
+  turno: { bg: '#FDF3E1', borde: 'rgba(200, 141, 50, 0.35)', fg: '#C88D32', texto: '#7A5112' },
 };
 const VACIO = { bg: '#FBF8F3', borde: 'rgba(42, 36, 33, 0.08)' };
+const NOMBRE_TIPO = { medicacion: 'medicación', vacuna: 'vacuna', control: 'turno o control' };
 
 export function dayKey(fecha) {
   return `${fecha.getFullYear()}-${fecha.getMonth()}-${fecha.getDate()}`;
 }
 
-// Celdas del mes: null para los huecos antes del día 1.
+// Celdas completas de las semanas que cubre el mes (con los días vecinos, sin huecos).
 function celdasDelMes(mes) {
   const primero = new Date(mes.getFullYear(), mes.getMonth(), 1);
   const huecos = (primero.getDay() + 6) % 7; // lunes = 0
   const dias = new Date(mes.getFullYear(), mes.getMonth() + 1, 0).getDate();
-  const celdas = Array(huecos).fill(null);
-  for (let d = 1; d <= dias; d++) celdas.push(new Date(mes.getFullYear(), mes.getMonth(), d));
-  while (celdas.length % 7 !== 0) celdas.push(null);
-  return celdas;
+  const total = Math.ceil((huecos + dias) / 7) * 7;
+  return Array.from({ length: total }, (_, i) => new Date(mes.getFullYear(), mes.getMonth(), 1 - huecos + i));
 }
 
 // Fondo de la carta: tono liso (0 o 1 categoría) o cortes diagonales a 135° sin difuminar (2 o 3).
@@ -77,64 +78,112 @@ export function FondoCategorias({ categorias }) {
   );
 }
 
-// Carta de un día. Hoy: círculo terracota con número blanco (sin tapar el fondo de categoría). Elegido: borde
-// sólido de 2 px en tinta y sombra corta de cartulina. Día vacío: fondo casi blanco con hover suave.
-function DayCell({ fecha, info, esHoy, esSel, onPress, alto, compacta }) {
+// Indicador de un evento: punto del color del tipo (pendiente); ✓ si se hizo; ✕ si venció sin marcar.
+function Marca({ ev }) {
+  const t = TONO_CATEGORIA[ev.tipo] || TONO_CATEGORIA.control;
+  if (ev.hecho) return <Ionicons name="checkmark-circle" size={14} color={colors.salvia} />;
+  if (ev.vencido) return <Ionicons name="close-circle" size={14} color="#B5391C" />;
+  return <View style={[styles.punto, { backgroundColor: t.fg }]} />;
+}
+
+function DayCell({ fecha, info, esHoy, esSel, fuera, pasado, onPress, onAgregar, alto, compacta, ancha }) {
   const [hover, setHover] = useState(false);
-  const categorias = info ? info.categorias : [];
-  const total = info ? info.total : 0;
-  const tono = TONO_CATEGORIA[categorias[0]] || VACIO;
-  const fondo = categorias.length === 0 ? (hover ? '#F5EFE6' : VACIO.bg) : tono.bg;
-  const borde = categorias.length === 0 ? VACIO.borde : categorias.length === 1 ? tono.borde : 'rgba(42, 36, 33, 0.18)';
-  const abajo = total === 0 ? '' : total === 1 ? info.titulo : `${total} avisos`;
+  const temporizador = useRef(null);
+  const entrar = () => {
+    clearTimeout(temporizador.current);
+    setHover(true);
+  };
+  const salir = () => {
+    temporizador.current = setTimeout(() => setHover(false), 80);
+  };
+  const eventos = info ? info.eventos : [];
+  const total = eventos.length;
+  const fondo = esSel ? '#FFFFFF' : hover ? '#F5EFE6' : esHoy ? '#FDF3EE' : 'transparent';
+  const tenue = fuera ? 0.45 : pasado && !esHoy ? 0.62 : 1;
+  const resumen = total
+    ? `, ${total} ${total === 1 ? 'recordatorio' : 'recordatorios'} (${[...new Set(eventos.map((e) => NOMBRE_TIPO[e.tipo]))].join(', ')})`
+    : ', sin recordatorios';
+  const verChips = ancha && !compacta;
 
   return (
-    <PressScale
-      style={styles.cell}
-      contentStyle={[
-        styles.carta,
-        { minHeight: alto, backgroundColor: fondo, borderColor: borde },
-        compacta && styles.cartaCompacta,
-        esSel && styles.cartaSel,
-      ]}
-      onPress={onPress}
-      onHoverIn={() => setHover(true)}
-      onHoverOut={() => setHover(false)}
-      accessibilityLabel={`${fecha.getDate()} de ${MESES[fecha.getMonth()].toLowerCase()}${esHoy ? ', hoy' : ''}${
-        total
-          ? `, ${total} ${total === 1 ? 'recordatorio' : 'recordatorios'} (${categorias.map((c) => NOMBRE_CATEGORIA[c]).join(', ')})`
-          : ', sin recordatorios'
-      }`}
-      accessibilityState={{ selected: esSel }}
-    >
-      <FondoCategorias categorias={categorias} />
-      <View style={styles.arriba}>
-        <View style={[styles.num, esHoy && styles.numHoy]}>
-          <Text style={[styles.dayText, esHoy && styles.dayTextHoy]}>{fecha.getDate()}</Text>
+    <View style={styles.cell}>
+      <PressScale
+        style={styles.cellFill}
+        contentStyle={[
+          styles.carta,
+          { minHeight: alto, backgroundColor: fondo },
+          compacta && styles.cartaCompacta,
+          esSel && styles.cartaSel,
+        ]}
+        onPress={onPress}
+        onHoverIn={entrar}
+        onHoverOut={salir}
+        accessibilityLabel={`${fecha.getDate()} de ${MESES[fecha.getMonth()].toLowerCase()}${esHoy ? ', hoy' : ''}${resumen}`}
+        accessibilityState={{ selected: esSel }}
+      >
+        <View style={{ flex: 1, gap: 6, opacity: tenue }}>
+        <View style={styles.arriba}>
+          <View style={[styles.num, esHoy && styles.numHoy]}>
+            <Text style={[styles.dayText, esHoy && styles.dayTextHoy]}>{fecha.getDate()}</Text>
+          </View>
         </View>
-        {total >= 2 && !compacta && (
-          <View style={styles.contador}>
-            <Text style={styles.contadorText}>{total}</Text>
+        {total > 0 && verChips && (
+          <View style={styles.chips}>
+            {eventos.slice(0, 2).map((e) => {
+              const t = TONO_CATEGORIA[e.tipo] || TONO_CATEGORIA.control;
+              return (
+                <View key={e.id} style={[styles.chip, { backgroundColor: t.bg }]}>
+                  {e.hecho ? (
+                    <Ionicons name="checkmark" size={12} color={colors.salvia} />
+                  ) : e.vencido ? (
+                    <Ionicons name="close" size={12} color="#B5391C" />
+                  ) : null}
+                  <Text style={[styles.chipTexto, { color: t.texto }]} numberOfLines={1}>
+                    {e.serie ? '↻ ' : ''}
+                    {e.hora} {e.titulo}
+                  </Text>
+                </View>
+              );
+            })}
+            {total > 2 && <Text style={styles.mas}>+{total - 2}</Text>}
           </View>
         )}
-      </View>
-      {!compacta && !!abajo && (
-        <Text style={styles.abajo} numberOfLines={1}>
-          {abajo}
-        </Text>
+        {total > 0 && !verChips && (
+          <View style={styles.puntos}>
+            {eventos.slice(0, 2).map((e) => (
+              <Marca key={e.id} ev={e} />
+            ))}
+            {total > 2 && <Text style={styles.mas}>+{total - 2}</Text>}
+          </View>
+        )}
+        </View>
+      </PressScale>
+      {hover && !compacta && !!onAgregar && !pasado && (
+        <PressScale
+          style={styles.mas2}
+          contentStyle={styles.masBtn}
+          onPress={onAgregar}
+          onHoverIn={entrar}
+          onHoverOut={salir}
+          accessibilityLabel={`Agregar un recordatorio el ${fecha.getDate()} de ${MESES[fecha.getMonth()].toLowerCase()}`}
+        >
+          <Ionicons name="add" size={18} color="#FFFFFF" />
+        </PressScale>
       )}
-    </PressScale>
+    </View>
   );
 }
 
 export default function MiniCalendar({
-  mes, onCambiarMes, marcados, seleccionado, onElegirDia, cabecera = true, compacta = false,
+  mes, onCambiarMes, marcados, seleccionado, onElegirDia, onAgregar, cabecera = true, compacta = false, ancha = false,
 }) {
   const celdas = celdasDelMes(mes);
+  const hoy0 = new Date();
+  hoy0.setHours(0, 0, 0, 0);
   const hoyKey = dayKey(new Date());
   const filas = [];
   for (let i = 0; i < celdas.length; i += 7) filas.push(celdas.slice(i, i + 7));
-  const alto = compacta ? 56 : 84;
+  const alto = compacta ? 56 : ancha ? 104 : 84;
 
   return (
     <View>
@@ -171,19 +220,22 @@ export default function MiniCalendar({
       <View style={[styles.grilla, compacta && styles.gapChico]}>
         {filas.map((fila, i) => (
           <View key={i} style={[styles.fila, compacta && styles.gapChico]}>
-            {fila.map((fecha, j) => {
-              if (!fecha) return <View key={j} style={styles.cell} />;
+            {fila.map((fecha) => {
               const key = dayKey(fecha);
               return (
                 <DayCell
-                  key={j}
+                  key={key}
                   fecha={fecha}
                   info={marcados.get(key)}
                   esHoy={key === hoyKey}
                   esSel={seleccionado === key}
+                  fuera={fecha.getMonth() !== mes.getMonth()}
+                  pasado={fecha < hoy0}
                   alto={alto}
                   compacta={compacta}
-                  onPress={() => onElegirDia(key)}
+                  ancha={ancha}
+                  onPress={() => onElegirDia(key, fecha)}
+                  onAgregar={onAgregar ? () => onAgregar(key) : undefined}
                 />
               );
             })}
@@ -200,10 +252,10 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   nav: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 20, fontFamily: SERIF_BOLD, color: colors.ink },
-  grilla: { gap: 8 },
-  fila: { flexDirection: 'row', gap: 8 },
+  grilla: { gap: 4 },
+  fila: { flexDirection: 'row', gap: 4 },
   filaDias: { marginBottom: 8 },
-  gapChico: { gap: 4 },
+  gapChico: { gap: 2 },
   dow: {
     flex: 1,
     textAlign: 'center',
@@ -211,25 +263,22 @@ const styles = StyleSheet.create({
     fontFamily: poppinsWeight('600'),
     color: colors.textMuted,
   },
-  cell: { flex: 1, minWidth: 0 },
+  cell: { flex: 1, minWidth: 0, position: 'relative' },
+  cellFill: { flex: 1 },
   carta: {
     flex: 1,
     overflow: 'hidden',
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
+    borderColor: 'rgba(42, 36, 33, 0.10)',
     padding: 8,
-    justifyContent: 'space-between',
+    gap: 6,
   },
   cartaCompacta: { padding: 4 },
   // Elegido: borde sólido de 2 px en tinta + sombra corta de cartulina.
   cartaSel: {
     borderWidth: 2,
     borderColor: '#2A2421',
-    shadowColor: '#2A2421',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 0,
-    elevation: 2,
     ...Platform.select({ web: { boxShadow: '0 3px 0 rgba(42, 36, 33, 0.10)' }, default: {} }),
   },
   arriba: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
@@ -237,15 +286,12 @@ const styles = StyleSheet.create({
   numHoy: { backgroundColor: colors.accentStrong },
   dayText: { fontVariant: ['tabular-nums'], fontSize: 17, fontFamily: poppinsWeight('600'), color: '#2A2421' },
   dayTextHoy: { color: colors.onAccent, fontFamily: poppinsWeight('700') },
-  contador: {
-    minWidth: 22,
-    height: 22,
-    paddingHorizontal: 6,
-    borderRadius: 11,
-    backgroundColor: '#2A2421',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  contadorText: { fontSize: 12, lineHeight: 16, fontFamily: poppinsWeight('700'), color: '#FFFFFF' },
-  abajo: { fontSize: 13, lineHeight: 18, color: '#2A2421' },
+  punto: { width: 10, height: 10, borderRadius: 5 },
+  puntos: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
+  chips: { gap: 3 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  chipTexto: { flexShrink: 1, fontSize: 12, lineHeight: 16, fontFamily: poppinsWeight('600') },
+  mas: { fontSize: 12, lineHeight: 16, fontFamily: poppinsWeight('600'), color: colors.textBody },
+  mas2: { position: 'absolute', top: 6, right: 6 },
+  masBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.accentStrong, alignItems: 'center', justifyContent: 'center' },
 });

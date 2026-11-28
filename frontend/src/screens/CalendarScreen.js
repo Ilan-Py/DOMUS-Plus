@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  Platform,
   RefreshControl,
   useWindowDimensions,
 } from 'react-native';
@@ -22,12 +23,18 @@ import InlineError from '../components/InlineError';
 import PrimaryButton from '../components/PrimaryButton';
 import PressScale from '../components/PressScale';
 import Skeleton from '../components/Skeleton';
-import MiniCalendar, { dayKey, NOMBRE_MES, TONO_CATEGORIA } from '../components/MiniCalendar';
+import MiniCalendar, { dayKey, NOMBRE_MES } from '../components/MiniCalendar';
+import PaperCard from '../components/PaperCard';
+import Evento from '../components/Evento';
+import EntityAvatar from '../components/EntityAvatar';
+import { VistaSemana, VistaLista } from '../components/CalendarioVistas';
+import { TIPO_AVISO, tipoDeAviso, mismoDia, inicioDeDia } from '../utils/avisos';
+import { entregarTexto } from '../utils/resumenFichas';
 import PaperCutout from '../components/PaperCutout';
 import Pulse from '../components/Pulse';
 import { cancelarNotificacion, sincronizarNotificaciones } from '../utils/notifications';
 import { parseFechaHora } from '../utils/displayFormat';
-import { confirmarDestructivo } from '../utils/confirm';
+import { confirmarDestructivo, elegirOpcion } from '../utils/confirm';
 import FadeSlideIn from '../components/FadeSlideIn';
 import FadeOutRow, { EXIT_DURATION } from '../components/FadeOutRow';
 
@@ -51,14 +58,6 @@ const FILTROS = [
   { label: 'Personas', value: 'personas' },
   { label: 'Mascotas', value: 'mascotas' },
 ];
-
-// Código de color: medicación/dosis en terracota, mascotas/veterinario en salvia y turnos o controles
-// médicos en ocre. `texto` es una variante más oscura para que las etiquetas se lean bien.
-const CATEGORIAS = {
-  medicacion: { label: 'Medicación', fg: colors.accentStrong, bg: colors.terracotaSoft, texto: '#9A3416' },
-  mascota: { label: 'Mascota', fg: colors.salvia, bg: colors.salviaSoft, texto: '#3B5A4C' },
-  turno: { label: 'Turno o control', fg: colors.ocre, bg: colors.ocreSoft, texto: '#7A5112' },
-};
 
 function formatSectionTitle(fecha) {
   return `${DIAS[fecha.getDay()]} ${fecha.getDate()} de ${MESES[fecha.getMonth()]}`;
@@ -95,6 +94,10 @@ export default function CalendarScreen({ navigation, route }) {
   const [exitingId, setExitingId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [filtro, setFiltro] = useState('todos');
+  // Vista (mes / semana / lista): en pantallas angostas arranca en lista.
+  const [vista, setVista] = useState(() => (width < 768 ? 'lista' : 'mes'));
+  const [miembro, setMiembro] = useState(null); // { clase, id }
+  const [tipoFiltro, setTipoFiltro] = useState(null); // 'medicacion' | 'vacuna' | 'control'
   // Siempre hay un día elegido (por defecto, hoy): la agenda de la derecha muestra ese día.
   const [diaElegido, setDiaElegido] = useState(() => dayKey(new Date()));
   const [mes, setMes] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
@@ -206,11 +209,23 @@ export default function CalendarScreen({ navigation, route }) {
     navigation.navigate('AddReminder', { editando: item });
   }
 
-  async function handleEliminar(id) {
-    await salirOptimista(id, () => api.delete(`/api/recordatorios/${id}`));
+  async function handleEliminar(id, alcance) {
+    await salirOptimista(id, () => api.delete(`/api/recordatorios/${id}${alcance === 'siguientes' ? '?alcance=siguientes' : ''}`));
   }
 
   function confirmEliminar(item) {
+    // Un recordatorio de una serie pregunta si se borra sólo ese o también los que siguen.
+    if (item.serie_id) {
+      elegirOpcion(
+        'Eliminar recordatorio repetido',
+        [
+          { text: 'Solo este', value: 'este' },
+          { text: 'Este y los siguientes', value: 'siguientes' },
+        ],
+        (alcance) => handleEliminar(item.id, alcance)
+      );
+      return;
+    }
     confirmarDestructivo(
       'Eliminar recordatorio',
       `¿Seguro que querés eliminar este recordatorio${item.descripcion ? ` ("${item.descripcion}")` : ''}?`,
@@ -251,53 +266,94 @@ export default function CalendarScreen({ navigation, route }) {
     const nombre = duenoDe(item);
     return !!nombre && mascotas.some((m) => m.nombre === nombre) && !integrantes.some((m) => m.nombre === nombre);
   }
-  // Categoría para el color: medicación primero; si no, mascota; si no, turno o control.
-  function categoriaDe(item) {
-    if (item.tipo === 'medicacion') return 'medicacion';
-    return esDeMascota(item) ? 'mascota' : 'turno';
+  // Quién es el dueño del recordatorio, para el avatar (directo o por la vacuna/tratamiento vinculado).
+  function duenoInfo(item) {
+    let m = null;
+    let clase = 'integrante';
+    if (item.integrante_id) m = integrantes.find((x) => x.id === item.integrante_id);
+    else if (item.mascota_id) {
+      m = mascotas.find((x) => x.id === item.mascota_id);
+      clase = 'mascota';
+    } else {
+      const n = duenos[item.vacuna_id ? `v-${item.vacuna_id}` : `t-${item.tratamiento_id}`];
+      m = integrantes.find((x) => x.nombre === n);
+      if (!m) {
+        m = mascotas.find((x) => x.nombre === n);
+        clase = 'mascota';
+      }
+    }
+    return m ? { nombre: m.nombre, apellido: m.apellido, avatarId: m.avatar_id, clase, id: m.id } : null;
   }
 
-  // Filtro por quién (Todos / Personas / Mascotas) -> base para la grilla y la agenda.
+  // Filtros combinados: grupo (todos/personas/mascotas), integrante o mascota puntual y tipo de aviso.
   const porQuien = useMemo(
     () =>
-      filtro === 'todos'
-        ? recordatorios
-        : recordatorios.filter((r) => (filtro === 'mascotas' ? esDeMascota(r) : !esDeMascota(r))),
+      recordatorios.filter((r) => {
+        if (filtro === 'mascotas' && !esDeMascota(r)) return false;
+        if (filtro === 'personas' && esDeMascota(r)) return false;
+        if (tipoFiltro && r.tipo !== tipoFiltro) return false;
+        if (miembro) {
+          const d = duenoInfo(r);
+          if (!d || d.clase !== miembro.clase || d.id !== miembro.id) return false;
+        }
+        return true;
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [recordatorios, filtro, integrantes, mascotas, duenos]
+    [recordatorios, filtro, tipoFiltro, miembro, integrantes, mascotas, duenos]
   );
-  // día -> categorías de ese día (para los puntos de color de la grilla)
+  const evs = useMemo(() => {
+    const ahora = new Date();
+    return porQuien
+      .map((r) => {
+        const fecha = parseFechaHora(r.fecha_hora);
+        const hecho = !r.activo;
+        return { item: r, fecha, hecho, vencido: !hecho && fecha < ahora, dueno: duenoInfo(r) };
+      })
+      .sort((a, b) => a.fecha - b.fecha);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [porQuien, integrantes, mascotas, duenos]);
+
+  // día -> eventos de ese día (puntos, chips y adherencia de la grilla)
   const marcados = useMemo(() => {
     const mapa = new Map();
-    porQuien.forEach((r) => {
-      const k = dayKey(parseFechaHora(r.fecha_hora));
-      const info = mapa.get(k) || { categorias: [], total: 0, titulo: r.descripcion || TIPO_LABELS[r.tipo] || 'Aviso' };
-      const c = categoriaDe(r);
-      if (!info.categorias.includes(c)) info.categorias.push(c);
-      info.total += 1;
+    evs.forEach((e) => {
+      const k = dayKey(e.fecha);
+      const info = mapa.get(k) || { eventos: [] };
+      info.eventos.push({
+        id: e.item.id,
+        tipo: e.item.tipo,
+        hora: formatHora(e.fecha),
+        titulo: e.item.descripcion || (TIPO_AVISO[e.item.tipo] || TIPO_AVISO.control).label,
+        hecho: e.hecho,
+        vencido: e.vencido,
+        serie: !!e.item.serie_id,
+      });
       mapa.set(k, info);
     });
     return mapa;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [porQuien, integrantes, mascotas, duenos]);
-  const delDia = useMemo(
-    () =>
-      porQuien
-        .filter((r) => dayKey(parseFechaHora(r.fecha_hora)) === diaElegido)
-        .sort((x, y) => parseFechaHora(x.fecha_hora) - parseFechaHora(y.fecha_hora)),
-    [porQuien, diaElegido]
-  );
+  }, [evs]);
+  const delDia = useMemo(() => evs.filter((e) => dayKey(e.fecha) === diaElegido), [evs, diaElegido]);
 
-  // Próximos 3 avisos pendientes del mes que se está viendo (desde ahora en adelante).
-  const proximosMes = useMemo(() => {
-    const ahora = new Date();
-    return porQuien
-      .filter((x) => x.activo)
-      .map((x) => ({ item: x, fecha: parseFechaHora(x.fecha_hora) }))
-      .filter(({ fecha }) => fecha >= ahora && fecha.getMonth() === mes.getMonth() && fecha.getFullYear() === mes.getFullYear())
-      .sort((a, b) => a.fecha - b.fecha)
-      .slice(0, 3);
-  }, [porQuien, mes]);
+  // Pendientes sin marcar: avisos que ya pasaron y nadie marcó como hechos.
+  const sinMarcar = useMemo(() => evs.filter((e) => e.vencido).sort((a, b) => b.fecha - a.fecha), [evs]);
+  // Resumen del mes que se está viendo.
+  const resumenMes = useMemo(() => {
+    const delMes = evs.filter((e) => e.fecha.getMonth() === mes.getMonth() && e.fecha.getFullYear() === mes.getFullYear());
+    const hechos = delMes.filter((e) => e.hecho).length;
+    const omitidos = delMes.filter((e) => e.vencido).length;
+    return {
+      total: delMes.length,
+      adherencia: hechos + omitidos > 0 ? Math.round((100 * hechos) / (hechos + omitidos)) : null,
+      turnos: delMes.filter((e) => e.item.tipo === 'control').length,
+      vacunas: delMes.filter((e) => e.item.tipo === 'vacuna').length,
+    };
+  }, [evs, mes]);
+  // Vista lista: los últimos 7 días y los próximos 90.
+  const enLista = useMemo(() => {
+    const desde = inicioDeDia(new Date(Date.now() - 7 * 86400000));
+    const hasta = new Date(Date.now() + 90 * 86400000);
+    return evs.filter((e) => e.fecha >= desde && e.fecha <= hasta);
+  }, [evs]);
 
   const [anio, mesNum, diaNum] = diaElegido.split('-').map(Number);
   const fechaElegida = new Date(anio, mesNum, diaNum);
@@ -311,7 +367,115 @@ export default function CalendarScreen({ navigation, route }) {
     setMes(new Date(h.getFullYear(), h.getMonth(), 1));
     setDiaElegido(dayKey(h));
   }
-  const moverMes = (delta) => setMes(new Date(mes.getFullYear(), mes.getMonth() + delta, 1));
+  // Flechas: mes en la vista mensual y lista; semana en la vista semanal.
+  function mover(delta) {
+    if (vista === 'semana') {
+      const d = new Date(fechaElegida);
+      d.setDate(d.getDate() + 7 * delta);
+      setDiaElegido(dayKey(d));
+      setMes(new Date(d.getFullYear(), d.getMonth(), 1));
+    } else {
+      setMes(new Date(mes.getFullYear(), mes.getMonth() + delta, 1));
+    }
+  }
+  function elegirDia(k, fecha) {
+    setDiaElegido(k);
+    if (fecha && (fecha.getMonth() !== mes.getMonth() || fecha.getFullYear() !== mes.getFullYear())) {
+      setMes(new Date(fecha.getFullYear(), fecha.getMonth(), 1));
+    }
+  }
+  const agregarEn = (k) => navigation.navigate('AddReminder', { fechaInicial: k });
+
+  // Posponer un aviso futuro un día (la API sólo pide tipo y fecha; el resto queda igual).
+  async function posponer(e) {
+    try {
+      await api.patch(`/api/recordatorios/${e.item.id}`, {
+        tipo: e.item.tipo,
+        fecha_hora: new Date(e.fecha.getTime() + 86400000).toISOString(),
+        descripcion: e.item.descripcion || undefined,
+      });
+      mostrarToast('Lo pasamos para mañana');
+      await fetchRecordatorios();
+    } catch (err) {
+      setActionError(err.mensaje || 'No pudimos posponerlo. Probá de nuevo.');
+    }
+  }
+
+  // Exportar a .ics (sirve en Google Calendar, Apple Calendar y Outlook): sólo los avisos pendientes.
+  function exportarIcs() {
+    const utc = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    const esc = (t) => String(t).replace(/\\/g, '\\\\').replace(/[,;]/g, (c) => `\\${c}`).replace(/\n/g, '\\n');
+    const lineas = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//DOMUS+//ES', 'CALSCALE:GREGORIAN'];
+    evs
+      .filter((e) => !e.hecho)
+      .forEach((e) => {
+        lineas.push(
+          'BEGIN:VEVENT',
+          `UID:domus-${e.item.id}@domus.app`,
+          `DTSTAMP:${utc(new Date())}`,
+          `DTSTART:${utc(e.fecha)}`,
+          `DTEND:${utc(new Date(e.fecha.getTime() + 30 * 60000))}`,
+          `SUMMARY:${esc(e.item.descripcion || tipoDeAviso(e.item.tipo).label)}`,
+          `DESCRIPTION:${esc(tipoDeAviso(e.item.tipo).label + (e.dueno ? ' - ' + e.dueno.nombre : ''))}`,
+          'END:VEVENT'
+        );
+      });
+    lineas.push('END:VCALENDAR');
+    entregarTexto('domus-calendario.ics', lineas.join('\r\n'))
+      .then(() => mostrarToast('Calendario exportado'))
+      .catch(() => mostrarToast('No pudimos exportar el calendario.'));
+  }
+  function masAcciones() {
+    const opciones = [{ text: 'Exportar calendario (.ics)', value: 'ics' }];
+    if (Platform.OS === 'web') opciones.push({ text: 'Imprimir este mes', value: 'imprimir' });
+    elegirOpcion('Más acciones', opciones, (v) => {
+      if (v === 'ics') exportarIcs();
+      else if (typeof window !== 'undefined') window.print();
+    });
+  }
+
+  // Acciones de cada evento: "Hecho" para hoy y días pasados; para los futuros sólo Posponer y Editar.
+  function acciones(e) {
+    if (e.hecho) return <Text style={styles.hechoTag}>Hecho</Text>;
+    const ocupado = dismissingId === e.item.id;
+    const futuro = inicioDeDia(e.fecha) > hoy0;
+    if (futuro) {
+      return (
+        <>
+          <PressScale contentStyle={styles.btnSec} onPress={() => posponer(e)} accessibilityLabel={`Posponer un día: ${e.item.descripcion || 'recordatorio'}`}>
+            <Text style={styles.btnSecTexto}>Posponer</Text>
+          </PressScale>
+          <PressScale contentStyle={styles.btnSec} onPress={() => handleEditar(e.item)} accessibilityLabel={`Editar: ${e.item.descripcion || 'recordatorio'}`}>
+            <Text style={styles.btnSecTexto}>Editar</Text>
+          </PressScale>
+        </>
+      );
+    }
+    const t = tipoDeAviso(e.item.tipo);
+    return (
+      <Pulse trigger={ocupado} radio={12}>
+        <PressScale
+          contentStyle={[styles.btnHecho, { backgroundColor: t.fg }]}
+          onPress={() => confirmHecho(e.item)}
+          disabled={ocupado}
+          accessibilityLabel={`Marcar como hecho: ${e.item.descripcion || 'recordatorio'}`}
+        >
+          {ocupado ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="checkmark" size={20} color="#FFFFFF" />}
+          <Text style={styles.btnHechoTexto}>Hecho</Text>
+        </PressScale>
+      </Pulse>
+    );
+  }
+
+  const fila = (e, i, conDia) => (
+    <FadeSlideIn key={e.item.id} index={i}>
+      <FadeOutRow exiting={exitingId === e.item.id}>
+        <Evento item={e.item} fecha={e.fecha} dueno={e.dueno} hecho={e.hecho} vencido={e.vencido} mostrarDia={conDia} onPress={() => handleEditar(e.item)}>
+          {acciones(e)}
+        </Evento>
+      </FadeOutRow>
+    </FadeSlideIn>
+  );
 
   // ---------------- bloques ----------------
   const header = (
@@ -320,14 +484,32 @@ export default function CalendarScreen({ navigation, route }) {
         {NOMBRE_MES(mes.getMonth())} {mes.getFullYear()}
       </Text>
       <View style={styles.controles}>
-        <PressScale contentStyle={styles.ctrlBtn} onPress={() => moverMes(-1)} accessibilityLabel="Mes anterior">
+        <PressScale contentStyle={styles.ctrlBtn} onPress={() => mover(-1)} accessibilityLabel={vista === 'semana' ? 'Semana anterior' : 'Mes anterior'}>
           <Ionicons name="chevron-back" size={24} color={colors.ink} />
         </PressScale>
-        <PressScale contentStyle={[styles.ctrlBtn, styles.hoyBtn]} onPress={irAHoy} accessibilityLabel="Ir a hoy">
+        <PressScale contentStyle={styles.ctrlBtn} onPress={() => mover(1)} accessibilityLabel={vista === 'semana' ? 'Semana siguiente' : 'Mes siguiente'}>
+          <Ionicons name="chevron-forward" size={24} color={colors.ink} />
+        </PressScale>
+        {/* "Hoy" se distingue de las flechas: contorno terracota. */}
+        <PressScale contentStyle={styles.hoyBtn} onPress={irAHoy} accessibilityLabel="Ir a hoy">
           <Text style={styles.hoyBtnText}>Hoy</Text>
         </PressScale>
-        <PressScale contentStyle={styles.ctrlBtn} onPress={() => moverMes(1)} accessibilityLabel="Mes siguiente">
-          <Ionicons name="chevron-forward" size={24} color={colors.ink} />
+        <View style={styles.vistas} accessibilityRole="radiogroup" accessibilityLabel="Vista del calendario">
+          {[['mes', 'Mes'], ['semana', 'Semana'], ['lista', 'Lista']].map(([v, l]) => (
+            <PressScale
+              key={v}
+              contentStyle={[styles.vistaBtn, vista === v && styles.vistaBtnOn]}
+              onPress={() => setVista(v)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: vista === v, selected: vista === v }}
+              accessibilityLabel={`Vista ${l.toLowerCase()}`}
+            >
+              <Text style={[styles.vistaTexto, vista === v && styles.vistaTextoOn]}>{l}</Text>
+            </PressScale>
+          ))}
+        </View>
+        <PressScale contentStyle={styles.ctrlBtn} onPress={masAcciones} accessibilityLabel="Más acciones: exportar o imprimir">
+          <Ionicons name="ellipsis-horizontal" size={24} color={colors.ink} />
         </PressScale>
         <PrimaryButton title="+ Agregar" variant="accent" fullWidth={false} onPress={nuevo} style={styles.agregarBtn} />
       </View>
@@ -335,49 +517,120 @@ export default function CalendarScreen({ navigation, route }) {
   );
 
   const filtros = (
-    <View style={styles.filtros} accessibilityRole="radiogroup">
-      {FILTROS.map((f) => {
-        const on = filtro === f.value;
-        return (
-          <PressScale
-            key={f.value}
-            contentStyle={[styles.pill, on && styles.pillOn]}
-            onPress={() => setFiltro(f.value)}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: on, selected: on }}
-            accessibilityLabel={f.label}
-          >
-            <Text style={[styles.pillText, on && styles.pillTextOn]}>{f.label}</Text>
-          </PressScale>
-        );
-      })}
-    </View>
-  );
-
-  const grilla = (
-    <View {...paper('cartulina')} style={[styles.cartulina, !desktop && styles.cartulinaCompacta]}>
-      <MiniCalendar
-        cabecera={false}
-        compacta={!desktop}
-        mes={mes}
-        onCambiarMes={setMes}
-        marcados={marcados}
-        seleccionado={diaElegido}
-        onElegirDia={setDiaElegido}
-      />
-      <View style={styles.leyenda}>
-        {Object.entries(CATEGORIAS).map(([k, c]) => (
-          <View key={k} style={styles.leyendaItem}>
-            <View style={[styles.leyendaPunto, { backgroundColor: TONO_CATEGORIA[k].bg, borderColor: TONO_CATEGORIA[k].borde }]} />
-            <Text style={styles.leyendaText}>{c.label}</Text>
-          </View>
-        ))}
+    <View style={styles.filtrosBloque}>
+      <View style={styles.filtros} accessibilityRole="radiogroup">
+        {FILTROS.map((f) => {
+          const on = filtro === f.value;
+          return (
+            <PressScale
+              key={f.value}
+              contentStyle={[styles.pill, on && styles.pillOn]}
+              onPress={() => {
+                setFiltro(f.value);
+                setMiembro(null);
+              }}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: on, selected: on }}
+              accessibilityLabel={f.label}
+            >
+              <Text style={[styles.pillText, on && styles.pillTextOn]}>{f.label}</Text>
+            </PressScale>
+          );
+        })}
+        <View style={styles.separador} />
+        {[...integrantes.map((m) => ({ ...m, clase: 'integrante' })), ...mascotas.map((m) => ({ ...m, clase: 'mascota' }))].map((m) => {
+          const on = miembro && miembro.clase === m.clase && miembro.id === m.id;
+          return (
+            <PressScale
+              key={`${m.clase}-${m.id}`}
+              contentStyle={[styles.avatarChip, on && styles.avatarChipOn]}
+              onPress={() => setMiembro(on ? null : { clase: m.clase, id: m.id })}
+              accessibilityRole="button"
+              accessibilityState={{ selected: !!on }}
+              accessibilityLabel={`Ver sólo los avisos de ${m.nombre}`}
+            >
+              <EntityAvatar avatarId={m.avatar_id} type={m.clase === 'mascota' ? 'pet' : 'person'} name={m.nombre} apellido={m.apellido} size={34} />
+            </PressScale>
+          );
+        })}
+      </View>
+      <View style={styles.filtros}>
+        {Object.entries(TIPO_AVISO).map(([k, t]) => {
+          const on = tipoFiltro === k;
+          return (
+            <PressScale
+              key={k}
+              contentStyle={[styles.tipoChip, on && { backgroundColor: t.bg, borderColor: t.fg }]}
+              onPress={() => setTipoFiltro(on ? null : k)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on }}
+              accessibilityLabel={`Mostrar sólo ${t.label.toLowerCase()}`}
+            >
+              <View style={[styles.swatch, { backgroundColor: t.fg }]} />
+              <Text style={styles.tipoChipTexto}>{t.label}</Text>
+            </PressScale>
+          );
+        })}
       </View>
     </View>
   );
 
+  const leyenda = (
+    <View style={styles.leyenda}>
+      {Object.entries(TIPO_AVISO).map(([k, t]) => (
+        <View key={k} style={styles.leyendaItem}>
+          <View style={[styles.swatch, { backgroundColor: t.fg }]} />
+          <Text style={styles.leyendaText}>{t.label}</Text>
+        </View>
+      ))}
+      <View style={styles.leyendaItem}>
+        <Ionicons name="checkmark-circle" size={14} color={colors.salvia} />
+        <Text style={styles.leyendaText}>Hecho</Text>
+      </View>
+      <View style={styles.leyendaItem}>
+        <Ionicons name="close-circle" size={14} color="#B5391C" />
+        <Text style={styles.leyendaText}>Sin marcar</Text>
+      </View>
+      <View style={styles.leyendaItem}>
+        <Ionicons name="repeat" size={14} color={colors.textBody} />
+        <Text style={styles.leyendaText}>Se repite</Text>
+      </View>
+    </View>
+  );
+
+  const grilla = (
+    <PaperCard nivel={1} style={[styles.cartulina, !desktop && styles.cartulinaCompacta]}>
+      {vista === 'mes' && (
+        <MiniCalendar
+          cabecera={false}
+          compacta={!desktop}
+          ancha={width >= 1280}
+          mes={mes}
+          onCambiarMes={setMes}
+          marcados={marcados}
+          seleccionado={diaElegido}
+          onElegirDia={elegirDia}
+          onAgregar={agregarEn}
+        />
+      )}
+      {vista === 'semana' && (
+        <VistaSemana base={fechaElegida} eventos={evs} seleccionado={diaElegido} onElegirDia={elegirDia} onAbrir={handleEditar} />
+      )}
+      {vista === 'lista' &&
+        (loading ? (
+          <View style={styles.lista}>
+            <SkeletonReminderRow />
+            <SkeletonReminderRow />
+          </View>
+        ) : (
+          <VistaLista eventos={enLista} onAbrir={handleEditar} renderAcciones={acciones} />
+        ))}
+      {vista !== 'lista' && leyenda}
+    </PaperCard>
+  );
+
   const agenda = (
-    <View {...paper('cartulina')} style={styles.cartulina}>
+    <PaperCard nivel={1} style={styles.cartulina}>
       <Text style={styles.agendaEyebrow} accessibilityRole="header">Agenda del día</Text>
       <View style={styles.agendaTitulo}>
         <Text style={styles.agendaFecha}>{formatSectionTitle(fechaElegida)}</Text>
@@ -387,6 +640,12 @@ export default function CalendarScreen({ navigation, route }) {
           </View>
         )}
       </View>
+      {!esHoyElegido && (
+        <PressScale contentStyle={styles.volverHoy} onPress={irAHoy} accessibilityLabel="Volver a hoy">
+          <Ionicons name="return-up-back" size={18} color={colors.limeDeep} />
+          <Text style={styles.volverHoyTexto}>Volver a hoy</Text>
+        </PressScale>
+      )}
       {!loading && !loadError && (
         <Text style={styles.agendaSub}>
           {delDia.length === 0 ? 'Sin pendientes' : `${delDia.length} recordatorio${delDia.length === 1 ? '' : 's'}`}
@@ -410,119 +669,57 @@ export default function CalendarScreen({ navigation, route }) {
             {esPasado ? 'No hubo recordatorios este día.' : 'No tenés nada pendiente para este día.'}
           </Text>
           {!esPasado && (
-            <PrimaryButton
-              title="+ Agregar para este día"
-              variant="accent"
-              onPress={() => navigation.navigate('AddReminder', { fechaInicial: diaElegido })}
-            />
+            <PrimaryButton title="+ Agregar para este día" variant="accent" onPress={() => agregarEn(diaElegido)} />
           )}
         </View>
       ) : (
-        <View style={styles.lista}>
-          {delDia.map((item, i) => {
-            const fecha = parseFechaHora(item.fecha_hora);
-            const hecho = !item.activo;
-            const vencido = !hecho && fecha < new Date();
-            const dueno = duenoDe(item);
-            const ocupado = dismissingId === item.id;
-            const cat = CATEGORIAS[categoriaDe(item)];
-            return (
-              <FadeSlideIn key={item.id} index={i}>
-                <FadeOutRow exiting={exitingId === item.id}>
-                  {/* El contenedor no es un botón: editar y "Hecho" son dos controles hermanos, nunca uno dentro del otro. */}
-                  <View style={[styles.item, hecho && styles.itemDone]}>
-                    {/* Barra lateral de 4 px del color de su categoría */}
-                    <View pointerEvents="none" style={[styles.itemBarra, { backgroundColor: cat.fg }]} />
-                    <PressScale
-                      style={styles.itemPress}
-                      contentStyle={styles.itemPressContent}
-                      onPress={() => handleEditar(item)}
-                      disabled={ocupado}
-                      accessibilityLabel={`Editar recordatorio: ${item.descripcion || TIPO_LABELS[item.tipo] || ''}`}
-                    >
-                    <View style={styles.itemMain}>
-                      <View style={styles.itemTop}>
-                        <Text style={styles.itemHora}>{formatHora(fecha)}</Text>
-                        <View style={[styles.catPill, { backgroundColor: cat.bg }]}>
-                          <Text style={[styles.catPillText, { color: cat.texto }]}>{TIPO_LABELS[item.tipo] ?? item.tipo}</Text>
-                        </View>
-                        {vencido && <Text style={styles.itemVencido}>Vencido</Text>}
-                      </View>
-                      {!!item.descripcion && (
-                        <Text style={[styles.itemDesc, hecho && styles.itemDescDone]}>{item.descripcion}</Text>
-                      )}
-                      {!!dueno && <Text style={styles.itemDueno}>{dueno}</Text>}
-                    </View>
-                    </PressScale>
-
-                    <Pulse trigger={ocupado} radio={12}>
-                      <PressScale
-                        contentStyle={[styles.hechoBtn, { borderColor: cat.fg }, hecho && { backgroundColor: cat.fg }]}
-                        onPress={() => (hecho ? null : confirmHecho(item))}
-                        disabled={hecho || ocupado}
-                        accessibilityRole="checkbox"
-                        accessibilityState={{ checked: hecho }}
-                        accessibilityLabel={
-                          hecho
-                            ? `Hecho: ${item.descripcion || 'recordatorio'}`
-                            : `Marcar como hecho: ${item.descripcion || 'recordatorio'}`
-                        }
-                      >
-                        {ocupado ? (
-                          <ActivityIndicator size="small" color={cat.fg} />
-                        ) : (
-                          <>
-                            <Ionicons name="checkmark" size={22} color={hecho ? colors.onAccent : cat.fg} />
-                            <Text style={[styles.hechoText, { color: hecho ? colors.onAccent : cat.texto }]}>Hecho</Text>
-                          </>
-                        )}
-                      </PressScale>
-                    </Pulse>
-                  </View>
-                </FadeOutRow>
-              </FadeSlideIn>
-            );
-          })}
-        </View>
+        <View style={styles.lista}>{delDia.map((e, i) => fila(e, i, false))}</View>
       )}
-    </View>
+    </PaperCard>
   );
 
-  const proximos = (
-    <View {...paper('cartulina')} style={styles.cartulina}>
-      <Text style={styles.agendaEyebrow} accessibilityRole="header">Próximos del mes</Text>
+  const pendientes = (
+    <PaperCard nivel={1} hoja={sinMarcar.length ? 'terracota' : undefined} style={styles.cartulina} wrapperStyle={sinMarcar.length ? styles.hojaMargen : undefined}>
+      <Text style={styles.agendaEyebrow} accessibilityRole="header">Pendientes sin marcar</Text>
       {loading ? (
-        <View style={styles.lista}>
-          <SkeletonReminderRow />
-        </View>
-      ) : proximosMes.length === 0 ? (
-        <Text style={styles.proximoVacio}>
-          No hay avisos próximos en {NOMBRE_MES(mes.getMonth()).toLowerCase()}.
-        </Text>
+        <SkeletonReminderRow />
+      ) : sinMarcar.length === 0 ? (
+        <Text style={styles.proximoVacio}>Todo al día: no hay avisos vencidos sin marcar.</Text>
       ) : (
         <View style={styles.lista}>
-          {proximosMes.map(({ item, fecha }) => {
-            const cat = CATEGORIAS[categoriaDe(item)];
-            return (
-              <PressScale
-                key={item.id}
-                contentStyle={styles.proximoFila}
-                onPress={() => setDiaElegido(dayKey(fecha))}
-                accessibilityLabel={`Ver el ${fecha.getDate()} de ${NOMBRE_MES(fecha.getMonth()).toLowerCase()}: ${item.descripcion || TIPO_LABELS[item.tipo] || 'aviso'}`}
-              >
-                <View pointerEvents="none" style={[styles.itemBarra, { backgroundColor: cat.fg }]} />
-                <View style={styles.itemMain}>
-                  <Text style={styles.proximoCuando}>
-                    {fecha.getDate()} de {NOMBRE_MES(fecha.getMonth()).toLowerCase()} · {formatHora(fecha)}
-                  </Text>
-                  <Text style={styles.itemDesc} numberOfLines={2}>{item.descripcion || TIPO_LABELS[item.tipo] || 'Aviso'}</Text>
-                </View>
-              </PressScale>
-            );
-          })}
+          <Text style={styles.agendaSub}>
+            {sinMarcar.length} aviso{sinMarcar.length === 1 ? '' : 's'} ya pasaron y nadie los marcó como hechos.
+          </Text>
+          {sinMarcar.slice(0, 4).map((e, i) => fila(e, i, true))}
+          {sinMarcar.length > 4 && <Text style={styles.proximoVacio}>y {sinMarcar.length - 4} más…</Text>}
         </View>
       )}
-    </View>
+    </PaperCard>
+  );
+
+  const resumen = (
+    <PaperCard nivel={1} style={styles.cartulina}>
+      <Text style={styles.agendaEyebrow} accessibilityRole="header">Resumen de {NOMBRE_MES(mes.getMonth()).toLowerCase()}</Text>
+      <View style={styles.resumenGrilla}>
+        <View style={styles.resumenDato}>
+          <Text style={styles.resumenNum}>{resumenMes.adherencia === null ? '—' : `${resumenMes.adherencia}%`}</Text>
+          <Text style={styles.resumenEtiqueta}>Adherencia</Text>
+        </View>
+        <View style={styles.resumenDato}>
+          <Text style={styles.resumenNum}>{resumenMes.turnos}</Text>
+          <Text style={styles.resumenEtiqueta}>Turnos</Text>
+        </View>
+        <View style={styles.resumenDato}>
+          <Text style={styles.resumenNum}>{resumenMes.vacunas}</Text>
+          <Text style={styles.resumenEtiqueta}>Vacunas</Text>
+        </View>
+      </View>
+      <Text style={styles.proximoVacio}>
+        {resumenMes.total === 0
+          ? 'No hay avisos este mes.'
+          : `Adherencia: avisos hechos sobre los que ya pasaron (${resumenMes.total} en el mes).`}
+      </Text>
+    </PaperCard>
   );
 
   return (
@@ -543,14 +740,16 @@ export default function CalendarScreen({ navigation, route }) {
               <View style={styles.colGrilla}>{grilla}</View>
               <View style={styles.colAgenda}>
                 {agenda}
-                {proximos}
+                {pendientes}
+                {resumen}
               </View>
             </View>
           ) : (
             <View style={styles.stack}>
               {grilla}
               {agenda}
-              {proximos}
+              {pendientes}
+              {resumen}
             </View>
           )}
         </View>
@@ -584,8 +783,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  hoyBtn: { paddingHorizontal: 20 },
-  hoyBtnText: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.ink },
+  hoyBtn: { minHeight: 48, paddingHorizontal: 20, borderRadius: 24, borderWidth: 1.5, borderColor: colors.accentStrong, alignItems: 'center', justifyContent: 'center' },
+  hoyBtnText: { fontSize: 16, fontFamily: poppinsWeight('600'), color: colors.limeDeep },
+  vistas: { flexDirection: 'row', borderRadius: 24, backgroundColor: colors.arena, padding: 3 },
+  vistaBtn: { minHeight: 42, paddingHorizontal: 16, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  vistaBtnOn: { backgroundColor: '#FFFFFF' },
+  vistaTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.textBody },
+  vistaTextoOn: { color: colors.ink },
+  filtrosBloque: { gap: 8 },
+  separador: { width: 1, alignSelf: 'stretch', backgroundColor: 'rgba(42, 36, 33, 0.15)', marginHorizontal: 4 },
+  avatarChip: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
+  avatarChipOn: { borderColor: colors.ink, backgroundColor: '#FFFFFF' },
+  tipoChip: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(42, 36, 33, 0.18)' },
+  tipoChipTexto: { fontSize: 14, fontFamily: poppinsWeight('600'), color: colors.ink },
+  swatch: { width: 12, height: 12, borderRadius: 3 },
+  hojaMargen: { marginRight: 7, marginBottom: 8 },
+  hechoTag: { fontSize: 14, fontFamily: poppinsWeight('600'), color: colors.salvia, paddingVertical: 8 },
+  btnHecho: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 48, paddingHorizontal: 16, borderRadius: 24 },
+  btnHechoTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: '#FFFFFF' },
+  btnSec: { minHeight: 48, paddingHorizontal: 16, borderRadius: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(42, 36, 33, 0.22)' },
+  btnSecTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.ink },
+  volverHoy: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', minHeight: 48 },
+  volverHoyTexto: { fontSize: 15, fontFamily: poppinsWeight('600'), color: colors.limeDeep },
+  resumenGrilla: { flexDirection: 'row', gap: 12 },
+  resumenDato: { flex: 1, alignItems: 'flex-start', gap: 2 },
+  resumenNum: { fontSize: 28, lineHeight: 34, fontFamily: SERIF_BOLD, color: colors.ink },
+  resumenEtiqueta: { fontSize: 14, lineHeight: 20, color: colors.textBody },
   agregarBtn: { marginLeft: 8 },
 
   // ---- filtros (píldoras)
@@ -628,7 +851,6 @@ const styles = StyleSheet.create({
   cartulinaCompacta: { padding: 8 },
   leyenda: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#EFE8DF' },
   leyendaItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  leyendaPunto: { width: 12, height: 12, borderRadius: 4, borderWidth: 1 },
   leyendaText: { fontSize: 14, lineHeight: 20, color: colors.textBody },
 
   // ---- agenda del día
@@ -640,61 +862,8 @@ const styles = StyleSheet.create({
   agendaSub: { fontSize: 15, lineHeight: 22, color: colors.textBody, marginTop: 4, marginBottom: 12 },
   lista: { gap: 12, marginTop: 8 },
 
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    minHeight: 80,
-    paddingVertical: 12,
-    paddingLeft: 20,
-    paddingRight: 12,
-    overflow: 'hidden',
-    backgroundColor: colors.glassStrong,
-    borderWidth: 1,
-    borderColor: colors.borderCard,
-    borderRadius: 16,
-  },
-  itemDone: { opacity: 0.6 },
-  itemPress: { flex: 1, minWidth: 0 },
-  itemPressContent: { minWidth: 0, justifyContent: 'center' },
-  itemBarra: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 4 },
-  itemMain: { flex: 1, gap: 4, minWidth: 0 },
-  itemTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  itemHora: { fontVariant: ['tabular-nums'], fontSize: 18, lineHeight: 26, fontFamily: poppinsWeight('700'), color: colors.ink },
-  catPill: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999 },
-  catPillText: { fontSize: 14, lineHeight: 20, fontFamily: poppinsWeight('600') },
-  itemVencido: { fontSize: 14, fontFamily: poppinsWeight('600'), color: colors.limeDeep },
-  itemDesc: { fontSize: 16, lineHeight: 22, color: colors.ink },
-  itemDescDone: { textDecorationLine: 'line-through' },
-  itemDueno: { fontSize: 15, lineHeight: 22, fontFamily: poppinsWeight('600'), color: colors.iconWarm },
-  hechoBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    minWidth: 48,
-    height: 48,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 2,
-    backgroundColor: '#FFFFFF',
-  },
-  hechoText: { fontSize: 15, fontFamily: poppinsWeight('600') },
 
   proximoVacio: { fontSize: 16, lineHeight: 24, color: colors.textBody, marginTop: 8 },
-  proximoFila: {
-    minHeight: 56,
-    paddingVertical: 8,
-    paddingLeft: 16,
-    paddingRight: 8,
-    overflow: 'hidden',
-    justifyContent: 'center',
-    backgroundColor: colors.glassStrong,
-    borderWidth: 1,
-    borderColor: colors.borderCard,
-    borderRadius: 12,
-  },
-  proximoCuando: { fontVariant: ['tabular-nums'], fontSize: 15, lineHeight: 22, fontFamily: poppinsWeight('600'), color: colors.ink },
 
   // ---- día libre
   diaLibre: { alignItems: 'center', gap: 8, paddingVertical: 24 },

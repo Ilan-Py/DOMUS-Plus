@@ -38,10 +38,9 @@ function BotonSuave({ title, onPress }) {
   );
 }
 
-// Categoría de color igual que en el Calendario: medicación; si no, mascota; si no, turno o control.
+// Color por tipo de aviso, igual que en el Calendario (medicación, vacuna, turno o control).
 function categoriaDe(a) {
-  if (a.tipo === 'medicacion') return 'medicacion';
-  return a.mascota_id && !a.integrante_id ? 'mascota' : 'turno';
+  return a.tipo;
 }
 
 // ---------------------------------------------------------------------------
