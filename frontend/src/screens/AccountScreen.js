@@ -19,6 +19,9 @@ import CrossfadeIcon from '../components/CrossfadeIcon';
 import { confirmarDestructivo } from '../utils/confirm';
 import { paper } from '../theme/paper';
 import CasaRecorte from '../components/CasaRecorte';
+import PaperCard from '../components/PaperCard';
+import SlotVacio from '../components/SlotVacio';
+import { papel } from '../theme/papel';
 import EntityAvatar from '../components/EntityAvatar';
 import AvatarPicker from '../components/AvatarPicker';
 import PaperCutout from '../components/PaperCutout';
@@ -121,6 +124,7 @@ export default function AccountScreen() {
   // Eliminar cuenta: formulario en línea con la contraseña (se pide confirmación otra vez en un diálogo).
   const [eliminarAbierto, setEliminarAbierto] = useState(false);
   const [passEliminar, setPassEliminar] = useState('');
+  const [nombreConfirma, setNombreConfirma] = useState('');
   const [errorEliminar, setErrorEliminar] = useState('');
   const [borrando, setBorrando] = useState(false);
   // Contactos de emergencia cargados en mi ficha (para el porcentaje de la tarjeta).
@@ -280,6 +284,10 @@ export default function AccountScreen() {
   }
 
   function confirmarEliminarCuenta() {
+    if (normalizar(nombreConfirma) !== normalizar(usuario?.nombre)) {
+      setErrorEliminar(`Escribí tu nombre (${usuario?.nombre}) para confirmar.`);
+      return;
+    }
     if (!passEliminar) {
       setErrorEliminar('Escribí tu contraseña para confirmar.');
       return;
@@ -481,7 +489,7 @@ export default function AccountScreen() {
 
   // ---------------- bloques ----------------
   const perfilCard = (
-    <View {...paper('cartulina')} style={[styles.card, styles.cardCinta]}>
+    <View {...paper('papel', 'p1')} style={[styles.card, styles.cardCinta]}>
       {/* Cinta de papel en terracota suave, cruzando el borde superior de la tarjeta */}
       <View pointerEvents="none" style={styles.cinta} />
       {editandoPerfil ? (
@@ -550,7 +558,7 @@ export default function AccountScreen() {
   );
 
   const seguridadCard = (
-    <View {...paper('cartulina')} style={styles.card}>
+    <View {...paper('papel', 'p1')} style={styles.card}>
       <Text style={styles.cardLabel} accessibilityRole="header">Acceso y seguridad</Text>
       {mostrarPasswordForm ? (
         <View style={styles.formPad}>
@@ -578,7 +586,7 @@ export default function AccountScreen() {
   );
 
   const grupoCard = (
-    <View {...paper('cartulina')} style={[styles.card, styles.cardNoPad]}>
+    <View {...paper('papel', 'p1')} style={[styles.card, styles.cardNoPad]}>
       {/* Cabecera destacada con un doodle decorativo (casita) en la esquina. */}
       <View style={styles.banner}>
         <View style={styles.bannerDoodle} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no">
@@ -688,6 +696,13 @@ export default function AccountScreen() {
               )}
             </View>
           ))}
+          {/* Casillas punteadas: lo que todavía no está cargado. */}
+          <View style={styles.slots}>
+            {esDueno && miembros.length <= 1 && (
+              <SlotVacio texto="Invitá a tu familia con un código" icono="mail-open-outline" onPress={generandoCodigo ? null : handleGenerarInvitacion} />
+            )}
+            <SlotVacio texto="Agregar perfil sin cuenta" icono="person-add-outline" onPress={() => navigation.navigate('Familia', { screen: 'AddMember', params: { tipoMiembro: 'integrante' } })} />
+          </View>
         </>
       )}
 
@@ -705,7 +720,7 @@ export default function AccountScreen() {
   );
 
   const preferenciasCard = (
-    <View {...paper('cartulina')} style={styles.card}>
+    <View {...paper('papel', 'p1')} style={styles.card}>
       <Text style={styles.cardLabel} accessibilityRole="header">Preferencias</Text>
       <View style={[styles.prefGrid, columnas >= 2 && styles.prefGridFila]}>
       <View style={styles.prefBloque}>
@@ -776,7 +791,7 @@ export default function AccountScreen() {
   );
 
   const privacidadCard = (
-    <View {...paper('cartulina')} style={styles.card}>
+    <View {...paper('papel', 'p1')} style={styles.card}>
       <View style={styles.privCuerpo}>
         <View style={styles.privHead}>
           <PaperCutout icon="shield" tinte="salvia" size={52} rotate={-3} />
@@ -804,7 +819,12 @@ export default function AccountScreen() {
   );
 
   const fichaCard = (
-    <View {...paper('cartulina')} style={styles.card}>
+    <PaperCard
+      nivel={1}
+      hoja={miFicha && porcentajeFicha === 100 ? 'salvia' : 'mostaza'}
+      style={styles.card}
+      wrapperStyle={{ marginRight: 7, marginBottom: 8 }}
+    >
       <Text style={styles.cardLabel} accessibilityRole="header">Mi ficha de emergencia</Text>
       <View style={styles.fichaCuerpo}>
         {miFicha ? (
@@ -829,11 +849,11 @@ export default function AccountScreen() {
           </>
         )}
       </View>
-    </View>
+    </PaperCard>
   );
 
   const zonaPeligroCard = (
-    <View {...paper('cartulina')} style={styles.card}>
+    <View {...paper('papel', 'p1')} style={styles.card}>
       <Text style={styles.cardLabel} accessibilityRole="header">Zona de peligro</Text>
       <SettingRow icon="download-outline" label="Exportar mis datos" value="Un archivo de texto con tu perfil y las fichas del grupo." onPress={exportarMisDatos} />
       {!esDueno && !!miMembresia && (
@@ -857,13 +877,14 @@ export default function AccountScreen() {
           <Text style={styles.formTitle}>Eliminar mi cuenta</Text>
           <Text style={styles.prefAyuda}>Esto no se puede deshacer. Escribí tu contraseña para confirmar.</Text>
           <ErrorBanner message={errorEliminar} />
+          <FormField label={`Escribí tu nombre (${usuario?.nombre}) para confirmar`} value={nombreConfirma} onChangeText={setNombreConfirma} autoCapitalize="words" style={{ paddingBottom: 12 }} />
           <FormField label="Contraseña" value={passEliminar} onChangeText={setPassEliminar} secureTextEntry autoComplete="current-password" style={{ paddingBottom: 0 }} />
           <View style={styles.formActionsFila}>
             <View style={styles.mitad}>
               <PrimaryButton title="Eliminar cuenta" variant="danger" onPress={confirmarEliminarCuenta} loading={borrando} />
             </View>
             <View style={styles.mitad}>
-              <PrimaryButton title="Cancelar" variant="secondary" onPress={() => { setEliminarAbierto(false); setPassEliminar(''); setErrorEliminar(''); }} disabled={borrando} />
+              <PrimaryButton title="Cancelar" variant="secondary" onPress={() => { setEliminarAbierto(false); setPassEliminar(''); setNombreConfirma(''); setErrorEliminar(''); }} disabled={borrando} />
             </View>
           </View>
         </View>
@@ -896,7 +917,7 @@ export default function AccountScreen() {
   }
 
   const ayudaCard = (
-    <View {...paper('cartulina')} style={styles.card}>
+    <View {...paper('papel', 'p1')} style={styles.card}>
       <Text style={styles.cardLabel} accessibilityRole="header">Ayuda rápida</Text>
       <PressScale contentStyle={styles.ayudaFila} onPress={() => verAyuda('invitar')} accessibilityLabel="Cómo invitar a tu familia">
         <Ionicons name="help-circle-outline" size={22} color={colors.salvia} />
@@ -1009,19 +1030,19 @@ const styles = StyleSheet.create({
 
   // Nivel 2: tarjeta blanca con borde fino y una sombra cálida casi imperceptible.
   card: {
-    backgroundColor: colors.glassStrong,
-    borderWidth: 1,
-    borderColor: colors.borderCard,
-    borderRadius: 16,
+    backgroundColor: papel.cartulina,
+    borderWidth: 0,
+    borderRadius: papel.radio,
     overflow: 'hidden',
-    // Cartulina: en web, sombra de dos capas vía theme/paper.js; en nativo, una corta y nítida.
-    shadowColor: '#2A2421',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.07,
+    // Sombra de papel apilado: en web la pone theme/paper.js (data-paper "papel"); en nativo, una dura y corta.
+    shadowColor: '#2B211C',
+    shadowOffset: { width: 3, height: 4 },
+    shadowOpacity: 0.1,
     shadowRadius: 0,
     elevation: 2,
   },
   cardNoPad: { paddingBottom: 0 },
+  slots: { gap: 12, paddingHorizontal: 24, paddingVertical: 16 },
   // Título de tarjeta en la serif de la marca.
   cardLabel: {
     fontSize: 22,

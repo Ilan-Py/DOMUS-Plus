@@ -63,7 +63,10 @@ export default function ToastHost() {
         accessibilityRole="alert"
         accessibilityLiveRegion="polite"
       >
-        <Ionicons name={toast.tipo === 'error' ? 'alert-circle' : 'checkmark-circle'} size={24} color={toast.tipo === 'error' ? colors.error : '#7D9B76'} />
+        {/* Sticker de papel: círculo con borde blanco, salvia si salió bien y terracota si hubo un problema. */}
+        <View style={[styles.sello, { backgroundColor: toast.tipo === 'error' ? colors.accentStrong : colors.salvia }]}>
+          <Ionicons name={toast.tipo === 'error' ? 'alert' : 'checkmark'} size={18} color="#FFFFFF" />
+        </View>
         <Text style={styles.text}>{toast.texto}</Text>
       </Animated.View>
     </View>
@@ -86,16 +89,16 @@ const styles = StyleSheet.create({
     minHeight: 52,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: colors.glass,
-    borderWidth: 1,
-    borderColor: colors.borderCard,
-    shadowColor: '#2A2421',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
+    // Etiqueta de papel: cartulina sin borde, esquinas poco redondeadas y sombra dura apilada.
+    borderRadius: 8,
+    backgroundColor: '#FFFDF9',
+    shadowColor: '#2B211C',
+    shadowOffset: { width: 3, height: 4 },
+    shadowOpacity: 0.14,
+    shadowRadius: 0,
     elevation: 6,
     ...(Platform.OS === 'web' ? { maxWidth: 420 } : null),
   },
+  sello: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#FFFFFF' },
   text: { fontSize: 16, lineHeight: 22, fontFamily: poppinsWeight('600'), color: colors.ink, flexShrink: 1 },
 });

@@ -25,6 +25,7 @@ import useAvisos, { useVacunas } from '../hooks/useAvisos';
 import { duenoDeAviso, inicioDeDia, cuando } from '../utils/avisos';
 import { paper } from '../theme/paper';
 import PaperCard from '../components/PaperCard';
+import SlotVacio from '../components/SlotVacio';
 import PressScale from '../components/PressScale';
 import Skeleton from '../components/Skeleton';
 import FadeSlideIn from '../components/FadeSlideIn';
@@ -56,16 +57,6 @@ function calcularEdad(fechaNacimiento) {
     (hoy.getMonth() === nacimiento.getMonth() && hoy.getDate() < nacimiento.getDate());
   if (aunNoCumple) edad -= 1;
   return edad;
-}
-
-// Casilla punteada para sumar a alguien: se ve igual que una tarjeta vacía esperando su lugar.
-function SlotAgregar({ texto, icono, onPress }) {
-  return (
-    <PressScale contentStyle={styles.slot} onPress={onPress} accessibilityLabel={texto}>
-      <Ionicons name={icono} size={22} color={colors.textBody} />
-      <Text style={styles.slotTexto}>{texto}</Text>
-    </PressScale>
-  );
 }
 
 // Tarjeta de integrante o mascota: avatar circular con la paleta cálida de su categoría,
@@ -370,7 +361,7 @@ export default function FamilyListScreen({ navigation }) {
         </Text>
       </View>
       {integrantes.length === 0 ? (
-        <SlotAgregar texto="Agregar persona" icono="person-add-outline" onPress={() => irAAgregar('integrante')} />
+        <SlotVacio texto="Agregar persona" icono="person-add-outline" onPress={() => irAAgregar('integrante')} />
       ) : (
         <View style={styles.grid}>
           {integrantes.map((item, i) => {
@@ -405,7 +396,7 @@ export default function FamilyListScreen({ navigation }) {
               </FadeSlideIn>
             );
           })}
-          <View style={styles.gridItem}><SlotAgregar texto="Agregar persona" icono="person-add-outline" onPress={() => irAAgregar('integrante')} /></View>
+          <View style={styles.gridItem}><SlotVacio texto="Agregar persona" icono="person-add-outline" onPress={() => irAAgregar('integrante')} /></View>
         </View>
       )}
     </View>
@@ -420,7 +411,7 @@ export default function FamilyListScreen({ navigation }) {
         </Text>
       </View>
       {mascotas.length === 0 ? (
-        <SlotAgregar texto="Agregar mascota" icono="paw-outline" onPress={() => irAAgregar('mascota')} />
+        <SlotVacio texto="Agregar mascota" icono="paw-outline" onPress={() => irAAgregar('mascota')} />
       ) : (
         <View style={styles.grid}>
           {mascotas.map((item, i) => {
@@ -448,7 +439,7 @@ export default function FamilyListScreen({ navigation }) {
               </FadeSlideIn>
             );
           })}
-          <View style={styles.gridItem}><SlotAgregar texto="Agregar mascota" icono="paw-outline" onPress={() => irAAgregar('mascota')} /></View>
+          <View style={styles.gridItem}><SlotVacio texto="Agregar mascota" icono="paw-outline" onPress={() => irAAgregar('mascota')} /></View>
         </View>
       )}
     </View>
@@ -627,7 +618,8 @@ const styles = StyleSheet.create({
   stack: { gap: 24 },
   section: { gap: 12 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionLabel: { fontSize: 18, lineHeight: 26, fontFamily: poppinsWeight('700'), color: colors.ink },
+  // Regla de títulos: los de página y de tarjeta van en la serif de la marca.
+  sectionLabel: { fontSize: 20, lineHeight: 28, fontFamily: SERIF_BOLD, color: colors.ink },
   grid: { gap: 12 },
   gridItem: { width: '100%' },
 
