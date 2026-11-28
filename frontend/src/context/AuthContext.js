@@ -154,11 +154,15 @@ export function AuthProvider({ children }) {
   // 409 = el usuario ya pertenece a un grupo (grupo_miembro es UNIQUE por
   // usuario_id — un usuario a lo sumo en un grupo activo a la vez) — se
   // trata como éxito: se recupera el grupo existente en vez de mostrar un error.
-  async function crearGrupo(nombre) {
+  // { diferir: true }: crea el grupo pero no lo activa todavía (el asistente de bienvenida sigue con sus pasos y
+  // recién al final llama a entrarAlGrupo). Sin diferir, App.js pasa a la app en el acto, como antes.
+  async function crearGrupo(nombre, { diferir = false } = {}) {
     try {
       const datos = await api.post('/api/familia/grupo', { nombre });
-      setGrupo(datos);
-      guardarGrupo(datos);
+      if (!diferir) {
+        setGrupo(datos);
+        guardarGrupo(datos);
+      }
       return datos;
     } catch (err) {
       if (err.status === 409) {
@@ -169,6 +173,12 @@ export function AuthProvider({ children }) {
       }
       throw err;
     }
+  }
+
+  async function entrarAlGrupo(datos) {
+    const g = datos || (await api.get('/api/familia/grupo'));
+    await guardarGrupo(g);
+    setGrupo(g);
   }
 
   // Unirse no devuelve el grupo directo (POST /grupo/unirse sólo confirma la
@@ -216,7 +226,7 @@ export function AuthProvider({ children }) {
 
   const value = {
     token, usuario, grupo, booting, codigoPendiente, setCodigoPendiente, sinConexion, reconectar,
-    login, register, crearGrupo, unirseGrupo, salirDelGrupo, logout,
+    login, register, crearGrupo, entrarAlGrupo, unirseGrupo, salirDelGrupo, logout,
     actualizarPerfil, renombrarGrupo,
   };
 

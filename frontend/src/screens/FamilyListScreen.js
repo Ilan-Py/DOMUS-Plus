@@ -20,6 +20,7 @@ import ErrorBanner from '../components/ErrorBanner';
 import { textoGuardadoEn } from '../utils/cacheLocal';
 import { plural, cuandoEvento, edadDe } from '../utils/formato';
 import PaperBanner from '../components/PaperBanner';
+import PrimerosPasos from '../components/PrimerosPasos';
 import StatChip from '../components/StatChip';
 import AddMenu from '../components/AddMenu';
 import Ilustracion from '../components/Ilustracion';
@@ -293,7 +294,14 @@ export default function FamilyListScreen({ navigation }) {
     </PaperBanner>
   );
 
-  const alertasBloque = <AlertasFamilia alertas={alertas} />;
+  const alertasBloque = (
+    <>
+      {!loading && integrantes.length + mascotas.length > 0 && (
+        <PrimerosPasos grupoId={grupo?.id} integrantes={integrantes} mascotas={mascotas} avisos={todos} vacunas={vacunas} navigation={navigation} />
+      )}
+      <AlertasFamilia alertas={alertas} />
+    </>
+  );
   const hoyCard = (
     <HoyPanel
       avisos={avisos}

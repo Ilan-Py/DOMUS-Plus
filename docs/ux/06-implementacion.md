@@ -72,3 +72,13 @@
 
 Pendiente de esta ronda: miniaturas de adjuntos dentro de la línea de tiempo (los adjuntos ya muestran miniatura en su sección);
 ordenar las vacunas por próxima dosis; el post-it en las tarjetas de Familia.
+
+## Ronda de la landing, las pantallas de entrada y el onboarding
+
+| Commit | Qué |
+|---|---|
+| `717c85e` | **Landing:** contenido de 1200 px, cuerpo de 18 px, títulos de 40 px y 120 px de aire por sección. Hero con escena de papel (no foto de stock). «Cómo funciona» con tres escenas (casita, familia con perro, campanita) unidas por un caminito recortado y etiquetas de papel. Ficha de emergencia grande con hojas detrás y post-its con flechitas a mano (sin QR: la app no lo tiene, D1). Un caso protagonista y dos secundarios con escenas. «Hecho en Santa Fe, para familias como la tuya» en lugar de testimonios inventados. Tres sellos de confianza. Preguntas frecuentes. Cierre con escena y CTA grande; «Ver una familia de ejemplo» sólo si hay una cuenta demo configurada (`app.json → extra.demo`). Pie con Privacidad, Términos y Contacto. **Entrada:** `EscenaHogar` (capas de papel con sombras duras, entrada escalonada, parallax leve, de noche luna y ventanas prendidas; respeta «reducir movimiento»); 55/45 con borde recortado; sellitos de confianza abajo de la escena; carta «Familia García · Próximo aviso» pegada junto a la puerta; en móvil, banner arriba con borde recortado. Login: «¿Olvidaste…?» al lado del label, error que no dice qué falló y enlaza a recuperar, «Entrando…» con spinner. «¿Te invitaron? Ingresá el código» lleva a su pantalla con la escena del felpudo. Registro: medidor de fuerza y aceptación obligatoria de Términos y Privacidad. Autofill sin el amarillo del navegador |
+| (este) | **Onboarding** (`AsistenteBienvenida`): 4 pasos con barra de tiras de papel. 1) nombre de la familia prellenado con el apellido (lo único obligatorio); 2) «¿A quién cuidás?» con tarjetas ilustradas y mini formulario por cada una; 3) ficha mínima de la primera persona («Lo completo después» visible); 4) código para invitar (copiar o WhatsApp); celebración con los nombres cargados. El grupo se crea en el paso 1 pero se activa al final (`crearGrupo(nombre, { diferir: true })` + `entrarAlGrupo`). **Primeros pasos** en Familia: con nombres, se tildan solos, se pueden descartar |
+
+Pendiente: «Continuar con Google» (necesita OAuth en el backend); recuperación de contraseña por mail (`TODO(backend)`);
+correo de contacto real en la landing (`CONTACTO` en `WelcomeScreen.js`); cuenta demo descartable para «Ver una familia de ejemplo».

@@ -11,6 +11,7 @@ import ErrorBanner from '../components/ErrorBanner';
 import SegmentedControl from '../components/SegmentedControl';
 import Logo from '../components/Logo';
 import { confirmarDestructivo } from '../utils/confirm';
+import AsistenteBienvenida from '../components/AsistenteBienvenida';
 
 const MODO_OPTIONS = [
   { label: 'Crear grupo', value: 'crear' },
@@ -83,6 +84,11 @@ export default function GroupSetupScreen() {
       CERRAR_SESION.boton,
       'logout'
     );
+  }
+
+  // Crear: el asistente de bienvenida de 4 pasos (nombre, a quién cuidás, ficha mínima, invitar).
+  if (modo === 'crear') {
+    return <AsistenteBienvenida onUnirme={() => cambiarModo('unirse')} onCerrarSesion={confirmarSalida} />;
   }
 
   const esCrear = modo === 'crear';
