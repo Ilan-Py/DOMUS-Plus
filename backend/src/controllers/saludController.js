@@ -30,6 +30,13 @@ function validarFechasVacuna(fecha_aplicacion, proxima_dosis) {
     return new Date(proxima_dosis) > new Date(fecha_aplicacion);
 }
 
+// Un tratamiento puede terminar el mismo día que empieza, pero no antes
+function validarFechasTratamiento(fecha_inicio, fecha_fin) {
+    if (!fecha_fin) return true;
+    return new Date(fecha_fin) >= new Date(fecha_inicio);
+}
+const ERROR_FECHAS_TRATAMIENTO = 'La fecha de fin no puede ser anterior a la fecha de inicio.';
+
 //3 — El integrante/mascota indicado tiene que ser del grupo del usuario.
 // Sin esto, cualquier usuario logueado podía leer o cargar vacunas,
 // tratamientos e historial de otra familia cambiando el id en la request.
@@ -239,6 +246,9 @@ async function registrarTratamiento(req, res) {
     if (!descripcion || !medicacion || !fecha_inicio) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'descripcion, medicacion y fecha_inicio son obligatorios.' });
     }
+    if (!validarFechasTratamiento(fecha_inicio, fecha_fin)) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: ERROR_FECHAS_TRATAMIENTO });
+    }
     if (!integrante_id && !mascota_id) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'Debe indicar integrante_id o mascota_id.' });
     }
@@ -310,6 +320,9 @@ async function editarTratamiento(req, res) {
 
     if (!descripcion || !medicacion || !fecha_inicio) {
         return res.status(400).json({ codigo: 400, estado: 'error', datos: 'descripcion, medicacion y fecha_inicio son obligatorios.' });
+    }
+    if (!validarFechasTratamiento(fecha_inicio, fecha_fin)) {
+        return res.status(400).json({ codigo: 400, estado: 'error', datos: ERROR_FECHAS_TRATAMIENTO });
     }
 
     try {

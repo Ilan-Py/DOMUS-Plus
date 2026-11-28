@@ -23,7 +23,7 @@ Idioma del proyecto: **español rioplatense** (código, comentarios, mensajes de
 backend/
   prisma/schema.prisma        # Modelo de datos (fuente de verdad de la BD)
   prisma/migrations/          # Migraciones Prisma — nunca editar una ya aplicada
-  prisma/seed.js              # Datos de demo (familias + admin@domus.test, pass Admin123)
+  prisma/seed.js              # Datos de demo (familias + admin@domus.test + 24 familias de relleno, pass Admin123)
   src/app.js                  # Express: middlewares, montaje de rutas, 404
   src/config/                 # auth (JWT + soloAdmin), prisma (singleton), cloudinary, upload (multer), rateLimiter
   src/routes/*.routes.js      # Sólo wiring de rutas → controllers
@@ -168,12 +168,64 @@ return res.status(200).json({ codigo: 200, estado: 'ok', datos: resultado });
   migraciones ya aplicadas.
 - No commitear `.env` ni credenciales (Cloudinary, JWT, Supabase).
 
+## Pendientes del front (para el revamp)
+
+El back de todo esto ya está hecho y probado; falta la pantalla. Códigos del documento
+"DOMUS+ | Errores y mejoras". Verificado contra el código del front el 26/11/2026.
+
+**El back ya lo soporta, falta usarlo en la app:**
+- **ERR-009 tipo de sangre** (`EmergencyScreen`): hoy es texto libre. Usar una lista con los 8 grupos
+  (`A+ A- B+ B- AB+ AB- O+ O-`). El back acepta variantes («0 positivo») y rechaza lo demás con 400.
+- **ERR-010 alergias** (`EmergencyScreen`): selector de alergias frecuentes + «Otras» con texto. El back
+  ya guarda la lista con mayúscula, acentos y sin repetidas.
+- **MEJ-001 especie** (`AddMemberScreen`): desplegable Perro / Gato / Ave / Otro; con «Otro», campo de texto.
+  Mandar en `especie` lo escrito (el back rechaza `"Otro"` solo con 400).
+- **MEJ-002 especialidad** (`ProfessionalContactsSection`): desplegable con la lista `ESPECIALIDADES` de
+  `profesionalSaludController` + «Otra» con texto.
+- **MEJ-004 tipo de integrante** (`AddMemberScreen`): quitar los botones Adulto / Menor / Mayor. Hoy se sigue
+  mandando `tipo` y el back lo ignora (lo calcula con la fecha de nacimiento).
+- **MEJ-005 recordatorios periódicos** (`AddReminderScreen`, `CalendarScreen`): opción «Repetir cada N días,
+  M veces» (`repetir_cada_dias`, `repetir_veces`; «cada mes» = 30). Al borrar uno con `serie_id`, preguntar
+  «solo este» o «este y los siguientes» (`DELETE ...?alcance=siguientes`), con `elegirOpcion()`.
+- **Eliminar grupo** (`AccountScreen`): botón para el dueño (`DELETE /api/familia/grupo`). Hoy el texto le dice
+  al dueño que «no está disponible todavía desde la app».
+- **Cuenta admin** (`AuthContext`, `App.js`): el login devuelve `usuario.rol`. Si es `admin`, hoy la app lo manda
+  a crear un grupo. Mostrarle un aviso o llevarlo al panel (hoy `/admin`, servido por el back, o pantallas
+  propias que usen `/api/admin/*`).
+
+**Sólo front:**
+- **ERR-001** íconos de la barra inferior superpuestos con las etiquetas (`MainTabs`).
+- **ERR-002 / ERR-003** `GroupSetupScreen`: «Salir de la cuenta» usa `Alert.alert` con botones (no hace nada
+  en web) y no hay forma de volver. Usar `confirmarDestructivo()` y agregar una salida.
+- **ERR-004** scroll y adaptación de pantalla al agregar un integrante.
+- **ERR-005** la barra inferior aparece en pantallas donde no corresponde.
+- **ERR-006** «Cancelar» y flecha de volver a la vez al agregar un familiar.
+- **ERR-007** calendario en Firefox (no se ve) y Brave (fuera de pantalla). Hoy se usa Chrome.
+- **ERR-014** adjuntos (`AttachmentsSection`): en web se elige el tipo con `window.prompt` (1, 2 o 3). Hacer un
+  selector visual.
+- **MEJ-003** accesibilidad para personas mayores (íconos claros, botones grandes, contraste).
+- Menús de long-press con `Alert.alert` en `FamilyListScreen` y `ProfileDetailScreen`: funcionan en el
+  celular pero no en web (revisar que haya otro camino en web).
+- Ver también `docs/QA_CHECKLIST.md` (formato de fechas, diseño, accesibilidad, iOS) y `frontend/todo.md`.
+
+**Decisiones abiertas (no son bugs):**
+- **Historial**: es sólo de consulta; no existe endpoint para agregar eventos (los del seed están cargados
+  directo). Si se quiere cargar desde la app, primero hace falta `POST /api/salud/historial`.
+- **Notificaciones**: son locales del celular (`utils/notifications.js`). En web no hay, y el back no manda push.
+
 ## Documentación existente (y su estado)
 
 - `README.md` — setup, endpoints, despliegue (Render + Supabase, EAS). Mayormente al día; dice
   Prisma 6 pero `package.json` usa `^5.22`.
 - `docs/API_NOTES.md` — contratos y trampas. **Parcialmente desactualizado:** menciona MySQL y
-  formato DATETIME de MySQL, y que el JWT vencido da 403 (hoy da 401). El punto del IDOR sigue vigente.
+  formato DATETIME de MySQL, que el JWT vencido da 403 (hoy da 401) y el IDOR (ya resuelto).
+- `docs/DOMUS+ API.postman_collection.json` — todos los endpoints, en un orden que corre de arriba a abajo
+  contra el seed (carpeta 0 = logins, 12 = limpieza, 13 = adjuntos a mano). Todavía sin `pm.test`.
+- `docs/CASOS_DE_PRUEBA_API.md` — qué verificar en cada pedido y los casos negativos con el código y el
+  mensaje reales, para escribir los tests de Postman/Newman. **Un cambio de validación o de mensaje se
+  refleja ahí.**
+- `docs/DOMUS+ Documento Fundacional.pdf` — **desactualizado:** dice MySQL, no tiene el actor Administrador
+  ni el registro de actividad, y el modelo de datos y la arquitectura son los originales.
 - `docs/SPRINT_STATUS.md`, `frontend/todo.md` — backlog del frontend con estado verificado por ítem.
-- `docs/QA_CHECKLIST.md` — checklist de pruebas manuales.
+- `docs/QA_CHECKLIST.md` — checklist de revisión del front (pruebas manuales).
 - `docs/scripts-viejos/` — SQL previo a Prisma. Sólo referencia histórica; no usar.
