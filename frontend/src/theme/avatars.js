@@ -8,7 +8,7 @@ import { colors } from './colors';
 // sage) — ver comentario original en FamilyListScreen.
 export const AVATAR_TINTS = {
   adulto: { bg: '#FBE5D8', text: '#A64B2A' }, // durazno suave
-  menor: { bg: '#FDF1D6', text: '#9A6B16' }, // amarillo miel suave
+  menor: { bg: '#FDF1D6', text: '#85561F' }, // amarillo miel suave · texto 5,59:1 (FAM-06; antes #9A6B16, 4,17:1)
   mayor: { bg: '#EFE8F2', text: '#5E4B66' }, // lavanda cálida
   mascota: { bg: colors.salviaSoft, text: colors.salvia }, // verde salvia (paleta de mascotas)
 };

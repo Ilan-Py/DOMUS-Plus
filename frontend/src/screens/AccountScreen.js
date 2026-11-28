@@ -684,10 +684,11 @@ export default function AccountScreen() {
               </View>
               {esDueno && m.usuario_id !== usuario?.id && (
                 <PressScale
+                  style={styles.noEncoger}
                   contentStyle={styles.deleteBtn}
                   onPress={() => confirmEliminarMiembro(m)}
                   disabled={eliminandoId === m.usuario_id}
-                  accessibilityLabel={`Eliminar a ${m.nombre}`}
+                  accessibilityLabel={`Quitar a ${m.nombre} del grupo`}
                 >
                   {eliminandoId === m.usuario_id ? (
                     <ActivityIndicator size="small" color={colors.danger} />
@@ -1308,6 +1309,7 @@ const styles = StyleSheet.create({
   rolBadgeDueno: { backgroundColor: colors.ocreSoft, borderWidth: 1, borderColor: colors.ocre },
   rolBadgeDuenoText: { color: '#7A5112' },
   deleteBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', marginRight: -8 },
+  noEncoger: { flexShrink: 0, width: 48 }, // CTA-05: la fila lo achicaba a 40 px de ancho
 
   // ---- pie: salir del grupo
   footer: { marginTop: 8, borderTopWidth: 1, borderStyle: 'dashed', borderTopColor: 'rgba(42, 36, 33, 0.16)' },
