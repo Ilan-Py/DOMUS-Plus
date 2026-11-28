@@ -33,6 +33,7 @@ import FadeSlideIn from '../components/FadeSlideIn';
 import FadeOutRow, { EXIT_DURATION } from '../components/FadeOutRow';
 import { confirmarDestructivo } from '../utils/confirm';
 import OptionPicker from '../components/OptionPicker';
+import { guardarCache, leerCache, esErrorDeRed, textoGuardadoEn } from '../utils/cacheLocal';
 
 // Listas cerradas — mismas que valida el backend (familiaController.js).
 const GRUPOS_SANGUINEOS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
@@ -53,7 +54,7 @@ function listaDeAlergias(texto) {
 export default function EmergencyScreen({ navigation, route }) {
   const inset = useColumnInset();
   const { id, nombre: nombreParam } = route.params;
-  const { integrantes, refresh } = useFamily();
+  const { integrantes, refresh, desdeCache } = useFamily();
   const integrante = integrantes.find((i) => i.id === id);
   const nombre = integrante ? `${integrante.nombre} ${integrante.apellido}` : nombreParam || '';
 
@@ -85,12 +86,23 @@ export default function EmergencyScreen({ navigation, route }) {
   const [eliminandoId, setEliminandoId] = useState(null);
   const [exitingId, setExitingId] = useState(null);
 
+  // Fecha de la copia local de los contactos, si se está mostrando por falta de conexión (EME-01).
+  const [contactosDesdeCache, setContactosDesdeCache] = useState(null);
+
   const fetchContactos = useCallback(async () => {
     try {
       const datos = await getList(`/api/familia/integrantes/${id}/contactos-emergencia`);
       setContactos(datos);
+      setContactosDesdeCache(null);
+      guardarCache(`contactos:${id}`, datos);
     } catch (err) {
-      setError(err.mensaje);
+      const copia = esErrorDeRed(err) ? await leerCache(`contactos:${id}`) : null;
+      if (copia) {
+        setContactos(copia.datos || []);
+        setContactosDesdeCache(copia.guardadoEn);
+      } else {
+        setError(err.mensaje);
+      }
     } finally {
       setLoadingContactos(false);
     }
@@ -246,6 +258,19 @@ export default function EmergencyScreen({ navigation, route }) {
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: 20 + inset }]}>
+          {(() => {
+            // La copia más vieja es la que manda en el texto: así nunca se promete más frescura de la que hay.
+            const fechas = [desdeCache, contactosDesdeCache].filter(Boolean);
+            if (!fechas.length) return null;
+            const masVieja = new Date(Math.min(...fechas.map((f) => f.getTime())));
+            return (
+              <ErrorBanner
+                variant="aviso"
+                message={`Sin conexión. Estás viendo la ficha guardada ${textoGuardadoEn(masVieja)}.`}
+                onRetry={() => { refresh(); fetchContactos(); }}
+              />
+            );
+          })()}
           {!!error && <ErrorBanner message={error} onDismiss={() => setError('')} />}
 
           {/* Ficha de cartulina: borde superior terracota, sombra de papel en dos capas y una hoja

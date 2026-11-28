@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, radii } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 import PressScale from './PressScale';
+import { color } from '../theme/tokens';
 
 // Unifica el formErrorBox duplicado en LoginScreen, RegisterScreen y
 // GroupSetupScreen para errores generales (401/500) no atados a un campo.
@@ -30,12 +31,19 @@ const VARIANTS = {
     action: { color: colors.textMuted },
     icon: 'information-circle-outline',
   },
+  // Algo que conviene saber pero no impide seguir (p. ej. «Sin conexión: estás viendo la ficha guardada»).
+  aviso: {
+    box: { backgroundColor: color.avisoFondo, borderColor: 'rgba(122, 81, 18, 0.35)', alignItems: 'flex-start' },
+    text: { color: color.aviso, fontSize: 15, lineHeight: 22, fontFamily: poppinsWeight('600') },
+    action: { color: color.aviso },
+    icon: 'cloud-offline-outline',
+  },
 };
 
-export default function ErrorBanner({ message, onDismiss, onRetry, variant = 'error' }) {
+export default function ErrorBanner({ message, onDismiss, onRetry, variant = 'error', icon }) {
   if (!message) return null;
 
-  const v = VARIANTS[variant] || VARIANTS.error;
+  const v = { ...(VARIANTS[variant] || VARIANTS.error), ...(icon ? { icon } : null) };
 
   return (
     <View
@@ -44,7 +52,7 @@ export default function ErrorBanner({ message, onDismiss, onRetry, variant = 'er
       accessibilityLiveRegion="polite"
     >
       {!!v.icon && (
-        <Ionicons name={v.icon} size={16} color={v.action.color} style={styles.leadingIcon} />
+        <Ionicons name={v.icon} size={variant === 'aviso' ? 20 : 16} color={v.action.color} style={styles.leadingIcon} />
       )}
       <Text style={[styles.text, v.text]}>{message}</Text>
       {!!onRetry && (

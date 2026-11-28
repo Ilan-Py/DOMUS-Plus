@@ -17,6 +17,7 @@ import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useFamily } from '../context/FamilyContext';
 import ErrorBanner from '../components/ErrorBanner';
+import { textoGuardadoEn } from '../utils/cacheLocal';
 import EmptyState from '../components/EmptyState';
 import PrimaryButton from '../components/PrimaryButton';
 import BannerRecortes from '../components/BannerRecortes';
@@ -143,7 +144,7 @@ function SkeletonMemberCard() {
 
 export default function FamilyListScreen({ navigation }) {
   const { grupo } = useAuth();
-  const { integrantes, mascotas, loading, error, refresh } = useFamily();
+  const { integrantes, mascotas, loading, error, refresh, desdeCache } = useFamily();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const desktop = width >= DESKTOP_BREAKPOINT;
@@ -485,12 +486,23 @@ export default function FamilyListScreen({ navigation }) {
       </>
     );
 
-  const errores = (!!error || !!actionError) && (
-    <ErrorBanner
-      message={error || actionError}
-      onDismiss={error ? undefined : () => setActionError('')}
-      onRetry={error ? refresh : undefined}
-    />
+  const errores = (
+    <>
+      {!!desdeCache && (
+        <ErrorBanner
+          variant="aviso"
+          message={`Sin conexión. Estás viendo los datos guardados ${textoGuardadoEn(desdeCache)}. Las fichas de emergencia se pueden abrir igual.`}
+          onRetry={refresh}
+        />
+      )}
+      {(!!error || !!actionError) && (
+        <ErrorBanner
+          message={error || actionError}
+          onDismiss={error ? undefined : () => setActionError('')}
+          onRetry={error ? refresh : undefined}
+        />
+      )}
+    </>
   );
 
   return (

@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { borrarCache } from '../utils/cacheLocal';
 
 // El JWT es una credencial portadora → SecureStore (Keychain/Keystore) en
 // iOS/Android. expo-secure-store no está soportado en web (no hay Keychain/
@@ -72,6 +73,13 @@ export async function loadSession() {
 export async function clearSession() {
   await removeToken();
   await AsyncStorage.multiRemove([USER_KEY, GRUPO_KEY]);
+  await borrarCache(); // la copia local de fichas (utils/cacheLocal.js) no sobrevive al cierre de sesión
+}
+
+// Guarda sólo el grupo (al crearlo, unirse o confirmarlo al arrancar), para que un arranque sin conexión
+// sepa que la persona ya tiene familia (EME-01).
+export async function guardarGrupo(grupo) {
+  await AsyncStorage.setItem(GRUPO_KEY, JSON.stringify(grupo ?? null));
 }
 
 export async function getToken() {

@@ -6,6 +6,7 @@ import {
   clearSession,
   setToken as persistToken,
   setRecordarSesion,
+  guardarGrupo,
 } from '../api/session';
 
 const AuthContext = createContext(null);
@@ -18,11 +19,35 @@ export function AuthProvider({ children }) {
   // Código de invitación escrito antes de tener cuenta (Login → "Unirme con un código"): se guarda
   // en memoria y GroupSetupScreen lo usa para precargar el paso de unirse al grupo.
   const [codigoPendiente, setCodigoPendiente] = useState('');
+  // true cuando la app arrancó sin poder confirmar el grupo con el servidor y usa el guardado (EME-01).
+  // Las pantallas que leen datos lo combinan con su propia copia local (utils/cacheLocal.js).
+  const [sinConexion, setSinConexion] = useState(false);
 
   function resetState() {
     setToken(null);
     setUsuario(null);
     setGrupo(null);
+    setSinConexion(false);
+  }
+
+  // Lo llaman las pantallas cuando una carga vuelve a andar: confirma el grupo y apaga el aviso.
+  async function reconectar() {
+    try {
+      const datosGrupo = await api.get('/api/familia/grupo');
+      setGrupo(datosGrupo);
+      guardarGrupo(datosGrupo);
+      setSinConexion(false);
+      return true;
+    } catch (err) {
+      if (err.status === 404) {
+        // El servidor dice que ya no tiene grupo (la quitaron mientras estaba sin red).
+        await guardarGrupo(null);
+        setGrupo(null);
+        setSinConexion(false);
+        return true;
+      }
+      return false;
+    }
   }
 
   async function logout() {
@@ -60,10 +85,17 @@ export function AuthProvider({ children }) {
       try {
         const datosGrupo = await api.get('/api/familia/grupo');
         if (activo) setGrupo(datosGrupo);
+        guardarGrupo(datosGrupo);
       } catch (err) {
-        // 404 = el usuario aún no creó un grupo familiar (no es un error de sesión)
+        // 404 = el usuario aún no creó un grupo familiar (no es un error de sesión).
+        // Cualquier otro error (sin red, servidor caído) NO significa que no tenga familia: se usa el grupo
+        // guardado en el dispositivo y se avisa que falta conexión, en vez de mandarla a «Creá tu grupo» (EME-01).
         if (activo && err.status !== 404) {
           console.warn('AuthContext.rehidratar:', err.mensaje);
+          if (err.status !== 401 && sesion.grupo) {
+            setGrupo(sesion.grupo);
+            setSinConexion(true);
+          }
         }
       } finally {
         if (activo) setBooting(false);
@@ -126,11 +158,13 @@ export function AuthProvider({ children }) {
     try {
       const datos = await api.post('/api/familia/grupo', { nombre });
       setGrupo(datos);
+      guardarGrupo(datos);
       return datos;
     } catch (err) {
       if (err.status === 409) {
         const datosExistente = await api.get('/api/familia/grupo');
         setGrupo(datosExistente);
+        guardarGrupo(datosExistente);
         return datosExistente;
       }
       throw err;
@@ -144,6 +178,7 @@ export function AuthProvider({ children }) {
     await api.post('/api/familia/grupo/unirse', { codigo });
     const datosGrupo = await api.get('/api/familia/grupo');
     setGrupo(datosGrupo);
+    guardarGrupo(datosGrupo);
     setCodigoPendiente('');
     return datosGrupo;
   }
@@ -180,7 +215,7 @@ export function AuthProvider({ children }) {
   }
 
   const value = {
-    token, usuario, grupo, booting, codigoPendiente, setCodigoPendiente,
+    token, usuario, grupo, booting, codigoPendiente, setCodigoPendiente, sinConexion, reconectar,
     login, register, crearGrupo, unirseGrupo, salirDelGrupo, logout,
     actualizarPerfil, renombrarGrupo,
   };
