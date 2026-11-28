@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { mostrarToast } from '../components/ToastHost';
 import useColumnInset from '../hooks/useColumnInset';
 import useFirstErrorFocus from '../hooks/useFirstErrorFocus';
-import { View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Switch, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, useWindowDimensions } from 'react-native';
 import { colors } from '../theme/colors';
 import { poppinsWeight } from '../theme/typography';
 import { useFamily } from '../context/FamilyContext';
@@ -18,6 +18,7 @@ import DatePickerField from '../components/DatePickerField';
 import { HealthFormTopbar } from './healthFormShared';
 import { programarNotificacion, cancelarNotificacion } from '../utils/notifications';
 import { parseFechaHora } from '../utils/displayFormat';
+import { hora as horaDe } from '../utils/formato';
 import { rangoRecordatorio, validarFechaRecordatorio } from '../utils/dateRules';
 
 import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
@@ -28,11 +29,15 @@ function sameDate(a, b) {
   return a.getTime() === b.getTime();
 }
 
+// Mismo orden que el menú «Agregar» (lo más frecuente primero). Sin preelección: si no viene del menú, se elige (DOS-09).
 const TIPO_OPTIONS = [
-  { label: 'Vacuna', value: 'vacuna' },
-  { label: 'Control', value: 'control' },
   { label: 'Medicación', value: 'medicacion' },
+  { label: 'Turno o control', value: 'control' },
+  { label: 'Vacuna', value: 'vacuna' },
 ];
+const TITULO_NUEVO = { medicacion: 'Nueva dosis', control: 'Nuevo turno', vacuna: 'Nueva vacuna' };
+const TITULO_EDITAR = { medicacion: 'Editar dosis', control: 'Editar turno', vacuna: 'Editar vacuna' };
+const GUARDAR = { medicacion: 'Guardar dosis', control: 'Guardar turno', vacuna: 'Guardar vacuna' };
 const TIPOS_VALIDOS = TIPO_OPTIONS.map((opt) => opt.value);
 
 // Combina la fecha y la hora (dos Date separados — el picker de 'time'
@@ -76,11 +81,11 @@ export default function AddReminderScreen({ navigation, route }) {
   // separados, igual que al crear.
   const fechaHoraEditando = editando ? parseFechaHora(editando.fecha_hora) : null;
 
-  const [tipo, setTipo] = useState(
-    TIPOS_VALIDOS.includes(editando?.tipo) ? editando.tipo
-      : TIPOS_VALIDOS.includes(params.tipo) ? params.tipo
-      : 'control'
-  );
+  const tipoInicial = TIPOS_VALIDOS.includes(editando?.tipo) ? editando.tipo
+    : TIPOS_VALIDOS.includes(params.tipo) ? params.tipo
+    : '';
+  const [tipo, setTipo] = useState(tipoInicial);
+  const [tipoError, setTipoError] = useState(false);
   // Desde "+ Agregar para este día" del Calendario llega `fechaInicial` (clave AAAA-M-D, mes desde 0).
   const fechaPrecargada = (() => {
     if (editando || !params.fechaInicial) return null;
@@ -89,7 +94,12 @@ export default function AddReminderScreen({ navigation, route }) {
   })();
   const [fecha, setFecha] = useState(() => fechaHoraEditando || fechaPrecargada);
   const [hora, setHora] = useState(() => fechaHoraEditando);
+  // DOS-08: para una medicación, el título del evento es el medicamento (obligatorio) y la dosis («Losartán 50 mg»).
+  // Se guardan juntos en `descripcion`; al editar, todo queda en «Medicamento».
   const [descripcion, setDescripcion] = useState(() => editando?.descripcion || '');
+  const [dosis, setDosis] = useState('');
+  const [medicamentoError, setMedicamentoError] = useState(false);
+  const descripcionFinal = tipo === 'medicacion' ? [descripcion.trim(), dosis.trim()].filter(Boolean).join(' ') : descripcion.trim();
 
   // "Para quién": un integrante o una mascota del grupo (opcional). Cada opción
   // es el nombre; si una persona y una mascota se llaman igual se aclara.
@@ -107,7 +117,9 @@ export default function AddReminderScreen({ navigation, route }) {
       ? `mascota:${editando.mascota_id}`
       : params.ownerTipo && params.ownerId
         ? `${params.ownerTipo}:${params.ownerId}`
-        : '';
+        : miembros.length === 1
+          ? miembros[0].clave // DOS-09: si hay una sola persona o mascota, ya está elegida
+          : '';
   const [paraClave, setParaClave] = useState(claveInicial);
   const paraEtiqueta = miembros.find((m) => m.clave === paraClave)?.etiqueta || '';
   const paraMiembro = miembros.find((m) => m.clave === paraClave);
@@ -119,10 +131,8 @@ export default function AddReminderScreen({ navigation, route }) {
   const [repeticion, setRepeticion] = useState('');
   const [veces, setVeces] = useState(VECES_POR_DEFECTO);
   const [repeticionError, setRepeticionError] = useState('');
-  // Activo / desactivado. La API sólo permite desactivar (no volver a activar):
-  // si ya está desactivado, el interruptor se muestra apagado y bloqueado.
-  const estabaActivo = editando ? !!editando.activo : true;
-  const [activo, setActivo] = useState(estabaActivo);
+  // Ya no hay interruptor «Recordatorio activo»: el estado lo dan las marcas (dada / no se dio) en Hoy y el Calendario.
+  const activo = editando ? !!editando.activo : true;
   const [eliminando, setEliminando] = useState(false);
   const { width } = useWindowDimensions();
   const dosColumnas = width >= 600;
@@ -135,9 +145,7 @@ export default function AddReminderScreen({ navigation, route }) {
   const [saved, setSaved] = useState(false);
 
   const initialRef = useRef({
-    tipo: TIPOS_VALIDOS.includes(editando?.tipo) ? editando.tipo
-      : TIPOS_VALIDOS.includes(params.tipo) ? params.tipo
-      : 'control',
+    tipo: tipoInicial,
     fecha: fechaHoraEditando,
     hora: fechaHoraEditando,
     descripcion: editando?.descripcion || '',
@@ -147,22 +155,25 @@ export default function AddReminderScreen({ navigation, route }) {
     tipo !== initialRef.current.tipo ||
     !sameDate(fecha, initialRef.current.fecha) ||
     !sameDate(hora, initialRef.current.hora) ||
-    descripcion !== initialRef.current.descripcion ||
-    activo !== estabaActivo ||
+    descripcionFinal !== initialRef.current.descripcion ||
     paraClave !== claveInicial;
 
   const { allowNextRemove } = useUnsavedChangesGuard(navigation, isDirty);
 
   async function handleGuardar() {
+    const faltaTipo = !tipo;
+    const faltaMedicamento = tipo === 'medicacion' && !descripcion.trim();
     const faltaFecha = !fecha;
     const faltaHora = !hora;
+    setTipoError(faltaTipo);
+    setMedicamentoError(faltaMedicamento);
     setFechaError(faltaFecha);
     setHoraError(faltaHora);
     setFechaHoraError('');
     setFormError('');
 
-    if (faltaFecha || faltaHora) {
-      focusFirst([[faltaFecha, 'fecha'], [faltaHora, 'hora']]);
+    if (faltaTipo || faltaMedicamento || faltaFecha || faltaHora) {
+      focusFirst([[faltaMedicamento, 'medicamento'], [faltaFecha, 'fecha'], [faltaHora, 'hora']]);
       return;
     }
 
@@ -187,7 +198,7 @@ export default function AddReminderScreen({ navigation, route }) {
 
     // Misma regla que recordatoriosController: la fecha debe ser futura.
     if (fechaHoraLocal <= new Date()) {
-      setFechaHoraError('La fecha del recordatorio debe ser futura.');
+      setFechaHoraError('Elegí una hora que todavía no pasó. Para anotar una dosis que ya se dio, marcala en Hoy.');
       focusFirst([[true, 'fecha']]);
       return;
     }
@@ -211,20 +222,17 @@ export default function AddReminderScreen({ navigation, route }) {
         await api.patch(`/api/recordatorios/${editando.id}`, {
           tipo,
           fecha_hora: fechaHoraStr,
-          descripcion: descripcion || undefined,
+          descripcion: descripcionFinal || undefined,
           // Siempre se manda "para quién" al editar (vacío = sin asignar).
           integrante_id: paraCampos.integrante_id ?? null,
           mascota_id: paraCampos.mascota_id ?? null,
         });
         recordatorioId = editando.id;
-        if (estabaActivo && !activo) {
-          await api.patch(`/api/recordatorios/${editando.id}/desactivar`);
-        }
       } else {
         const creado = await api.post('/api/recordatorios', {
           tipo,
           fecha_hora: fechaHoraStr,
-          descripcion: descripcion || undefined,
+          descripcion: descripcionFinal || undefined,
           vacuna_id: vacunaId || undefined,
           tratamiento_id: tratamientoId || undefined,
           ...paraCampos,
@@ -244,13 +252,16 @@ export default function AddReminderScreen({ navigation, route }) {
       (isEditing ? cancelarNotificacion(recordatorioId) : Promise.resolve())
         .then(() =>
           activo
-            ? programarNotificacion({ id: recordatorioId, tipo, fecha_hora: fechaHoraStr, descripcion })
+            ? programarNotificacion({ id: recordatorioId, tipo, fecha_hora: fechaHoraStr, descripcion: descripcionFinal })
             : null
         )
         .catch(() => {});
       // CalendarScreen refetch al recuperar el foco (useFocusEffect)
       allowNextRemove();
-      mostrarToast(isEditing ? 'Cambios guardados' : 'Recordatorio guardado');
+      // Repite lo importante para que se pueda chequear de un vistazo: «Listo: Losartán 50 mg, todos los días a las 08:00».
+      const queEs = descripcionFinal || TIPO_OPTIONS.find((o) => o.value === tipo).label;
+      const cada = repeticion ? (REPETICIONES[repeticion] ? `, ${repeticion.toLowerCase()}` : `, cada ${repeticion} días`) : '';
+      mostrarToast(isEditing ? 'Cambios guardados' : `Listo: ${queEs}${cada} a las ${horaDe(fechaHoraLocal)}`);
       setSaved(true);
       setTimeout(() => navigation.goBack(), 380);
       return;
@@ -263,8 +274,8 @@ export default function AddReminderScreen({ navigation, route }) {
 
   function confirmarEliminar() {
     confirmarDestructivo(
-      'Eliminar recordatorio',
-      '¿Seguro que querés eliminar este recordatorio? No se puede deshacer.',
+      `¿Eliminar ${editando?.descripcion ? `«${editando.descripcion}»` : 'este aviso'}?`,
+      'Lo dejan de ver todos en la familia. No se puede recuperar.',
       async () => {
         setEliminando(true);
         setFormError('');
@@ -286,13 +297,13 @@ export default function AddReminderScreen({ navigation, route }) {
       style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <HealthFormTopbar navigation={navigation} title={isEditing ? 'Editar recordatorio' : 'Nuevo recordatorio'} />
+      <HealthFormTopbar navigation={navigation} title={(isEditing ? TITULO_EDITAR : TITULO_NUEVO)[tipo] || (isEditing ? 'Editar aviso' : 'Nuevo aviso')} />
 
       <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: 20 + inset }]}>
         <View style={styles.card}>
           {miembros.length > 0 && (
             <OptionPicker
-              label="¿Para quién es?"
+              label="¿Para quién?"
               options={miembros.map((m) => m.etiqueta)}
               value={paraEtiqueta}
               onChange={(etiqueta) => setParaClave(miembros.find((m) => m.etiqueta === etiqueta)?.clave || '')}
@@ -300,13 +311,43 @@ export default function AddReminderScreen({ navigation, route }) {
             />
           )}
 
-          <Text style={styles.label}>Tipo de recordatorio</Text>
+          <Text style={styles.label}>¿Qué es?</Text>
           <SegmentedControl
             options={TIPO_OPTIONS}
             selectedValue={tipo}
-            onChange={setTipo}
+            onChange={(v) => { setTipo(v); setTipoError(false); }}
             style={styles.segmented}
           />
+          {tipoError && <Text style={styles.errorCampo} accessibilityRole="alert">Elegí qué es: una dosis, un turno o una vacuna.</Text>}
+
+          {tipo === 'medicacion' ? (
+            <View style={dosColumnas ? styles.twoCols : null}>
+              <FormField
+                inputRef={ref('medicamento')}
+                label="Medicamento"
+                value={descripcion}
+                onChangeText={(t) => { setDescripcion(t); setMedicamentoError(false); }}
+                placeholder="Losartán"
+                error={medicamentoError ? 'Escribí el nombre del medicamento.' : ''}
+                style={[styles.field, dosColumnas && styles.col]}
+              />
+              <FormField
+                label="Dosis (opcional)"
+                value={dosis}
+                onChangeText={setDosis}
+                placeholder="50 mg, 1 comprimido"
+                style={[styles.field, dosColumnas && styles.col]}
+              />
+            </View>
+          ) : tipo ? (
+            <FormField
+              label={tipo === 'control' ? '¿Con quién o dónde? (opcional)' : '¿Qué vacuna? (opcional)'}
+              value={descripcion}
+              onChangeText={setDescripcion}
+              placeholder={tipo === 'control' ? 'Dra. Paz, cardióloga' : 'Antigripal'}
+              style={styles.field}
+            />
+          ) : null}
 
           <View style={dosColumnas ? styles.twoCols : null}>
             <DatePickerField
@@ -321,7 +362,7 @@ export default function AddReminderScreen({ navigation, route }) {
               mode="date"
               minimumDate={rangoRecordatorio().min}
               maximumDate={rangoRecordatorio().max}
-              error={fechaError ? 'Este campo es obligatorio' : ''}
+              error={fechaError ? 'Elegí la fecha.' : ''}
               style={[styles.field, dosColumnas && styles.col]}
             />
             <DatePickerField
@@ -334,24 +375,15 @@ export default function AddReminderScreen({ navigation, route }) {
                 if (fechaHoraError) setFechaHoraError('');
               }}
               mode="time"
-              error={horaError ? 'Este campo es obligatorio' : fechaHoraError}
+              error={horaError ? 'Elegí la hora.' : fechaHoraError}
               style={[styles.field, dosColumnas && styles.col]}
             />
           </View>
 
-          <FormField
-            label="Descripción (opcional)"
-            value={descripcion}
-            onChangeText={setDescripcion}
-            placeholder="Detalles del recordatorio…"
-            multiline
-            style={styles.field}
-          />
-
           {!isEditing && (
             <View style={styles.field}>
               <OptionPicker
-                label="Repetir (opcional)"
+                label="¿Se repite? (opcional)"
                 options={Object.keys(REPETICIONES)}
                 value={repeticion}
                 onChange={(v) => {
@@ -380,27 +412,6 @@ export default function AddReminderScreen({ navigation, route }) {
             </View>
           )}
 
-          {isEditing && (
-            <View style={[styles.field, styles.switchRow]}>
-              <View style={styles.switchText}>
-                <Text style={styles.switchLabel}>Recordatorio activo</Text>
-                <Text style={styles.switchHelp}>
-                  {estabaActivo
-                    ? 'Si lo desactivás, deja de figurar como pendiente.'
-                    : 'Este recordatorio ya está desactivado.'}
-                </Text>
-              </View>
-              <Switch
-                value={activo}
-                onValueChange={setActivo}
-                disabled={!estabaActivo}
-                trackColor={{ false: colors.borderInput, true: colors.accentStrong }}
-                thumbColor={colors.onAccent}
-                accessibilityLabel="Recordatorio activo"
-              />
-            </View>
-          )}
-
           {!!formError && (
             <View style={styles.field}>
               <ErrorBanner message={formError} />
@@ -409,7 +420,7 @@ export default function AddReminderScreen({ navigation, route }) {
 
           <View style={styles.formActions}>
             <PrimaryButton
-              title={isEditing ? 'Guardar cambios' : 'Guardar'}
+              title={isEditing ? 'Guardar cambios' : GUARDAR[tipo] || 'Guardar'}
               onPress={handleGuardar}
               loading={saving}
               success={saved}
@@ -421,9 +432,9 @@ export default function AddReminderScreen({ navigation, route }) {
                 contentStyle={styles.deleteBtn}
                 onPress={confirmarEliminar}
                 disabled={saving || eliminando}
-                accessibilityLabel="Eliminar recordatorio"
+                accessibilityLabel="Eliminar este aviso"
               >
-                <Text style={styles.deleteText}>{eliminando ? 'Eliminando…' : 'Eliminar recordatorio'}</Text>
+                <Text style={styles.deleteText}>{eliminando ? 'Eliminando…' : 'Eliminar este aviso'}</Text>
               </PressScale>
             )}
           </View>
@@ -434,6 +445,7 @@ export default function AddReminderScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
+  errorCampo: { fontSize: 14, lineHeight: 20, fontFamily: poppinsWeight('600'), color: '#A6291B', marginTop: -8, marginBottom: 16 },
   root: {
     flex: 1,
     backgroundColor: colors.bg,
